@@ -65,5 +65,20 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     echo "VM $VMID: IP=$IP, Access Ports=$WEB_PORTS"
 done
 
+echo "VMs:"
+qm list | awk 'NR > 1 {print $1}' | while read VMID; do
+    # Extract raw JSON output
+    RAW_DATA=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '.["out-data"]')
+
+    # Parse for the primary external IP
+    IP=$(echo "$RAW_DATA" | awk '/inet / && $4 !~ /127\.0\.0\.1/ && $4 !~ /172\.30/ {print $4}' | cut -d/ -f1 | head -n 1)
+    if [ -z "$IP" ]; then
+        IP="No IP Assigned"
+    fi
+
+    # Output the result
+    echo "VM $VMID: IP=$IP"
+done
+
 
 echo "-------------------------------------------------------------"
