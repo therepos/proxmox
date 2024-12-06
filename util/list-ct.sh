@@ -9,8 +9,14 @@ echo "-------------------------------------------------------------"
 # Helper function to detect web-accessible ports dynamically
 detect_web_ports() {
     ID=$1
-    # Check for open ports and filter likely web-related ports
-    WEB_PORTS=$(pct exec "$ID" -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | sort -n | uniq)
+    IS_CONTAINER=$2
+    if [ "$IS_CONTAINER" = "true" ]; then
+        # For containers
+        WEB_PORTS=$(pct exec "$ID" -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | sort -n | uniq)
+    else
+        # For VMs
+        WEB_PORTS=$(qm guest exec "$ID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | sort -n | uniq)
+    fi
 
     # Narrow down to ports typically used for web access
     FILTERED_PORTS=$(echo "$WEB_PORTS" | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | tr '\n' ',' | sed 's/,$//')
@@ -30,7 +36,7 @@ pct list | awk 'NR > 1 {print $1, $2}' | while read CTID STATUS; do
     [ -z "$IP" ] && IP="No IP Assigned"
 
     # Detect web ports
-    PORTS=$(detect_web_ports "$CTID")
+    PORTS=$(detect_web_ports "$CTID" "true")
 
     # Output
     echo "CT $CTID: Status=$STATUS, IP=$IP, Access Ports=$PORTS"
@@ -38,7 +44,10 @@ done
 
 echo ""
 echo "VMs:"
-qm list | awk 'NR > 1 {print $1, $2}' | while read VMID STATUS; do
+qm list | awk 'NR > 1 {print $1}' | while read VMID; do
+    # Get the VM's status
+    STATUS=$(qm status "$VMID" | awk '{print $2}')
+
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
         # Extract and clean raw out-data
@@ -52,7 +61,7 @@ qm list | awk 'NR > 1 {print $1, $2}' | while read VMID STATUS; do
         fi
 
         # Detect web-accessible ports dynamically
-        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+        WEB_PORTS=$(detect_web_ports "$VMID" "false")
 
         if [ -z "$WEB_PORTS" ]; then
             WEB_PORTS="No Recognized Web Ports"
