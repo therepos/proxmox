@@ -20,7 +20,7 @@ $STD apt-get install -y mc
 msg_ok "Installed Dependencies"
 
 msg_info "Installing VS Code Server"
-curl -fsSL https://code-server.dev/install.sh | sh
+curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
 # Ensure binary is moved to /opt/code-server for consistent placement
 mkdir -p /opt/code-server
 cp $(which code-server) /opt/code-server/code-server

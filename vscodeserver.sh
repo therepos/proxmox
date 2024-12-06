@@ -62,7 +62,6 @@ if (( $(df /boot | awk 'NR==2{gsub("%","",$5); print $5}') > 80 )); then
   [[ ${prompt,,} =~ ^(y|yes)$ ]] || exit
 fi
 
-# wget -qL https://static.adguard.com/adguardhome/release/AdGuardHome_linux_amd64.tar.gz
 msg_info "Stopping code-server service"
 systemctl stop code-server
 msg_ok "Stopped code-server service"
