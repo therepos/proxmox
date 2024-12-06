@@ -9,4 +9,4 @@ For example:
 
 Uninstall
 
-```bash -c "$(wget -qLO - https://github.com/therepos/proxmox/raw/main/<name_of_script>-uninstall.sh)"```
+```bash -c "$(wget -qLO - https://github.com/therepos/proxmox/raw/main/ct/<name_of_script>-uninstall.sh)"```
