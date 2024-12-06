@@ -73,5 +73,4 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     echo "VM $VMID: Status=$STATUS, IP=$IP, Access Ports=$WEB_PORTS"
 done
 
-
 echo "-------------------------------------------------------------"
