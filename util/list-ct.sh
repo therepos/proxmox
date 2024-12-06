@@ -44,10 +44,7 @@ done
 
 echo ""
 echo "VMs:"
-qm list | awk 'NR > 1 {print $1}' | while read VMID; do
-    # Get the VM's status
-    STATUS=$(qm status "$VMID" | awk '{print $2}')
-
+qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
         # Extract and clean raw out-data
@@ -61,7 +58,7 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
         fi
 
         # Detect web-accessible ports dynamically
-        WEB_PORTS=$(detect_web_ports "$VMID" "false")
+        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
 
         if [ -z "$WEB_PORTS" ]; then
             WEB_PORTS="No Recognized Web Ports"
@@ -75,5 +72,6 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Output
     echo "VM $VMID: Status=$STATUS, IP=$IP, Access Ports=$WEB_PORTS"
 done
+
 
 echo "-------------------------------------------------------------"
