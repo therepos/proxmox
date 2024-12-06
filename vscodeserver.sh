@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
-source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/lib/build.func)
-
 # bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/vscodeserver.sh)"
 # bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/vscodeserver.sh)"
+
+source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/lib/build.func)
+
 # Modified by: therepos
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
