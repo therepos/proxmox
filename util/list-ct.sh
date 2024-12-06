@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/main/util/list-ct.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/main/util/list-ct.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
 
 echo "Listing container IPs and open ports:"
 echo "-------------------------------------------"
