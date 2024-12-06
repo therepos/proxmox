@@ -5,6 +5,9 @@
 # License: MIT
 # https://github.com/tteck/Proxmox/raw/main/LICENSE
 
+# Define the variable here
+PORT="8081"  
+
 source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
 color
 verb_ip6
@@ -34,7 +37,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/code-server/code-server --host 0.0.0.0 --port 8081 --auth none --disable-telemetry
+ExecStart=/opt/code-server/code-server --host 0.0.0.0 --port ${PORT} --auth none --disable-telemetry
 WorkingDirectory=/opt/code-server
 Restart=always
 RestartSec=10
@@ -53,10 +56,3 @@ msg_info "Cleaning up"
 $STD apt-get -y autoremove
 $STD apt-get -y autoclean
 msg_ok "Cleaned"
-
-# [Service]
-# Type=simple
-# User=root
-# ExecStart=/usr/bin/code-server --host 0.0.0.0 --port 8081 --auth none --disable-telemetry
-# Restart=always
-# # Environment=PASSWORD=yourpassword

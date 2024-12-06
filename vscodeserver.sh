@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
+
 source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/lib/build.func)
+
+# Modified by: therepos
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
 # License: MIT
@@ -13,13 +16,13 @@ cat <<"EOF"
  \ \ / / __|/ __/ _ \ / _` |/ _ \/ __|/ _ \ '__\ \ / / _ \ '__|
   \ V /\__ \ (_| (_) | (_| |  __/\__ \  __/ |   \ V /  __/ |   
    \_/ |___/\___\___/ \__,_|\___||___/\___|_|    \_/ \___|_|                            
- 
 EOF
 }
 header_info
 echo -e "Loading..."
 APP="VSCodeServer"
 SVC="code-server"
+PORT="8081"
 var_disk="2"
 var_cpu="2"
 var_ram="8192"
@@ -55,7 +58,7 @@ function default_settings() {
 
 function update_script() {
 header_info
-if [[ ! -d /opt/code-server ]]; then msg_error "No ${APP} Installation Found!"; exit; fi
+if [[ ! -d /opt/${SVC} ]]; then msg_error "No ${APP} Installation Found!"; exit; fi
 
 # Storage check
 if (( $(df /boot | awk 'NR==2{gsub("%","",$5); print $5}') > 80 )); then
@@ -63,27 +66,26 @@ if (( $(df /boot | awk 'NR==2{gsub("%","",$5); print $5}') > 80 )); then
   [[ ${prompt,,} =~ ^(y|yes)$ ]] || exit
 fi
 
-msg_info "Stopping code-server service"
-systemctl stop code-server
-msg_ok "Stopped code-server service"
+msg_info "Stopping ${SVC} service"
+systemctl stop "${SVC}"
+msg_ok "Stopped ${SVC} service"
 
-msg_info "Updating code-server"
+msg_info "Updating ${SVC}"
 curl -fsSL https://code-server.dev/install.sh | sh || {
-    msg_error "Failed to update code-server";
+    msg_error "Failed to update ${SVC}";
     exit
 }
-msg_ok "Updated code-server"
+msg_ok "Updated ${SVC}"
 
-msg_info "Starting code-server service"
-systemctl start code-server || msg_error "Failed to start code-server"; exit
-msg_ok "Started code-server service"
+msg_info "Starting ${SVC} service"
+systemctl start "${SVC}" || msg_error "Failed to start ${SVC}"; exit
+msg_ok "Started ${SVC} service"
 
 msg_info "Cleaning Up"
-rm -rf /tmp/code-server-installation-files  # Adjust if temp files are used
+rm -rf /tmp/${SVC}-installation-files  # Adjust if temp files are used
 msg_ok "Cleaned up installation files"
-msg_ok "VS Code Server Updated Successfully"
+msg_ok "${APP} Updated Successfully"
 exit
-
 }
 
 # Calls build.func
@@ -93,4 +95,4 @@ description
 
 msg_ok "Completed Successfully!\n"
 echo -e "${APP} Setup should be reachable by going to the following URL.
-         ${BL}http://${IP}:8081${CL} \n"
+         ${BL}http://${IP}:${PORT}${CL} \n"
