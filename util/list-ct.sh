@@ -1,12 +1,10 @@
 #!/bin/bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
+echo "Listing IPs and web-accessible ports for Containers and VMs:"
+echo "-------------------------------------------------------------"
 
-echo "Listing container IPs and open ports:"
-echo "-------------------------------------------"
-
-# Get a list of all container IDs
+# List all containers (CTs)
+echo "Containers:"
 pct list | awk 'NR > 1 {print $1}' | while read CTID; do
     # Get the container's IP address
     IP=$(pct exec $CTID -- ip -4 -o addr show eth0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
@@ -16,16 +14,40 @@ pct list | awk 'NR > 1 {print $1}' | while read CTID; do
         IP="No IP Assigned"
     fi
 
-    # Get the open ports in the container
-    PORTS=$(pct exec $CTID -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    # Get the open ports in the container and filter for web-accessible ports
+    PORTS=$(pct exec $CTID -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443)$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
 
-    # Fallback for containers with no open ports
+    # Fallback for containers with no web-accessible ports
     if [ -z "$PORTS" ]; then
-        PORTS="No Ports Open"
+        PORTS="No Web Ports Open"
     fi
 
-    # Display the container ID, IP, and open ports
-    echo "CT $CTID: IP=$IP, Ports=[$PORTS]"
+    # Display the container ID, IP, and filtered ports
+    echo "CT $CTID: IP=$IP, Web Ports=[$PORTS]"
 done
 
-echo "-------------------------------------------"
+echo ""
+echo "VMs:"
+# List all VMs
+qm list | awk 'NR > 1 {print $1}' | while read VMID; do
+    # Get the VM's IP address using the guest agent
+    IP=$(qm guest exec $VMID -- ip -4 -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+    
+    # Fallback for VMs with no IP
+    if [ -z "$IP" ]; then
+        IP="No IP Assigned"
+    fi
+
+    # Get the open ports in the VM and filter for web-accessible ports
+    PORTS=$(qm guest exec $VMID -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443)$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+
+    # Fallback for VMs with no web-accessible ports
+    if [ -z "$PORTS" ]; then
+        PORTS="No Web Ports Open"
+    fi
+
+    # Display the VM ID, IP, and filtered ports
+    echo "VM $VMID: IP=$IP, Web Ports=[$PORTS]"
+done
+
+echo "-------------------------------------------------------------"
