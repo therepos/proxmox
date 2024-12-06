@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# Appsource: https://coder.com/docs/code-server/install#installsh
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
 # License: MIT
