@@ -27,19 +27,21 @@ else
     msg_ok "LXC container $LXC_NAME not found"
 fi
 
-# Step 2: Clean Up Container Files
-msg_info "Cleaning up container files"
-STORAGE_PATH=$(pvesm list local | grep $LXC_NAME | awk '{print $2}')
+# Step 2: Detect Storage Dynamically
+msg_info "Detecting storage volume for $LXC_NAME"
+STORAGE_NAME=$(pvesm list | grep $LXC_NAME | awk '{print $1}')
+STORAGE_PATH=$(pvesm list | grep $LXC_NAME | awk '{print $2}')
 if [ -n "$STORAGE_PATH" ]; then
     rm -rf "$STORAGE_PATH" && msg_ok "Removed storage files from $STORAGE_PATH" || msg_error "Failed to remove storage files from $STORAGE_PATH"
 else
     msg_ok "No residual storage files found for $LXC_NAME"
 fi
 
-# Step 3: Remove Additional Configurations and Logs
+# Step 3: Remove Configuration and Log Files (Verify Existence)
 msg_info "Removing residual configuration and logs"
-rm -rf /etc/pve/lxc/$LXC_NAME.conf /var/lib/lxc/$LXC_NAME /var/log/lxc/$LXC_NAME*
-msg_ok "Removed configuration and log files"
+[ -f /etc/pve/lxc/$LXC_NAME.conf ] && rm -f /etc/pve/lxc/$LXC_NAME.conf && msg_ok "Removed configuration file" || msg_ok "Configuration file not found"
+[ -d /var/lib/lxc/$LXC_NAME ] && rm -rf /var/lib/lxc/$LXC_NAME && msg_ok "Removed LXC directory" || msg_ok "LXC directory not found"
+[ -d /var/log/lxc/ ] && rm -f /var/log/lxc/$LXC_NAME* && msg_ok "Removed LXC logs" || msg_ok "LXC logs not found"
 
 # Step 4: Reload Proxmox Services to Apply Changes
 msg_info "Reloading Proxmox services"
