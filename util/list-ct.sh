@@ -41,14 +41,14 @@ echo "VMs:"
 qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
-        # Get the VM's primary external IP (exclude loopback and internal networks)
-        IP=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | awk '/inet / && $4 !~ /127\.0\.0\.1|172\.30/ {print $4}' | cut -d/ -f1 | head -n 1)
+        # Parse the JSON output to get IP details
+        IP=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '.["out-data"]' | awk '/inet / && $4 !~ /127\.0\.0\.1|172\.30/ {print $4}' | cut -d/ -f1 | head -n 1)
         if [ -z "$IP" ]; then
             IP="No IP Assigned"
         fi
 
         # Detect web-accessible ports dynamically
-        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | tr '\n' ',' | sed 's/,$//')
+        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | tr '\n' ',' | sed 's/,$//')
         if [ -z "$WEB_PORTS" ]; then
             WEB_PORTS="No Recognized Web Ports"
         fi
@@ -61,7 +61,5 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Output
     echo "VM $VMID: IP=$IP, Access Ports=$WEB_PORTS"
 done
-
-
 
 echo "-------------------------------------------------------------"
