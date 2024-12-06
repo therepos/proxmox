@@ -45,7 +45,7 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
         RAW_DATA=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '.["out-data"]' | sed 's/\\//g')
 
         # Parse for the primary external IP (exclude loopback and internal IPs)
-        IP=$(echo "$RAW_DATA" | awk '/inet / && $2 !~ /127\.0\.0\.1/ && $2 !~ /(hassio|docker0)/ {print $4}' | cut -d/ -f1 | head -n 1)
+        IP=$(echo "$RAW_DATA" | awk '!/127\.0\.0\.1/ && /inet / && !/(hassio|docker0)/ {print $4}' | cut -d/ -f1 | head -n 1)
         if [ -z "$IP" ]; then
             IP="No IP Assigned"
         fi
