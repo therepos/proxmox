@@ -7,6 +7,7 @@ source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/lib/bui
 # Author: tteck (tteckster)
 # License: MIT
 # https://github.com/therepos/proxmox/raw/main/LICENSE
+# Art: https://patorjk.com/software/taag/#p=display&f=Big&t=vscodeserver 
 
 function header_info {
 clear
