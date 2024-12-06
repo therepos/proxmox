@@ -40,7 +40,7 @@ echo ""
 echo "VMs:"
 qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Get the VM's IP
-    IP=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+    IP=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | awk '/inet / && $2 !~ /127.0.0.1/ {print $2}' | cut -d/ -f1)
     [ -z "$IP" ] && IP="No IP Assigned"
 
     # Detect web-accessible ports dynamically (requires guest agent)
