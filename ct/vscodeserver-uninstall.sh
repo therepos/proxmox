@@ -26,19 +26,24 @@ fi
 
 # Step 3: Detect and Free Storage
 msg_info "Detecting storage volumes for $LXC_NAME"
-for STORAGE in $(pvesm list | grep "$LXC_NAME" | awk '{print $1}'); do
-    msg_info "Freeing storage volume: $STORAGE"
-    pvesm free "$STORAGE" && msg_ok "Freed $STORAGE" || msg_error "Failed to free $STORAGE"
-done
+STORAGES=$(pvesm status -content rootdir | awk 'NR>1 {print $1}')
+if [ -z "$STORAGES" ]; then
+    msg_ok "No storage volumes found for $LXC_NAME"
+else
+    for STORAGE in $STORAGES; do
+        msg_info "Checking storage: $STORAGE for volumes related to $LXC_NAME"
+        VOLUMES=$(pvesm list $STORAGE | grep "$LXC_NAME" | awk '{print $1}')
+        for VOLUME in $VOLUMES; do
+            msg_info "Freeing storage volume: $VOLUME in $STORAGE"
+            pvesm free $VOLUME && msg_ok "Freed $VOLUME" || msg_error "Failed to free $VOLUME"
+        done
+    done
+fi
 
 # Step 4: Remove Configuration and Log Files
 msg_info "Removing residual configuration and logs"
 [ -f /etc/pve/lxc/$LXC_NAME.conf ] && rm -f /etc/pve/lxc/$LXC_NAME.conf && msg_ok "Removed configuration file" || msg_ok "Configuration file not found"
 [ -d /var/lib/lxc/$LXC_NAME ] && rm -rf /var/lib/lxc/$LXC_NAME && msg_ok "Removed LXC directory" || msg_ok "LXC directory not found"
 [ -d /var/log/lxc/ ] && rm -f /var/log/lxc/$LXC_NAME* && msg_ok "Removed LXC logs" || msg_ok "LXC logs not found"
-
-# Step 5: Reload Proxmox Services
-msg_info "Reloading Proxmox services"
-systemctl restart pvedaemon pveproxy pvestatd && msg_ok "Proxmox services reloaded" || msg_error "Failed to reload Proxmox services"
 
 msg_ok "Clean uninstallation of container $LXC_NAME completed successfully"
