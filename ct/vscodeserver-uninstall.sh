@@ -16,10 +16,15 @@ else
 fi
 
 # Step 2: Stop and Destroy LXC Container
-msg_info "Stopping LXC container: $LXC_NAME"
 if pct status "$LXC_NAME" &>/dev/null; then
     pct stop "$LXC_NAME" && msg_ok "Stopped LXC container" || msg_error "Failed to stop LXC container"
-    pct destroy "$LXC_NAME" && msg_ok "Destroyed LXC container" || msg_error "Failed to destroy LXC container"
+    pct destroy "$LXC_NAME" && msg_ok "Destroyed LXC container" || {
+        msg_error "Failed to destroy LXC container; attempting force cleanup"
+        rm -rf /var/lib/lxc/$LXC_NAME
+        rm -f /etc/pve/lxc/$LXC_NAME.conf
+        rm -f /var/log/lxc/$LXC_NAME*
+        msg_ok "Force cleaned container $LXC_NAME"
+    }
 else
     msg_ok "LXC container $LXC_NAME not found"
 fi
