@@ -47,12 +47,13 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
         # Parse for the primary external IP (exclude loopback and internal IPs)
         IP=$(echo "$RAW_DATA" | awk '!/127\.0\.0\.1/ && /inet / && !/(hassio|docker0)/ {print $4}' | cut -d/ -f1 | head -n 1)
 
-        if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
+        if [ -z "$IP" ]; then
             IP="No IP Assigned"
         fi
 
         # Detect web-accessible ports dynamically
-        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | tr '\n' ',' | sed 's/,$//')
+        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '.["out-data"]' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+        
         if [ -z "$WEB_PORTS" ]; then
             WEB_PORTS="No Recognized Web Ports"
         fi
