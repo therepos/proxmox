@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 
-source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/vscodeserver.sh)
-
-# Transform APP and SVC to lowercase and remove spaces
-variables() {
-  LXC_NAME=$(echo ${APP,,} | tr -d ' ')
-  SVC_NAME=$(echo ${SVC,,} | tr -d ' ')
-}
+LXC_NAME="vscodeserver"
+SVC_NAME="code-server"
 
 msg_info() { echo -e "ℹ️  $1"; }
 msg_ok() { echo -e "✅  $1"; }
