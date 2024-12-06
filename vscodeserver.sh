@@ -19,6 +19,7 @@ EOF
 header_info
 echo -e "Loading..."
 APP="VSCodeServer"
+SVC="code-server"
 var_disk="2"
 var_cpu="2"
 var_ram="8192"
