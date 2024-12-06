@@ -41,8 +41,11 @@ echo "VMs:"
 qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
-        # Parse the "out-data" field from JSON and filter for external IP
-        IP=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '.["out-data"]' | awk '/inet / && $4 !~ /127\.0\.0\.1/ && $4 !~ /172\.30/ {print $4}' | cut -d/ -f1 | head -n 1)
+        # Extract out-data from JSON
+        OUT_DATA=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '.["out-data"]')
+
+        # Parse the OUT_DATA to find the primary IP (exclude lo, hassio, docker0)
+        IP=$(echo "$OUT_DATA" | awk '/inet / && $2 !~ /127\.0\.0\.1|hassio|docker0/ {print $4}' | cut -d/ -f1 | head -n 1)
         if [ -z "$IP" ]; then
             IP="No IP Assigned"
         fi
@@ -61,5 +64,6 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
     # Output
     echo "VM $VMID: IP=$IP, Access Ports=$WEB_PORTS"
 done
+
 
 echo "-------------------------------------------------------------"
