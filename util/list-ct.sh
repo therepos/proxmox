@@ -46,7 +46,8 @@ qm list | awk 'NR > 1 {print $1}' | while read VMID; do
 
         # Parse for the primary external IP (exclude loopback and internal IPs)
         IP=$(echo "$RAW_DATA" | awk '!/127\.0\.0\.1/ && /inet / && !/(hassio|docker0)/ {print $4}' | cut -d/ -f1 | head -n 1)
-        if [ -z "$IP" ]; then
+
+        if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
             IP="No IP Assigned"
         fi
 
