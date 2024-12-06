@@ -7,12 +7,6 @@ msg_info() { echo -e "ℹ️  $1"; }
 msg_ok() { echo -e "✅  $1"; }
 msg_error() { echo -e "❌  $1"; }
 
-# Ensure variables are set
-if [ -z "$APP" ] || [ -z "$SVC" ]; then
-    msg_error "Required variables (APP, SVC) not loaded from vscodeserver.sh."
-    exit 1
-fi
-
 # Step 1: Stop Associated Service
 msg_info "Stopping service: $SVC_NAME"
 if systemctl is-active --quiet "$SVC_NAME"; then
