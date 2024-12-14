@@ -53,5 +53,5 @@ run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo -e "${GREEN}✔${RESET} Data collection complete. Output saved to ${OUTPUT_FILE}."
+echo -e "${GREEN} Data collection complete. Output saved to ${OUTPUT_FILE}."
 
