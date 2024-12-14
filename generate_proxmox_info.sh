@@ -25,9 +25,9 @@ run_task() {
 
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        echo -e "${GREEN}✔${RESET} Collecting $description"
+        echo -e "${GREEN}${RESET} Collecting $description"
     else
-        echo -e "${RED}✘${RESET} Collecting $description"
+        echo -e "${RED}${RESET} Collecting $description"
     fi
 }
 
