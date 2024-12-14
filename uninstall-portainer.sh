@@ -47,16 +47,28 @@ else
 fi
 
 # Clean up any orphaned Docker volumes and networks
-print_status "success" "Cleaning up orphaned Docker volumes and networks"
-run_silent docker system prune -af
+if docker volume ls | grep -q orphaned; then
+    print_status "success" "Cleaning up orphaned Docker volumes and networks"
+    run_silent docker system prune -af
+else
+    print_status "failure" "No orphaned Docker volumes or networks found"
+fi
 
 # Remove any remaining Portainer configuration files and directories
-print_status "success" "Removing any remaining Portainer configuration files and directories"
-run_silent rm -rf /var/lib/docker/volumes/portainer_data
+if [ -d "/var/lib/docker/volumes/portainer_data" ]; then
+    print_status "success" "Removing remaining Portainer configuration files"
+    run_silent rm -rf /var/lib/docker/volumes/portainer_data
+else
+    print_status "failure" "Portainer configuration files not found"
+fi
 
 # Clean up Docker-related files (optional)
-print_status "success" "Cleaning up any remaining Docker-related files"
-run_silent rm -rf /var/lib/docker/containers/* /var/lib/docker/images/* /var/lib/docker/volumes/*
+if [ -d "/var/lib/docker/containers" ] || [ -d "/var/lib/docker/images" ] || [ -d "/var/lib/docker/volumes" ]; then
+    print_status "success" "Cleaning up any remaining Docker-related files"
+    run_silent rm -rf /var/lib/docker/containers/* /var/lib/docker/images/* /var/lib/docker/volumes/*
+else
+    print_status "failure" "No remaining Docker-related files found"
+fi
 
 # Final completion message
 print_status "success" "Portainer uninstallation complete!"
