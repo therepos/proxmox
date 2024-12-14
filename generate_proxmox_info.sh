@@ -6,19 +6,28 @@
 # Define the output file
 OUTPUT_FILE="proxmox_info_$(date +%Y%m%d).log"
 
-# Function to run a command and provide status feedback
+# Prologue
+echo "Proxmox Information Collection Script"
+echo "-------------------------------------"
+
+# Function to run a task with dynamic status and feedback
 run_task() {
     local description="$1"
     local command="$2"
+
+    # Show collecting status
+    echo -n "Collecting $description... "
     echo -e "\n### $description ###" >> $OUTPUT_FILE
+
+    # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        echo -e "✔ $description"
+        echo -e "\033[32m✔\033[0m"  # Green tick for success
     else
-        echo -e "✘ $description"
+        echo -e "\033[31m✘\033[0m"  # Red cross for failure
     fi
 }
 
-# Start collecting data
+# Start collecting information
 run_task "Proxmox Version Info" "pveversion -v"
 run_task "ZFS Pool Status" "zpool status"
 run_task "ZFS Filesystems" "zfs list"
@@ -37,6 +46,9 @@ run_task "DMIDECODE Information" "dmidecode"
 run_task "GPU Details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage Details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
-echo -e "\nData collection complete. Output saved to $OUTPUT_FILE."
+# Epilogue
+echo "Information collected and saved to $OUTPUT_FILE."
+echo "Upload the file to GitHub or share it as needed."
+
 
 
