@@ -50,27 +50,23 @@ run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Enhanced: Determine root device and Proxmox installation details
-echo -e "\n### Determining root device and Proxmox installation details ###" >> $OUTPUT_FILE
-{
-    echo "Root filesystem mountpoint (from df):"
+run_task "Determining root device and Proxmox installation details" \
+"{
+    echo \"Root filesystem mountpoint (from df):\"
     df -h /
 
-    echo "\nZFS dataset for root (from zfs list):"
+    echo \"\nZFS dataset for root (from zfs list):\"
     zfs list | grep '/$'
 
-    echo "\nBlock device details for root (from lsblk):"
+    echo \"\nBlock device details for root (from lsblk):\"
     lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,SERIAL | grep ' /$'
 
-    echo "\nDisk and partition details for the root ZFS pool (from fdisk):"
-    zfs list -o name | grep 'rpool' | while read -r pool; do
-        zpool status "$pool" | grep -E 'nvme[0-9]n[0-9]' >> "$OUTPUT_FILE"
+    echo \"\nDisk and partition details for the root ZFS pool (from fdisk):\"
+    root_pools=$(zfs list -o name | grep 'rpool')
+    for pool in $root_pools; do
+        zpool status \"$pool\" | grep -E 'nvme[0-9]n[0-9]'
     done
-} >> $OUTPUT_FILE 2>&1
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN} Determining root device and Proxmox installation details"
-else
-    echo -e "${RED} Determining root device and Proxmox installation details"
-fi
+}"
 
 # Epilogue
 echo -e "${GREEN} Data collection complete. Output saved to ${OUTPUT_FILE}.${RESET}"
