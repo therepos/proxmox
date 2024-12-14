@@ -3,7 +3,7 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 
-# Define colors for status messages
+# Define colors for status messages (already include tick and cross)
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
@@ -25,11 +25,11 @@ run_task() {
 
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        # Success message with a single tick
-        echo -e "${GREEN} Collecting $description"
+        # Output success message with pre-defined tick
+        echo -e "${GREEN}${RESET} Collecting $description"
     else
-        # Failure message with a single cross
-        echo -e "${RED} Collecting $description"
+        # Output failure message with pre-defined cross
+        echo -e "${RED}${RESET} Collecting $description"
     fi
 }
 
@@ -53,5 +53,6 @@ run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo -e "${GREEN} Data collection complete. Output saved to ${OUTPUT_FILE}."
+echo -e "${GREEN} Data collection complete. Output saved to ${OUTPUT_FILE}.${RESET}"
+
 
