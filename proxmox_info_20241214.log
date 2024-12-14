@@ -1,0 +1,192 @@
+### Proxmox Version Info ###
+proxmox-ve: 8.3.0 (running kernel: 6.8.12-5-pve)
+pve-manager: 8.3.1 (running version: 8.3.1/fb48e850ef9dde27)
+proxmox-kernel-helper: 8.1.0
+proxmox-kernel-6.8: 6.8.12-5
+proxmox-kernel-6.8.12-5-pve-signed: 6.8.12-5
+proxmox-kernel-6.8.4-2-pve-signed: 6.8.4-2
+ceph-fuse: 17.2.7-pve3
+corosync: 3.1.7-pve3
+criu: 3.17.1-2
+glusterfs-client: 10.3-5
+ifupdown2: 3.2.0-1+pmx11
+ksm-control-daemon: 1.5-1
+libjs-extjs: 7.0.0-5
+libknet1: 1.28-pve1
+libproxmox-acme-perl: 1.5.1
+libproxmox-backup-qemu0: 1.4.1
+libproxmox-rs-perl: 0.3.4
+libpve-access-control: 8.2.0
+libpve-apiclient-perl: 3.3.2
+libpve-cluster-api-perl: 8.0.10
+libpve-cluster-perl: 8.0.10
+libpve-common-perl: 8.2.9
+libpve-guest-common-perl: 5.1.6
+libpve-http-server-perl: 5.1.2
+libpve-network-perl: 0.10.0
+libpve-rs-perl: 0.9.1
+libpve-storage-perl: 8.3.2
+libspice-server1: 0.15.1-1
+lvm2: 2.03.16-2
+lxc-pve: 6.0.0-1
+lxcfs: 6.0.0-pve2
+novnc-pve: 1.5.0-1
+proxmox-backup-client: 3.3.2-1
+proxmox-backup-file-restore: 3.3.2-2
+proxmox-firewall: 0.6.0
+proxmox-kernel-helper: 8.1.0
+proxmox-mail-forward: 0.3.1
+proxmox-mini-journalreader: 1.4.0
+proxmox-offline-mirror-helper: 0.6.7
+proxmox-widget-toolkit: 4.3.3
+pve-cluster: 8.0.10
+pve-container: 5.2.2
+pve-docs: 8.3.1
+pve-edk2-firmware: 4.2023.08-4
+pve-esxi-import-tools: 0.7.2
+pve-firewall: 5.1.0
+pve-firmware: 3.14-2
+pve-ha-manager: 4.0.6
+pve-i18n: 3.3.2
+pve-qemu-kvm: 9.0.2-4
+pve-xtermjs: 5.3.0-3
+qemu-server: 8.3.2
+smartmontools: 7.3-pve1
+spiceterm: 3.3.0
+swtpm: 0.8.0+pve1
+vncterm: 1.8.0
+zfsutils-linux: 2.2.6-pve1
+
+### ZFS Pool Status ###
+  pool: rpool
+ state: ONLINE
+config:
+
+	NAME                                               STATE     READ WRITE CKSUM
+	rpool                                              ONLINE       0     0     0
+	  nvme-eui.ace42e003554b1072ee4ac0000000001-part3  ONLINE       0     0     0
+	  nvme-eui.0000000624098476caf25b0320000086-part3  ONLINE       0     0     0
+
+errors: No known data errors
+
+### ZFS Filesystems ###
+NAME               USED  AVAIL  REFER  MOUNTPOINT
+rpool             2.21G  4.52T   104K  /rpool
+rpool/ROOT        2.21G  4.52T    96K  /rpool/ROOT
+rpool/ROOT/pve-1  2.21G  4.52T  2.21G  /
+rpool/data          96K  4.52T    96K  /rpool/data
+rpool/var-lib-vz    96K  4.52T    96K  /var/lib/vz
+
+### Storage Configuration ###
+dir: local
+	path /var/lib/vz
+	content iso,vztmpl,backup
+
+zfspool: local-zfs
+	pool rpool/data
+	sparse
+	content images,rootdir
+
+### Disk Layout ###
+NAME          SIZE FSTYPE     MOUNTPOINT
+nvme1n1     953.9G            
+├─nvme1n1p1  1007K            
+├─nvme1n1p2     1G vfat       
+└─nvme1n1p3 952.9G zfs_member 
+nvme0n1       3.7T            
+├─nvme0n1p1  1007K            
+├─nvme0n1p2     1G vfat       
+└─nvme0n1p3   3.7T zfs_member 
+
+### Mounted Filesystems ###
+Filesystem       Type      Size  Used Avail Use% Mounted on
+udev             devtmpfs   32G     0   32G   0% /dev
+tmpfs            tmpfs     6.3G  1.9M  6.3G   1% /run
+rpool/ROOT/pve-1 zfs       4.6T  2.3G  4.6T   1% /
+tmpfs            tmpfs      32G   37M   32G   1% /dev/shm
+tmpfs            tmpfs     5.0M     0  5.0M   0% /run/lock
+efivarfs         efivarfs  192K  164K   24K  88% /sys/firmware/efi/efivars
+/dev/fuse        fuse      128M   16K  128M   1% /etc/pve
+rpool            zfs       4.6T  128K  4.6T   1% /rpool
+rpool/var-lib-vz zfs       4.6T  128K  4.6T   1% /var/lib/vz
+rpool/ROOT       zfs       4.6T  128K  4.6T   1% /rpool/ROOT
+rpool/data       zfs       4.6T  128K  4.6T   1% /rpool/data
+tmpfs            tmpfs     6.3G     0  6.3G   0% /run/user/0
+
+### Network Configuration ###
+auto lo
+iface lo inet loopback
+
+iface enp5s0 inet manual
+
+auto vmbr0
+iface vmbr0 inet static
+	address 192.168.10.111/24
+	gateway 192.168.10.1
+	bridge-ports enp5s0
+	bridge-stp off
+	bridge-fd 0
+
+iface enp4s0 inet manual
+
+iface wlo1 inet manual
+
+
+source /etc/network/interfaces.d/*
+
+### CPU Information ###
+Architecture:                         x86_64
+CPU op-mode(s):                       32-bit, 64-bit
+Address sizes:                        46 bits physical, 48 bits virtual
+Byte Order:                           Little Endian
+CPU(s):                               28
+On-line CPU(s) list:                  0-27
+Vendor ID:                            GenuineIntel
+BIOS Vendor ID:                       Intel(R) Corporation
+Model name:                           Intel(R) Core(TM) i7-14700
+BIOS Model name:                      Intel(R) Core(TM) i7-14700 To Be Filled By O.E.M. CPU @ 4.8GHz
+BIOS CPU family:                      198
+CPU family:                           6
+Model:                                183
+Thread(s) per core:                   2
+Core(s) per socket:                   20
+Socket(s):                            1
+Stepping:                             1
+CPU(s) scaling MHz:                   27%
+CPU max MHz:                          5400.0000
+CPU min MHz:                          800.0000
+BogoMIPS:                             4224.00
+Flags:                                fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq tme rdpid movdiri movdir64b fsrm md_clear serialize pconfig arch_lbr ibt flush_l1d arch_capabilities
+Virtualization:                       VT-x
+L1d cache:                            768 KiB (20 instances)
+L1i cache:                            1 MiB (20 instances)
+L2 cache:                             28 MiB (11 instances)
+L3 cache:                             33 MiB (1 instance)
+NUMA node(s):                         1
+NUMA node0 CPU(s):                    0-27
+Vulnerability Gather data sampling:   Not affected
+Vulnerability Itlb multihit:          Not affected
+Vulnerability L1tf:                   Not affected
+Vulnerability Mds:                    Not affected
+Vulnerability Meltdown:               Not affected
+Vulnerability Mmio stale data:        Not affected
+Vulnerability Reg file data sampling: Vulnerable: No microcode
+Vulnerability Retbleed:               Not affected
+Vulnerability Spec rstack overflow:   Not affected
+Vulnerability Spec store bypass:      Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:             Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:             Mitigation; Enhanced / Automatic IBRS; IBPB conditional; RSB filling; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S
+Vulnerability Srbds:                  Not affected
+Vulnerability Tsx async abort:        Not affected
+
+### Memory Status ###
+               total        used        free      shared  buff/cache   available
+Mem:            62Gi       2.6Gi        60Gi        48Mi       245Mi        59Gi
+Swap:             0B          0B          0B
+
+### VM List ###
+
+### LXC Container List ###
+
+### Complete Hardware Information ###
+main: line 23: lshw: command not found
