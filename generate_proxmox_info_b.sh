@@ -56,16 +56,18 @@ run_task "Determining root device and Proxmox installation details" \
     df -h /
 
     echo \"\nZFS dataset for root (from zfs list):\"
-    zfs list | grep '/$'
+    root_dataset=\$(zfs list | grep '/$' | awk '{print \$1}')
+    echo \"\$root_dataset\"
 
     echo \"\nBlock device details for root (from lsblk):\"
     lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,SERIAL | grep ' /$'
 
-    echo \"\nDisk and partition details for the root ZFS pool (from fdisk):\"
-    root_pools=$(zfs list -o name | grep 'rpool')
-    for pool in $root_pools; do
-        zpool status \"$pool\" | grep -E 'nvme[0-9]n[0-9]'
-    done
+    echo \"\nDisk and partition details for the root ZFS pool (from zpool status):\"
+    if [[ -n \"\$root_dataset\" ]]; then
+        zpool status | grep -E 'nvme[0-9]n[0-9]'
+    else
+        echo \"Root dataset not found. Check ZFS configuration.\"
+    fi
 }"
 
 # Epilogue
