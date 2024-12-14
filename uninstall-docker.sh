@@ -12,6 +12,11 @@ print_status() {
     fi
 }
 
+# Function to run commands silently, suppressing output
+run_silent() {
+    "$@" > /dev/null 2>&1
+}
+
 # Stop Docker service
 print_status "success" "Stopping Docker service"
 systemctl stop docker
