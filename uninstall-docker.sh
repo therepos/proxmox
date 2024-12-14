@@ -19,42 +19,75 @@ run_silent() {
 
 # Stop Docker service
 print_status "success" "Stopping Docker service"
-systemctl stop docker
+if systemctl stop docker > /dev/null 2>&1; then
+    print_status "success" "Docker service stopped"
+else
+    print_status "failure" "Docker service not found or already stopped"
+fi
 
 # Remove Docker packages
 print_status "success" "Removing Docker packages"
-apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+if run_silent apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras -q; then
+    print_status "success" "Docker packages removed"
+else
+    print_status "failure" "Docker packages removal failed"
+fi
 
 # Remove ZFS if you want to clean it up as well
 print_status "success" "Removing ZFS utilities (optional)"
-apt-get purge -y zfsutils-linux
+if run_silent apt-get purge -y zfsutils-linux -q; then
+    print_status "success" "ZFS utilities removed"
+else
+    print_status "failure" "ZFS utilities removal failed"
+fi
 
 # Remove Docker configuration files and directories
 print_status "success" "Removing Docker configuration files and directories"
-rm -rf /etc/docker /var/lib/docker /var/lib/containerd /var/run/docker
+if run_silent rm -rf /etc/docker /var/lib/docker /var/lib/containerd /var/run/docker; then
+    print_status "success" "Docker configuration files removed"
+else
+    print_status "failure" "Failed to remove Docker configuration files"
+fi
 
 # Clean up any remaining Docker-related files (volumes, networks, etc.)
 print_status "success" "Removing Docker volumes, networks, and images"
-docker system prune -af
+if run_silent docker system prune -af; then
+    print_status "success" "Docker volumes and networks removed"
+else
+    print_status "failure" "Docker volumes and networks removal failed"
+fi
 
 # Remove Docker from systemd
 print_status "success" "Disabling and removing Docker systemd service"
-systemctl disable docker
-rm /etc/systemd/system/docker.service /etc/systemd/system/docker.socket
+if run_silent systemctl disable docker && run_silent rm /etc/systemd/system/docker.service /etc/systemd/system/docker.socket; then
+    print_status "success" "Docker systemd service disabled and removed"
+else
+    print_status "failure" "Docker systemd service removal failed"
+fi
 
 # Remove Docker's GPG key and repository
 print_status "success" "Removing Docker GPG key and repository"
-rm /etc/apt/sources.list.d/docker.list
-rm /etc/apt/trusted.gpg.d/docker-archive-keyring.gpg
+if run_silent rm /etc/apt/sources.list.d/docker.list && run_silent rm /etc/apt/trusted.gpg.d/docker-archive-keyring.gpg; then
+    print_status "success" "Docker GPG key and repository removed"
+else
+    print_status "failure" "Failed to remove Docker GPG key and repository"
+fi
 
 # Remove other Docker-related files (optional)
 print_status "success" "Removing other Docker-related files"
-rm -rf /var/lib/docker-compose
+if run_silent rm -rf /var/lib/docker-compose; then
+    print_status "success" "Other Docker-related files removed"
+else
+    print_status "failure" "Failed to remove other Docker-related files"
+fi
 
 # Clean up any orphaned packages
 print_status "success" "Cleaning up orphaned packages"
-apt-get autoremove -y
-apt-get clean
+if run_silent apt-get autoremove -y -q && run_silent apt-get clean -q; then
+    print_status "success" "Orphaned packages cleaned up"
+else
+    print_status "failure" "Orphaned package cleanup failed"
+fi
 
 # Verify Docker removal
 if ! command -v docker &> /dev/null; then
