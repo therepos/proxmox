@@ -12,17 +12,22 @@ print_status() {
     fi
 }
 
+# Function to run commands silently, suppressing output
+run_silent() {
+    "$@" > /dev/null 2>&1
+}
+
 # Update system packages
 print_status "success" "Updating system packages"
-apt-get update -y
+run_silent apt-get update -y
 
 # Install necessary dependencies for Docker and ZFS
 print_status "success" "Installing dependencies for Docker and ZFS"
-apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release zfsutils-linux
+run_silent apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release zfsutils-linux
 
 # Add Docker’s official GPG key
 print_status "success" "Adding Docker GPG key"
-curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 
 # Set up the Docker stable repository
 print_status "success" "Setting up Docker repository"
@@ -30,11 +35,11 @@ echo "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -c
 
 # Update package index again after adding Docker repository
 print_status "success" "Updating package index"
-apt-get update -y
+run_silent apt-get update -y
 
 # Install Docker CE (Community Edition)
 print_status "success" "Installing Docker"
-apt-get install -y docker-ce docker-ce-cli containerd.io
+run_silent apt-get install -y docker-ce docker-ce-cli containerd.io
 
 # Verify Docker installation
 docker --version && print_status "success" "Docker installed successfully"
@@ -47,7 +52,7 @@ echo '{
 
 # Restart Docker service
 print_status "success" "Restarting Docker service"
-systemctl restart docker
+run_silent systemctl restart docker
 
 # Verify Docker is using ZFS storage driver
 if docker info | grep -q "Storage Driver: zfs"; then
