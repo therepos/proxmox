@@ -3,11 +3,16 @@
 # wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 # curl -s https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 
+# Define colors for status messages
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+RESET="\e[0m"
+
 # Define the output file
 OUTPUT_FILE="proxmox_info_$(date +%Y%m%d).log"
 
 # Prologue
-echo -e "\033[1mProxmox Information Collection Script\033[0m"
+echo -e "${RESET}Proxmox Information Collection Script"
 echo -e "-------------------------------------"
 
 # Function to run a task with colored dynamic feedback
@@ -21,30 +26,30 @@ run_task() {
 
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        echo -e "\033[32m✔\033[0m"  # Green tick for success
+        echo -e "${GREEN}"  # Green tick for success
     else
-        echo -e "\033[31m✘\033[0m"  # Red cross for failure
+        echo -e "${RED}"    # Red cross for failure
     fi
 }
 
 # Start collecting information
-run_task "Proxmox Version Info" "pveversion -v"
-run_task "ZFS Pool Status" "zpool status"
-run_task "ZFS Filesystems" "zfs list"
-run_task "CPU Information" "lscpu"
-run_task "Memory Information" "free -h"
-run_task "PCI Devices" "lspci -nnk"
-run_task "Block Devices" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL"
-run_task "Mounted Filesystems" "df -hT"
-run_task "Network Interfaces" "ip -br a"
-run_task "Kernel Version" "uname -a"
-run_task "Running Services" "systemctl list-units --type=service --state=running"
-run_task "Listening Ports" "ss -tuln"
+run_task "Proxmox version information" "pveversion -v"
+run_task "ZFS pool status" "zpool status"
+run_task "ZFS filesystems" "zfs list"
+run_task "CPU information" "lscpu"
+run_task "Memory information" "free -h"
+run_task "PCI devices" "lspci -nnk"
+run_task "Block devices" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL"
+run_task "Mounted filesystems" "df -hT"
+run_task "Network interfaces" "ip -br a"
+run_task "Kernel version" "uname -a"
+run_task "Running services" "systemctl list-units --type=service --state=running"
+run_task "Listening ports" "ss -tuln"
 run_task "Uptime" "uptime"
-run_task "Last Reboot" "who -b"
-run_task "DMIDECODE Information" "dmidecode"
-run_task "GPU Details" "lspci -vnn | grep -A 12 VGA"
-run_task "Storage Details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
+run_task "Last reboot" "who -b"
+run_task "DMIDECODE information" "dmidecode"
+run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
+run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo -e "\033[32mData collection complete. Output saved to $OUTPUT_FILE.\033[0m"
+echo -e "${GREEN}Data collection complete. Output saved to $OUTPUT_FILE.${RESET}"
