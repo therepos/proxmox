@@ -25,9 +25,11 @@ run_task() {
 
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        echo -e "${GREEN}${RESET} Collecting $description"
+        # Success message with a single tick
+        echo -e "${GREEN}✔${RESET} Collecting $description"
     else
-        echo -e "${RED}${RESET} Collecting $description"
+        # Failure message with a single cross
+        echo -e "${RED}✘${RESET} Collecting $description"
     fi
 }
 
@@ -51,5 +53,5 @@ run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo -e "${GREEN}${RESET} Data collection complete. Output saved to ${OUTPUT_FILE}."
+echo -e "${GREEN}✔${RESET} Data collection complete. Output saved to ${OUTPUT_FILE}."
 
