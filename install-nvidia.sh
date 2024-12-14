@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidia.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidia.sh | bash
+
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
