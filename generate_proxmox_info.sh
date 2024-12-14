@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 # curl -s https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 
 # Define colors for status messages
