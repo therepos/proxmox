@@ -13,22 +13,26 @@ echo -e "${RESET}Proxmox Information Collection Script"
 echo -e "-------------------------------------"
 
 # Function to run a task with colored dynamic feedback
-run_task() {
-    local description="$1"
-    local command="$2"
+run_task "Determining root device and Proxmox installation details" \
+"{
+    echo \"Root filesystem mountpoint (from df):\"
+    df -h /
 
-    # Append header to log file
-    echo -e "\n### $description ###" >> $OUTPUT_FILE
+    echo \"\nZFS dataset for root (from zfs list):\"
+    root_dataset=\$(zfs list | awk '/\\/ \\$/ {print \$1}')
+    echo \"\$root_dataset\"
 
-    # Run the command and provide feedback
-    if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        # Output success message with pre-defined tick
-        echo -e "${GREEN} $description"
-    else
-        # Output failure message with pre-defined cross
-        echo -e "${RED} $description"
+    if [[ -z \"\$root_dataset\" ]]; then
+        echo \"Error: Root dataset could not be identified.\"
+        exit 1
     fi
-}
+
+    echo \"\nBlock device details for root (from lsblk):\"
+    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,SERIAL | grep ' /$'
+
+    echo \"\nDisk and partition details for the root ZFS pool (from zpool status):\"
+    zpool status rpool | awk '/nvme/ {print \$1}'
+}"
 
 # Start collecting information
 run_task "Proxmox version information" "pveversion -v"
