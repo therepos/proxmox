@@ -25,10 +25,10 @@ run_silent apt-get update -y
 print_status "success" "Installing required dependencies for NVIDIA driver"
 run_silent apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-# Add the NVIDIA package repositories
+# Add the NVIDIA package repositories and fix the GPG key issue
 print_status "success" "Adding NVIDIA package repository"
-run_silent curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
-run_silent curl -s -L https://nvidia.github.io/nvidia-docker/debian/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
+curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | tee /etc/apt/trusted.gpg.d/nvidia.asc > /dev/null
+curl -fsSL https://nvidia.github.io/nvidia-docker/debian/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list > /dev/null
 
 # Install the NVIDIA driver
 print_status "success" "Installing NVIDIA driver"
