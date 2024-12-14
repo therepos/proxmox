@@ -27,7 +27,7 @@ run_silent apt-get install -y apt-transport-https ca-certificates curl gnupg lsb
 
 # Add Docker’s official GPG key
 print_status "success" "Adding Docker GPG key"
-run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - > /dev/null 2>&1
 
 # Set up the Docker stable repository
 print_status "success" "Setting up Docker repository"
@@ -42,7 +42,7 @@ print_status "success" "Installing Docker"
 run_silent apt-get install -y docker-ce docker-ce-cli containerd.io
 
 # Verify Docker installation
-docker --version && print_status "success" "Docker installed successfully"
+docker --version > /dev/null 2>&1 && print_status "success" "Docker installed successfully"
 
 # Configure Docker to use ZFS as the storage driver
 print_status "success" "Configuring Docker to use ZFS as storage driver"
