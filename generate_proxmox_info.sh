@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget -qO- https://raw.githubusercontent.com/yourusername/yourrepo/main/generate_proxmox_info.sh | bash
-# curl -s https://raw.githubusercontent.com/yourusername/yourrepo/main/generate_proxmox_info.sh | bash
+# wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
+# curl -s https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
 
 # Define the output file
 OUTPUT_FILE="proxmox_info_$(date +%Y%m%d).txt"
