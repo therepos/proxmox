@@ -20,32 +20,36 @@ run_task() {
     local description="$1"
     local command="$2"
 
-    # Show collecting status
-    echo -n "Collecting $description... "
+    # Append header to log file
     echo -e "\n### $description ###" >> $OUTPUT_FILE
 
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
-        echo -e "${GREEN}✔${RESET}"  # Green tick for success
+        echo -e "${GREEN}✔${RESET} Collecting $description"
     else
-        echo -e "${RED}✘${RESET}"    # Red cross for failure
+        echo -e "${RED}✘${RESET} Collecting $description"
     fi
 }
 
 # Start collecting information
 run_task "Proxmox version information" "pveversion -v"
 run_task "ZFS pool status" "zpool status"
-run_task "ZFS filesystem information" "zfs list"
-run_task "storage configuration" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
-run_task "disk layout" "fdisk -l"
-run_task "mounted filesystems" "df -hT"
-run_task "network configuration" "ip -br a"
+run_task "ZFS filesystems" "zfs list"
 run_task "CPU information" "lscpu"
-run_task "memory status" "free -h"
-run_task "VM list" "qm list"
-run_task "LXC container list" "pct list"
-run_task "complete hardware information" "dmidecode"
+run_task "Memory information" "free -h"
+run_task "PCI devices" "lspci -nnk"
+run_task "Block devices" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL"
+run_task "Mounted filesystems" "df -hT"
+run_task "Network interfaces" "ip -br a"
+run_task "Kernel version" "uname -a"
+run_task "Running services" "systemctl list-units --type=service --state=running"
+run_task "Listening ports" "ss -tuln"
+run_task "Uptime" "uptime"
+run_task "Last reboot" "who -b"
+run_task "DMIDECODE information" "dmidecode"
+run_task "GPU details" "lspci -vnn | grep -A 12 VGA"
+run_task "Storage details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo -e "\nInformation collected and saved to ${OUTPUT_FILE}."
+echo -e "${GREEN}✔${RESET} Data collection complete. Output saved to ${OUTPUT_FILE}."
 
