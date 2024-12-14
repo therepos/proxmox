@@ -7,10 +7,10 @@
 OUTPUT_FILE="proxmox_info_$(date +%Y%m%d).log"
 
 # Prologue
-echo "Proxmox Information Collection Script"
-echo "-------------------------------------"
+echo -e "\033[1mProxmox Information Collection Script\033[0m"
+echo -e "-------------------------------------"
 
-# Function to run a task with dynamic status and feedback
+# Function to run a task with colored dynamic feedback
 run_task() {
     local description="$1"
     local command="$2"
@@ -47,8 +47,4 @@ run_task "GPU Details" "lspci -vnn | grep -A 12 VGA"
 run_task "Storage Details" "lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,TRAN"
 
 # Epilogue
-echo "Information collected and saved to $OUTPUT_FILE."
-echo "Upload the file to GitHub or share it as needed."
-
-
-
+echo -e "\033[32mData collection complete. Output saved to $OUTPUT_FILE.\033[0m"
