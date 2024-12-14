@@ -26,10 +26,10 @@ run_task() {
     # Run the command and provide feedback
     if eval "$command" >> $OUTPUT_FILE 2>&1; then
         # Success message with a single tick
-        echo -e "${GREEN}✔${RESET} Collecting $description"
+        echo -e "${GREEN} Collecting $description"
     else
         # Failure message with a single cross
-        echo -e "${RED}✘${RESET} Collecting $description"
+        echo -e "${RED} Collecting $description"
     fi
 }
 
