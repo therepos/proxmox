@@ -21,16 +21,11 @@ wget https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x8
 chmod +x NVIDIA-Linux-x86_64-550.135.run
 
 # Run the driver installation script
-sudo ./NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d 
-
-# sudo ./NVIDIA-Linux-x86_64-550.135.run -a -s -N --no-drm --log-file=/tmp/nvidia-installer.log
+sudo ./NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --update-xconfig --silent
 
 # Update and install CUDA keyring
 sudo apt update
 sudo apt install -y cuda-keyring
-
-# Verify 
-nvidia-smi
 
 : <<'EOF'
 #The -y flag skips confirmation for autoremove.
@@ -46,6 +41,15 @@ wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/li
 wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/nvidia-container-toolkit_1.17.3-1_amd64.deb
 sudo dpkg -i libnvidia-container1_1.17.3-1_amd64.deb
 sudo dpkg -i nvidia-container-toolkit_1.17.3-1_amd64.deb
+
+# Verify NVIDIA driver version:
+nvidia-smi
+
+# Verify the DKMS module:
+dkms status
+
+# Ensure the X configuration file is updated:
+cat /etc/X11/xorg.conf
 
 EOF
 
