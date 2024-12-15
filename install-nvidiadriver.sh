@@ -3,6 +3,8 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 
+#!/usr/bin/env bash
+
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
@@ -58,17 +60,17 @@ if [ ! -f "$STEP_KERNEL_HEADERS" ]; then
     else
         if run_silent apt install -y build-essential $KERNEL_HEADERS; then
             print_status "success" "Kernel headers and build-essential installed successfully"
+            touch "$STEP_KERNEL_HEADERS"
         else
             print_status "failure" "Failed to install kernel headers. Verify your Proxmox setup."
             exit 1
         fi
     fi
-    touch "$STEP_KERNEL_HEADERS"
 fi
 
 # Step 4: Install Additional Dependencies
+DEPENDENCIES="pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1"
 if [ ! -f "$STEP_DEPENDENCIES" ]; then
-    DEPENDENCIES="pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1"
     print_status "success" "Installing additional dependencies"
     if run_silent apt install -y $DEPENDENCIES; then
         print_status "success" "Additional dependencies installed successfully"
@@ -105,16 +107,7 @@ if [ ! -f "$STEP_DRIVER_INSTALL" ]; then
     fi
 fi
 
-# Step 7: Verify NVIDIA Driver
-print_status "success" "Verifying NVIDIA driver installation"
-if run_silent nvidia-smi; then
-    print_status "success" "NVIDIA driver verified successfully"
-else
-    print_status "failure" "NVIDIA driver verification failed. Check hardware or logs."
-    exit 1
-fi
-
-# Step 8: Install CUDA Keyring
+# Step 7: Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     print_status "success" "Installing CUDA keyring"
     if run_silent apt update && run_silent apt install -y cuda-keyring; then
@@ -126,16 +119,18 @@ if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     fi
 fi
 
-# Cleanup
-cleanup() {
-    TEMP_FILES=("/tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run")
-    for file in "${TEMP_FILES[@]}"; do
-        if rm -f "$file" > /dev/null 2>&1; then
-            print_status "success" "Cleaned up temporary file: $file"
-        else
-            print_status "failure" "Failed to clean up temporary file: $file"
-        fi
-    done
-}
-cleanup
+# Step 8: Verify NVIDIA Driver
+print_status "success" "Verifying NVIDIA driver installation"
+if nvidia-smi > /dev/null 2>&1; then
+    print_status "success" "NVIDIA driver verified successfully"
+else
+    print_status "failure" "NVIDIA driver verification failed. Check hardware or logs."
+    exit 1
+fi
 
+# Cleanup Temporary Files
+print_status "success" "Cleaning up temporary files"
+run_silent rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
+run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNEL_HEADERS" "$STEP_DEPENDENCIES" "$STEP_DRIVER_DOWNLOAD" "$STEP_DRIVER_INSTALL" "$STEP_CUDA_KEYRING"
+
+print_status "success" "NVIDIA driver installation completed successfully"
