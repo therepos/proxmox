@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
+
 # Add the NVIDIA package repositories
 distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
    && curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
