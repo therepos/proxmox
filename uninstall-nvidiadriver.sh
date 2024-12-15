@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
+
 # Uninstall NVIDIA Drivers Script
 # Run this script as root or with sudo
 
