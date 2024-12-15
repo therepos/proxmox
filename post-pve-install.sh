@@ -5,6 +5,8 @@
 # License: MIT
 # https://github.com/tteck/Proxmox/raw/main/LICENSE
 
+echo "v1"
+
 header_info() {
   clear
   cat <<"EOF"
