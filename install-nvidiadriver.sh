@@ -21,7 +21,7 @@ wget https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x8
 chmod +x NVIDIA-Linux-x86_64-550.135.run
 
 # Run the driver installation script
-sudo ./NVIDIA-Linux-x86_64-550.135.run --silent --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d 
+sudo ./NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d 
 
 # sudo ./NVIDIA-Linux-x86_64-550.135.run -a -s -N --no-drm --log-file=/tmp/nvidia-installer.log
 
