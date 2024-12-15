@@ -3,6 +3,8 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
 
+#!/bin/bash
+
 # Define default port
 DEFAULT_PORT=32768
 PORT=${1:-$DEFAULT_PORT} # Use user-defined port if provided, otherwise use default
@@ -42,12 +44,6 @@ if ! check_command nvidia-container-runtime; then
   systemctl restart docker
 else
   echo "NVIDIA Container Toolkit is already installed."
-fi
-
-# Verify NVIDIA drivers and toolkit
-if ! docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi > /dev/null 2>&1; then
-  echo "NVIDIA drivers or container toolkit is not properly configured. Please check your setup."
-  exit 1
 fi
 
 # Pull Open WebUI Docker image
