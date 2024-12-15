@@ -30,6 +30,7 @@ nvidia-smi
 
 : <<'EOF'
 #The -y flag skips confirmation for autoremove.
+sudo ./NVIDIA-Linux-x86_64-550.135.run --uninstall
 apt-get remove --purge '^nvidia-.*'
 apt-get autoremove -y 
 
@@ -41,9 +42,6 @@ wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/li
 wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/nvidia-container-toolkit_1.17.3-1_amd64.deb
 sudo dpkg -i libnvidia-container1_1.17.3-1_amd64.deb
 sudo dpkg -i nvidia-container-toolkit_1.17.3-1_amd64.deb
-
-#
-sudo ./NVIDIA-Linux-x86_64-550.135.run --uninstall
 
 EOF
 
