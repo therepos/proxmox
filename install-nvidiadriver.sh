@@ -51,5 +51,9 @@ dkms status
 # Ensure the X configuration file is updated:
 cat /etc/X11/xorg.conf
 
+# Find
+sudo find / -name nvidia-uninstall 2>/dev/null
+
+
 EOF
 
