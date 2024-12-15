@@ -20,7 +20,7 @@ run_silent() {
     "$@" > /dev/null 2>&1
 }
 
-echo "ver 3"
+echo "ver 5"
 
 # Update system and install prerequisites
 print_status "Updating system and installing prerequisites"
@@ -60,6 +60,10 @@ run_silent echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/key
 print_status "Updating package lists and installing Docker"
 run_silent sudo apt update
 run_silent sudo apt install -y docker-ce docker-ce-cli containerd.io
+
+# Install NVIDIA Container Toolkit for GPU support
+print_status "Installing NVIDIA Container Toolkit (runtime)"
+run_silent sudo apt install -y nvidia-container-runtime
 
 # Configure Docker for ZFS storage driver and NVIDIA runtime
 print_status "Configuring Docker for ZFS storage driver and NVIDIA runtime"
