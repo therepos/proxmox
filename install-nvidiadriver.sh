@@ -3,8 +3,6 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 
-#!/usr/bin/env bash
-
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
@@ -14,10 +12,15 @@ print_status() {
     fi
 }
 
-# Enhanced Function to run commands silently and handle errors
+# Function to print error messages
+print_error() {
+    echo -e "\033[0;31m✘\033[0m $1"
+}
+
+# Function to run commands silently and handle errors
 run_silent() {
     if ! "$@" > /dev/null 2>&1; then
-        echo -e "\033[0;31m✘\033[0m Error while executing: $*"
+        print_error "Error while executing: $*"
         return 1
     fi
 }
@@ -144,3 +147,4 @@ run_silent rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
 run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNEL_HEADERS" "$STEP_DEPENDENCIES" "$STEP_DRIVER_DOWNLOAD" "$STEP_DRIVER_INSTALL" "$STEP_CUDA_KEYRING"
 
 print_status "success" "NVIDIA driver installation completed successfully"
+
