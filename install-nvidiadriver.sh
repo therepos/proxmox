@@ -5,11 +5,11 @@ echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
 echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
 sudo update-initramfs -u
 
-# Append to end of file
-echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' >> ~/.bashrc
-
 # Install dependencies
 sudo apt install -y build-essential pve-headers-$(uname -r) pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1
+
+# Append to end of file
+echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' >> ~/.bashrc
 
 # Download NVIDIA driver
 wget https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x86_64-550.135.run
