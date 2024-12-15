@@ -120,14 +120,18 @@ if [ ! -f "$STEP_DRIVER_INSTALL" ]; then
     fi
 fi
 
-# Step 7: Install CUDA Keyring
+# Step 7: Add CUDA Repository and Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
-    print_status "success" "Installing CUDA keyring"
-    if run_silent apt update && run_silent apt install -y cuda-keyring; then
-        print_status "success" "CUDA keyring installed successfully"
+    print_status "success" "Adding NVIDIA CUDA repository and installing CUDA keyring"
+    if run_silent curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg && \
+       run_silent echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" | \
+       tee /etc/apt/sources.list.d/cuda.list > /dev/null && \
+       run_silent apt update && \
+       run_silent apt install -y cuda-keyring; then
+        print_status "success" "CUDA repository added and CUDA keyring installed successfully"
         touch "$STEP_CUDA_KEYRING"
     else
-        print_error "Failed to install CUDA keyring"
+        print_error "Failed to add NVIDIA CUDA repository or install CUDA keyring"
         exit 1
     fi
 fi
@@ -147,4 +151,5 @@ run_silent rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
 run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNEL_HEADERS" "$STEP_DEPENDENCIES" "$STEP_DRIVER_DOWNLOAD" "$STEP_DRIVER_INSTALL" "$STEP_CUDA_KEYRING"
 
 print_status "success" "NVIDIA driver installation completed successfully"
+
 
