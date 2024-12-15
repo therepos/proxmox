@@ -1,4 +1,4 @@
-ho#!/bin/bash
+#!/bin/bash
 
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
