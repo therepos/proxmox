@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 
 # Blacklist nouveau driver
