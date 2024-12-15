@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
+
 source <(curl -s https://raw.githubusercontent.com/tteck/Proxmox/main/misc/build.func)
 # Copyright (c) 2021-2024 tteck
 # Author: tteck
