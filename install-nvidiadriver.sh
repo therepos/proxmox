@@ -123,8 +123,13 @@ fi
 # Step 7: Add CUDA Repository and Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     print_status "success" "Adding NVIDIA CUDA repository and installing CUDA keyring"
+    
+    # Remove any conflicting repository entries
+    run_silent rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list /etc/apt/sources.list.d/cuda.list
+
+    # Add the NVIDIA CUDA repository with a consistent signing key
     if run_silent curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg && \
-       run_silent echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" | \
+       echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" | \
        tee /etc/apt/sources.list.d/cuda.list > /dev/null && \
        run_silent apt update && \
        run_silent apt install -y cuda-keyring; then
