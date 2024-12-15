@@ -3,7 +3,7 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
 
-#!/bin/bash
+echo "ver2"
 
 # Define default port
 DEFAULT_PORT=32768
