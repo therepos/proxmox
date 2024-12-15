@@ -127,9 +127,9 @@ if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     # Remove any conflicting repository entries
     run_silent rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list /etc/apt/sources.list.d/cuda.list
 
-    # Add NVIDIA CUDA key
-    if run_silent curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg; then
-        print_status "success" "NVIDIA CUDA key added successfully"
+    # Add NVIDIA CUDA key (always overwrite existing file)
+    if curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg; then
+        print_status "success" "NVIDIA CUDA key added successfully (overwritten if it existed)"
     else
         print_error "Failed to fetch or add NVIDIA CUDA key"
         exit 1
