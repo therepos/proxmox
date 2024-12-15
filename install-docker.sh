@@ -25,17 +25,19 @@ print_status "Updating system and installing prerequisites"
 run_silent sudo apt update
 run_silent sudo apt install -y apt-transport-https ca-certificates curl software-properties-common zfsutils-linux gnupg lsb-release
 
-# Check if Docker GPG key already exists
-if [ ! -f /usr/share/keyrings/docker-archive-keyring.gpg ]; then
-    print_status "Adding Docker GPG key"
-    if run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; then
-        print_status "Docker GPG key added successfully"
-    else
-        print_error "Failed to add Docker GPG key"
-        exit 1
-    fi
+# Remove existing Docker GPG key if it exists
+if [ -f /usr/share/keyrings/docker-archive-keyring.gpg ]; then
+    print_status "Removing existing Docker GPG key"
+    sudo rm /usr/share/keyrings/docker-archive-keyring.gpg
+fi
+
+# Add Docker GPG key
+print_status "Adding Docker GPG key"
+if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; then
+    print_status "Docker GPG key added successfully"
 else
-    print_status "Docker GPG key already exists, skipping"
+    print_error "Failed to add Docker GPG key"
+    exit 1
 fi
 
 # Add Docker repository (use Bullseye for Debian Bookworm compatibility)
