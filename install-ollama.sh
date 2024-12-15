@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-ollama.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-ollama.sh | bash
+
 # Function to check if NVIDIA drivers are installed
 check_nvidia_driver() {
     if command -v nvidia-smi &> /dev/null; then
