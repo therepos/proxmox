@@ -20,14 +20,9 @@ print_status "Updating system and installing prerequisites"
 sudo apt update
 sudo apt install -y apt-transport-https ca-certificates curl software-properties-common zfsutils-linux gnupg lsb-release
 
-# Add Docker's official GPG key (overwrite if it exists)
+# Add Docker's official GPG key
 print_status "Adding Docker GPG key"
-if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/docker-archive-keyring.gpg; then
-    print_status "Docker GPG key added successfully"
-else
-    print_error "Failed to add Docker GPG key"
-    exit 1
-fi
+curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
 # Add Docker repository (use Bullseye for Debian Bookworm compatibility)
 print_status "Adding Docker repository"
@@ -39,28 +34,24 @@ print_status "Updating package lists and installing Docker"
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io
 
-# Fix networking warnings (enable bridge-nf-call-iptables and bridge-nf-call-ip6tables)
-print_status "Fixing networking warnings for Docker"
-sudo modprobe br_netfilter
-echo "br_netfilter" | sudo tee /etc/modules-load.d/br_netfilter.conf > /dev/null
-sudo tee /etc/sysctl.d/99-docker.conf > /dev/null <<EOF
-net.bridge.bridge-nf-call-iptables=1
-net.bridge.bridge-nf-call-ip6tables=1
-EOF
-sudo sysctl --system
-
 # Configure Docker for ZFS storage driver
 print_status "Configuring Docker for ZFS storage driver"
 DOCKER_CONFIG="/etc/docker/daemon.json"
 if [ ! -f "$DOCKER_CONFIG" ]; then
     sudo tee "$DOCKER_CONFIG" > /dev/null <<EOF
 {
-    "storage-driver": "zfs"
+    "storage-driver": "zfs",
+    "runtimes": {
+        "nvidia": {
+            "path": "nvidia-container-runtime",
+            "runtimeArgs": []
+        }
+    }
 }
 EOF
 else
-    print_status "Updating existing Docker configuration for ZFS"
-    sudo jq '. + {"storage-driver": "zfs"}' "$DOCKER_CONFIG" > /tmp/daemon.json
+    print_status "Updating existing Docker configuration for ZFS and NVIDIA runtime"
+    sudo jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
     sudo mv /tmp/daemon.json "$DOCKER_CONFIG"
 fi
 
@@ -77,7 +68,16 @@ else
     exit 1
 fi
 
-# Optional: Test Docker with a sample container
+# Test NVIDIA Container Toolkit
+print_status "Testing NVIDIA runtime with Docker"
+if docker run --rm --runtime=nvidia nvidia/cuda:11.0-base nvidia-smi; then
+    print_status "NVIDIA runtime test passed successfully"
+else
+    print_error "NVIDIA runtime test failed. Ensure NVIDIA drivers and Container Toolkit are installed."
+    exit 1
+fi
+
+# Test Docker with a simple container
 print_status "Testing Docker with a simple container"
 if docker run --rm hello-world; then
     print_status "Docker test container ran successfully"
@@ -87,3 +87,4 @@ else
 fi
 
 print_status "Docker installation and configuration completed successfully"
+
