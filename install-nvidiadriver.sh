@@ -11,17 +11,16 @@ sudo update-initramfs -u
 # Install dependencies
 sudo apt install -y build-essential pve-headers-$(uname -r) pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1
 
-# Append to end of file
-echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' >> ~/.bashrc
+# Ensure the PKG_CONFIG_PATH configuration is not duplicated in ~/.bashrc
+if ! grep -q '^export PKG_CONFIG_PATH=\$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' ~/.bashrc; then
+    echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' >> ~/.bashrc
+    echo "Added PKG_CONFIG_PATH configuration to ~/.bashrc"
+else
+    echo "PKG_CONFIG_PATH configuration already exists in ~/.bashrc"
+fi
 
-# Download NVIDIA driver
-wget https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x86_64-550.135.run
-
-# Make the driver script executable
-chmod +x NVIDIA-Linux-x86_64-550.135.run
-
-# Run the driver installation script
-sudo ./NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --update-xconfig --silent
+# Download and execute NVIDIA driver installer directly
+wget -qO- https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x86_64-550.135.run | bash -s -- --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --update-xconfig --silent
 
 # Update and install CUDA keyring
 sudo apt update
