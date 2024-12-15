@@ -1,4 +1,4 @@
-#!/bin/bash
+ho#!/bin/bash
 
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
@@ -19,6 +19,8 @@ print_error() {
 run_silent() {
     "$@" > /dev/null 2>&1
 }
+
+echo "ver 1"
 
 # Update system and install prerequisites
 print_status "Updating system and installing prerequisites"
