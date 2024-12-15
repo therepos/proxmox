@@ -14,9 +14,12 @@ print_status() {
     fi
 }
 
-# Function to run commands silently, suppressing output
+# Enhanced Function to run commands silently and handle errors
 run_silent() {
-    "$@" > /dev/null 2>&1
+    if ! "$@" > /dev/null 2>&1; then
+        echo -e "\033[0;31m✘\033[0m Error while executing: $*"
+        return 1
+    fi
 }
 
 # Checkpoints
@@ -121,7 +124,7 @@ if [ ! -f "$STEP_CUDA_KEYRING" ]; then
         print_status "success" "CUDA keyring installed successfully"
         touch "$STEP_CUDA_KEYRING"
     else
-        print_status "failure" "Failed to install CUDA keyring"
+        print_error "Failed to install CUDA keyring"
         exit 1
     fi
 fi
