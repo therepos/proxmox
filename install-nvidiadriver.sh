@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
 
 # Function to print status with green or red check marks
 print_status() {
@@ -17,137 +17,65 @@ run_silent() {
     "$@" > /dev/null 2>&1
 }
 
-# Blacklist nouveau driver
-print_status "success" "Blacklisting nouveau driver"
-echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf > /dev/null
-echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf > /dev/null
+print_status "success" "Starting NVIDIA driver uninstallation process"
 
-# Verify and update initramfs
-print_status "success" "Updating initramfs"
-if sudo update-initramfs -u > /dev/null 2>&1; then
-    print_status "success" "initramfs updated successfully"
-else
-    print_status "failure" "Failed to update initramfs"
+# 1. Check if NVIDIA driver is installed
+if ! command -v nvidia-smi &> /dev/null; then
+    print_status "failure" "NVIDIA drivers are not installed or nvidia-smi is unavailable"
     exit 1
 fi
+print_status "success" "NVIDIA driver detected"
 
-# Install kernel headers dynamically
-KERNEL_HEADERS="proxmox-headers-$(uname -r)"  # Adjust for Proxmox systems
-print_status "success" "Checking for kernel headers: $KERNEL_HEADERS"
-
-if dpkg-query -W -f='${Status}' $KERNEL_HEADERS 2>/dev/null | grep -q "install ok installed"; then
-    print_status "success" "Kernel headers already installed: $KERNEL_HEADERS"
+# 2. Stop display manager
+print_status "success" "Stopping display manager"
+if systemctl list-units --type=service | grep -q "gdm.service"; then
+    run_silent systemctl stop gdm
+elif systemctl list-units --type=service | grep -q "lightdm.service"; then
+    run_silent systemctl stop lightdm
+elif systemctl list-units --type=service | grep -q "sddm.service"; then
+    run_silent systemctl stop sddm
 else
-    if sudo apt install -y build-essential $KERNEL_HEADERS > /dev/null 2>&1; then
-        print_status "success" "Kernel headers and build-essential installed"
-    else
-        print_status "failure" "Failed to install kernel headers. Verify your Proxmox setup."
-        exit 1
-    fi
+    print_status "success" "No active display manager detected"
 fi
 
-# Install additional dependencies
-DEPENDENCIES="pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1"
-print_status "success" "Installing additional dependencies: $DEPENDENCIES"
-
-if sudo apt install -y $DEPENDENCIES > /dev/null 2>&1; then
-    print_status "success" "Additional dependencies installed successfully"
+# 3. Run NVIDIA uninstaller
+print_status "success" "Checking for NVIDIA uninstaller"
+if [ -f /usr/bin/nvidia-uninstall ]; then
+    run_silent /usr/bin/nvidia-uninstall --silent
+    print_status "success" "NVIDIA uninstaller ran successfully"
+elif [ -f /usr/local/bin/nvidia-uninstall ]; then
+    run_silent /usr/local/bin/nvidia-uninstall --silent
+    print_status "success" "NVIDIA uninstaller ran successfully"
 else
-    print_status "failure" "Failed to install additional dependencies"
-    exit 1
+    print_status "success" "No NVIDIA uninstaller found, skipping"
 fi
 
-# Ensure the PKG_CONFIG_PATH configuration is not duplicated in ~/.bashrc
-print_status "success" "Updating PKG_CONFIG_PATH configuration"
-if ! grep -q '^export PKG_CONFIG_PATH=\$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' ~/.bashrc; then
-    echo 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/x86_64-linux-gnu/pkgconfig/' >> ~/.bashrc
-    print_status "success" "Added PKG_CONFIG_PATH configuration to ~/.bashrc"
+# 4. Remove NVIDIA packages
+print_status "success" "Removing NVIDIA packages"
+if command -v apt &> /dev/null; then
+    run_silent sudo apt purge -y 'nvidia-*' 'libnvidia-*'
+    run_silent sudo apt autoremove -y
+elif command -v yum &> /dev/null; then
+    run_silent sudo yum remove -y 'nvidia-*'
+elif command -v dnf &> /dev/null; then
+    run_silent sudo dnf remove -y 'nvidia-*'
 else
-    print_status "success" "PKG_CONFIG_PATH configuration already exists in ~/.bashrc"
+    print_status "failure" "No supported package manager found, skipping package removal"
 fi
 
-# Download and install NVIDIA driver
-print_status "success" "Downloading and installing NVIDIA driver"
-NVIDIA_VERSION=${1:-"550.135"}
-NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
+# 5. Remove NVIDIA configuration files
+print_status "success" "Removing NVIDIA configuration files"
+run_silent rm -rf /etc/X11/xorg.conf /etc/X11/xorg.conf.d/nvidia.conf
+run_silent rm -rf /etc/modprobe.d/nvidia.conf /usr/share/X11/xorg.conf.d/nvidia.conf
 
-# Download the NVIDIA installer
-if wget -qO /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run "$NVIDIA_URL"; then
-    print_status "success" "NVIDIA driver downloaded successfully"
-else
-    print_status "failure" "Failed to download NVIDIA driver from $NVIDIA_URL"
-    exit 1
-fi
+# 6. Remove NVIDIA kernel modules
+print_status "success" "Removing NVIDIA kernel modules"
+run_silent rm -rf /lib/modules/$(uname -r)/kernel/drivers/video/nvidia*
 
-# Run the NVIDIA installer
-if bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --run-nvidia-xconfig --silent; then
-    print_status "success" "NVIDIA driver installed successfully"
-else
-    print_status "failure" "NVIDIA driver installation failed"
-    exit 1
-fi
+# 7. Remove NVIDIA temporary files and folders
+print_status "success" "Cleaning up NVIDIA-related temporary files and folders"
+run_silent rm -rf /tmp/.X*-lock /tmp/.nvidia*
 
-# Clean up the downloaded file
-if rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run; then
-    print_status "success" "Cleaned up temporary files"
-else
-    print_status "failure" "Failed to clean up temporary files"
-fi
-
-# Verify NVIDIA driver installation
-if nvidia-smi > /dev/null 2>&1; then
-    print_status "success" "NVIDIA driver installed and verified"
-else
-    print_status "failure" "Driver verification failed. Check logs or hardware."
-    exit 1
-fi
-
-# Update and install CUDA keyring
-print_status "success" "Updating and installing CUDA keyring"
-
-# Update package lists
-if sudo apt update > /dev/null 2>&1; then
-    print_status "success" "Package lists updated successfully"
-else
-    print_status "failure" "Failed to update package lists"
-    exit 1
-fi
-
-# Install CUDA keyring
-if sudo apt install -y cuda-keyring > /dev/null 2>&1; then
-    print_status "success" "CUDA keyring installed successfully"
-else
-    print_status "failure" "Failed to install CUDA keyring"
-    exit 1
-fi
-
-: <<'EOF'
-#The -y flag skips confirmation for autoremove.
-sudo ./NVIDIA-Linux-x86_64-550.135.run --uninstall
-apt-get remove --purge '^nvidia-.*'
-apt-get autoremove -y 
-
-#
-sudo apt install nvidia-driver
-
-#
-wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/libnvidia-container1_1.17.3-1_amd64.deb
-wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/nvidia-container-toolkit_1.17.3-1_amd64.deb
-sudo dpkg -i libnvidia-container1_1.17.3-1_amd64.deb
-sudo dpkg -i nvidia-container-toolkit_1.17.3-1_amd64.deb
-
-# Verify NVIDIA driver version:
-nvidia-smi
-
-# Verify the DKMS module:
-dkms status
-
-# Ensure the X configuration file is updated:
-cat /etc/X11/xorg.conf
-
-# Find
-sudo find / -name nvidia-uninstall 2>/dev/null
-
-
-EOF
-
+# 8. Remove leftover NVIDIA directories
+print_status "success" "Removing leftover NVIDIA directories"
+run_silent rm -rf /usr/local/cuda* /usr/lib/
