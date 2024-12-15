@@ -29,9 +29,8 @@ else
     exit 1
 fi
 
-# Add Docker repository
-print_status "Adding Docker repository"
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+# Add Docker repository (use Bullseye for compatibility with Debian Bookworm)
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | \
     sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 # Update package lists and install Docker
