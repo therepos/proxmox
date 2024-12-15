@@ -20,9 +20,9 @@ print_status "Updating system and installing prerequisites"
 sudo apt update
 sudo apt install -y apt-transport-https ca-certificates curl software-properties-common zfsutils-linux gnupg lsb-release
 
-# Add Docker's official GPG key
+# Add Docker's official GPG key (overwrite if it exists)
 print_status "Adding Docker GPG key"
-if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; then
+if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/docker-archive-keyring.gpg; then
     print_status "Docker GPG key added successfully"
 else
     print_error "Failed to add Docker GPG key"
