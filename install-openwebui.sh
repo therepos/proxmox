@@ -79,10 +79,6 @@ msg_ok "Updated Successfully"
 exit
 }
 
-start
-build_container
-description
-
 # Modify the default port in the Open WebUI backend configuration
   pct exec $CT_ID -- bash -c "
     if [[ -f /opt/open-webui/backend/open_webui/__init__.py ]]; then
@@ -105,8 +101,23 @@ description
     fi
   "
 
+  # Restart the Open WebUI service to apply changes
+  pct exec $CT_ID -- bash -c "
+    if systemctl is-active --quiet open-webui.service; then
+      echo 'Restarting Open WebUI service...'
+      systemctl restart open-webui.service
+      echo 'Service restarted successfully.'
+    else
+      echo 'Warning: Open WebUI service not found. Restart failed.'
+    fi
+  "
+
 # Display the chosen port for clarity
 echo "Open WebUI will be configured to use port $PORT."
+
+start
+build_container
+description
 
 msg_ok "Completed Successfully!\n"
 echo -e "${APP} should be reachable by going to the following URL.
