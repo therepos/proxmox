@@ -49,8 +49,8 @@ run_silent echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/key
 
 # Update package lists and install Docker
 print_status "Updating package lists and installing Docker"
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io
+run_silent sudo apt update
+run_silent sudo apt install -y docker-ce docker-ce-cli containerd.io
 
 # Configure Docker for ZFS storage driver and NVIDIA runtime
 print_status "Configuring Docker for ZFS storage driver and NVIDIA runtime"
