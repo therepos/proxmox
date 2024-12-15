@@ -3,8 +3,6 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
 
-#!/bin/bash
-
 # Error detection: halt script on any error
 set -e
 
@@ -40,6 +38,16 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docke
 print_status "Updating package lists and installing Docker"
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io
+
+# Fix networking warnings (enable bridge-nf-call-iptables and bridge-nf-call-ip6tables)
+print_status "Fixing networking warnings for Docker"
+sudo modprobe br_netfilter
+echo "br_netfilter" | sudo tee /etc/modules-load.d/br_netfilter.conf > /dev/null
+sudo tee /etc/sysctl.d/99-docker.conf > /dev/null <<EOF
+net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+EOF
+sudo sysctl --system
 
 # Configure Docker for ZFS storage driver
 print_status "Configuring Docker for ZFS storage driver"
