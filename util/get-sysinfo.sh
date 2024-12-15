@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/generate_proxmox_info.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/util/get-sysinfo.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/get-sysinfo.sh | bash
 
 # Define colors for status messages (already include tick and cross)
 GREEN="\e[32m✔\e[0m"

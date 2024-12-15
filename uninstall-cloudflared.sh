@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/ct/cloudflared-uninstall.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/ct/cloudflared-uninstall.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/uninstall-cloudflared.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/uninstall-cloudflared.sh)"
 
 LXC_NAME="cloudflared"
 SVC_NAME="cloudflared"

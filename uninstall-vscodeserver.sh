@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/ct/uninstall-vscodeserver.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/ct/uninstall-vscodeserver.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/uninstall-vscodeserver.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/uninstall-vscodeserver.sh)"
 
 LXC_NAME="vscodeserver"
 SVC_NAME="code-server"
