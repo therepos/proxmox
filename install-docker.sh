@@ -20,7 +20,7 @@ run_silent() {
     "$@" > /dev/null 2>&1
 }
 
-echo "ver 2"
+echo "ver 3"
 
 # Update system and install prerequisites
 print_status "Updating system and installing prerequisites"
@@ -40,6 +40,15 @@ if curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor 
 else
     print_error "Failed to add Docker GPG key"
     exit 1
+fi
+
+# Check if Docker repository exists, if not, add it
+if ! grep -q "docker.com" /etc/apt/sources.list.d/docker.list; then
+    print_status "Adding Docker repository"
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+else
+    print_status "Docker repository already exists, skipping"
 fi
 
 # Add Docker repository (use Bullseye for Debian Bookworm compatibility)
