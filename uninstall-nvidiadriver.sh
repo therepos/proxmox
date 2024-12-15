@@ -3,12 +3,27 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-nvidiadriver.sh | bash
 
+# Function to print status with green or red check marks
+print_status() {
+    if [ "$1" == "success" ]; then
+        echo -e "\033[0;32m✔\033[0m $2"  # Green check mark
+    else
+        echo -e "\033[0;31m✘\033[0m $2"  # Red cross mark
+    fi
+}
+
+# Function to run commands silently, suppressing output
+run_silent() {
+    "$@" > /dev/null 2>&1
+}
+
 # Uninstall NVIDIA Drivers Script
 # Run this script as root or with sudo
 
 echo "Starting NVIDIA driver uninstallation process..."
 
 # 1. Check if NVIDIA driver is installed
+print_status "success" "Check if NVIDIA driver is installed"
 if ! command -v nvidia-smi &> /dev/null; then
     echo "NVIDIA drivers are not installed or nvidia-smi is not available."
     echo "Exiting..."
