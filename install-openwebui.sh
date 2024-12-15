@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wget --no-cache -qO- - https://raw.githubusercontent.com/therepos/proxmox/main/install_openwebui.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install_openwebui.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install_openwebui.sh | bash
 
 # Define default port
