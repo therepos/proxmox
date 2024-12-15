@@ -19,14 +19,36 @@ run_silent() {
 
 # Blacklist nouveau driver
 print_status "success" "Blacklisting nouveau driver"
-run_silent echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf
-run_silent echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf
+echo "blacklist nouveau" | sudo tee /etc/modprobe.d/blacklist-nouveau.conf > /dev/null
+echo "options nouveau modeset=0" | sudo tee -a /etc/modprobe.d/blacklist-nouveau.conf > /dev/null
+
+# Verify and update initramfs
 print_status "success" "Updating initramfs"
-run_silent sudo update-initramfs -u
+if sudo update-initramfs -u > /dev/null 2>&1; then
+    print_status "success" "initramfs updated successfully"
+else
+    print_status "failure" "Failed to update initramfs"
+    exit 1
+fi
 
 # Install dependencies
 print_status "success" "Installing dependencies"
-run_silent sudo apt install -y build-essential pve-headers-$(uname -r) pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1
+
+# Install kernel headers dynamically
+if sudo apt install -y build-essential pve-headers-$(uname -r); then
+    print_status "success" "Kernel headers installed"
+else
+    print_status "failure" "Failed to install kernel headers. Verify your Proxmox setup."
+    exit 1
+fi
+
+# Install additional dependencies
+if sudo apt install -y pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1 > /dev/null 2>&1; then
+    print_status "success" "Additional dependencies installed successfully"
+else
+    print_status "failure" "Failed to install additional dependencies"
+    exit 1
+fi
 
 # Ensure the PKG_CONFIG_PATH configuration is not duplicated in ~/.bashrc
 print_status "success" "Updating PKG_CONFIG_PATH configuration"
@@ -39,7 +61,7 @@ fi
 
 # Download and install NVIDIA driver
 print_status "success" "Downloading and installing NVIDIA driver"
-NVIDIA_VERSION="550.135"
+NVIDIA_VERSION=${1:-"550.135"}
 NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
 
 # Download the NVIDIA installer
@@ -65,10 +87,12 @@ else
     print_status "failure" "Failed to clean up temporary files"
 fi
 
+# Verify NVIDIA driver installation
 if nvidia-smi > /dev/null 2>&1; then
-    print_status "success" "NVIDIA driver installed successfully"
+    print_status "success" "NVIDIA driver installed and verified"
 else
-    print_status "failure" "NVIDIA driver installation failed"
+    print_status "failure" "Driver verification failed. Check logs or hardware."
+    exit 1
 fi
 
 # Update and install CUDA keyring
