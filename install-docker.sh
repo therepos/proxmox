@@ -101,7 +101,7 @@ fi
 
 # Test NVIDIA Container Toolkit
 print_status "Testing NVIDIA runtime with Docker"
-if run_silent docker run --rm --runtime=nvidia nvidia/cuda:11.0-base nvidia-smi; then
+if run_silent docker run --rm --runtime=nvidia nvidia/cuda:11.2-base nvidia-smi; then
     print_status "NVIDIA runtime test passed successfully"
 else
     print_error "NVIDIA runtime test failed. Ensure NVIDIA drivers and Container Toolkit are installed."
