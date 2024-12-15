@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/vscodeserver.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/vscodeserver.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/install-vscodeserver.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/install-vscodeserver.sh)"
 # Appsource: https://coder.com/docs/code-server/install#installsh
 # Art: https://patorjk.com/software/taag/#p=display&f=Big&t=vscodeserver 
 # Modified by: therepos
