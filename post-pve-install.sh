@@ -47,9 +47,7 @@ msg_error() {
 start_routines() {
   header_info
 
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "SOURCES" --menu "The package manager will use the correct sources to update and install packages on your Proxmox VE server.\n \nCorrect Proxmox VE sources?" 14 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Correcting Proxmox VE Sources"
@@ -66,9 +64,7 @@ echo 'APT::Get::Update::SourceListWarnings::NonFreeFirmware "false";' >/etc/apt/
     ;;
   esac
 
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "PVE-ENTERPRISE" --menu "The 'pve-enterprise' repository is only available to users who have purchased a Proxmox VE subscription.\n \nDisable 'pve-enterprise' repository?" 14 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Disabling 'pve-enterprise' repository"
@@ -82,9 +78,7 @@ EOF
     ;;
   esac
 
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "PVE-NO-SUBSCRIPTION" --menu "The 'pve-no-subscription' repository provides access to all of the open-source components of Proxmox VE.\n \nEnable 'pve-no-subscription' repository?" 14 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Enabling 'pve-no-subscription' repository"
@@ -98,9 +92,7 @@ EOF
     ;;
   esac
 
-    CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "CEPH PACKAGE REPOSITORIES" --menu "The 'Ceph Package Repositories' provides access to both the 'no-subscription' and 'enterprise' repositories (initially disabled).\n \nCorrect 'ceph package sources?" 14 58 2 \
-      "yes" " " \
-      "no" " " 3>&2 2>&1 1>&3)
+    CHOICE="yes"
     case $CHOICE in
     yes)
       msg_info "Correcting 'ceph package repositories'"
@@ -117,9 +109,7 @@ EOF
       ;;
     esac
 
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "PVETEST" --menu "The 'pvetest' repository can give advanced users access to new features and updates before they are officially released.\n \nAdd (Disabled) 'pvetest' repository?" 14 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Adding 'pvetest' repository and set disabled"
@@ -134,9 +124,7 @@ EOF
   esac
 
   if [[ ! -f /etc/apt/apt.conf.d/no-nag-script ]]; then
-    CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "SUBSCRIPTION NAG" --menu "This will disable the nag message reminding you to purchase a subscription every time you log in to the web interface.\n \nDisable subscription nag?" 14 58 2 \
-      "yes" " " \
-      "no" " " 3>&2 2>&1 1>&3)
+    CHOICE="yes"
     case $CHOICE in
     yes)
       whiptail --backtitle "Proxmox VE Helper Scripts" --msgbox --title "Support Subscriptions" "Supporting the software's development team is essential. Check their official website's Support Subscriptions for pricing. Without their dedicated work, we wouldn't have this exceptional software." 10 58
@@ -153,9 +141,7 @@ EOF
   fi
 
   if ! systemctl is-active --quiet pve-ha-lrm; then
-    CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "HIGH AVAILABILITY" --menu "Enable high availability?" 10 58 2 \
-      "yes" " " \
-      "no" " " 3>&2 2>&1 1>&3)
+    CHOICE="yes"
     case $CHOICE in
     yes)
       msg_info "Enabling high availability"
@@ -171,9 +157,7 @@ EOF
   fi
   
   if systemctl is-active --quiet pve-ha-lrm; then
-    CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "HIGH AVAILABILITY" --menu "If you plan to utilize a single node instead of a clustered environment, you can disable unnecessary high availability (HA) services, thus reclaiming system resources.\n\nIf HA becomes necessary at a later stage, the services can be re-enabled.\n\nDisable high availability?" 18 58 2 \
-      "yes" " " \
-      "no" " " 3>&2 2>&1 1>&3)
+    CHOICE="yes"
     case $CHOICE in
     yes)
       msg_info "Disabling high availability"
@@ -188,9 +172,7 @@ EOF
     esac
   fi
   
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "UPDATE" --menu "\nUpdate Proxmox VE now?" 11 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Updating Proxmox VE (Patience)"
@@ -203,9 +185,7 @@ EOF
     ;;
   esac
 
-  CHOICE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --title "REBOOT" --menu "\nReboot Proxmox VE now? (recommended)" 11 58 2 \
-    "yes" " " \
-    "no" " " 3>&2 2>&1 1>&3)
+  CHOICE="yes"
   case $CHOICE in
   yes)
     msg_info "Rebooting Proxmox VE"
@@ -222,14 +202,8 @@ EOF
 
 header_info
 echo -e "\nThis script will Perform Post Install Routines.\n"
-while true; do
-  read -p "Start the Proxmox VE Post Install Script (y/n)?" yn
-  case $yn in
-  [Yy]*) break ;;
-  [Nn]*) clear; exit ;;
-  *) echo "Please answer yes or no." ;;
-  esac
-done
+echo "Starting Post Install Script automatically..."
+
 
 if ! pveversion | grep -Eq "pve-manager/8.[0-2]"; then
   msg_error "This version of Proxmox Virtual Environment is not supported"
