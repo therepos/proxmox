@@ -14,7 +14,7 @@ print_status() {
 
 # Function to run commands silently, suppressing output
 run_silent() {
-    "$@" > /dev/null 2>&1
+    "$@" > install_log.txt 2>&1
 }
 
 # Update system packages
@@ -27,7 +27,7 @@ run_silent apt-get install -y apt-transport-https ca-certificates curl gnupg lsb
 
 # Add Docker’s official GPG key
 print_status "success" "Adding Docker GPG key"
-run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - > /dev/null 2>&1
+run_silent curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
 
 # Set up the Docker stable repository
 print_status "success" "Setting up Docker repository"
@@ -42,7 +42,16 @@ print_status "success" "Installing Docker"
 run_silent apt-get install -y docker-ce docker-ce-cli containerd.io
 
 # Verify Docker installation
-docker --version > /dev/null 2>&1 && print_status "success" "Docker installed successfully"
+if command -v docker > /dev/null; then
+    print_status "success" "Docker installed successfully"
+else
+    print_status "failure" "Docker installation failed"
+    exit 1
+fi
+
+# Create /etc/docker directory if it doesn't exist
+print_status "success" "Ensuring /etc/docker directory exists"
+mkdir -p /etc/docker
 
 # Configure Docker to use ZFS as the storage driver
 print_status "success" "Configuring Docker to use ZFS as storage driver"
