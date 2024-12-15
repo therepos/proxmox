@@ -20,7 +20,7 @@ run_silent() {
     "$@" > /dev/null 2>&1
 }
 
-echo "ver 1"
+echo "ver 2"
 
 # Update system and install prerequisites
 print_status "Updating system and installing prerequisites"
