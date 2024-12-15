@@ -39,6 +39,30 @@ bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/c
 bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/ct/vscodeserver-uninstall.sh)"
 ```
 
+---
+
+```bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
+
+wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh | bash
+
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
+
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
+
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
+
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-portainer.sh | bash
+
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
+
+wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/ct/cloudflared.sh | bash
+
+wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/install-vscodeserver.sh | bash
+
+```
+---
+
 ### Customization
 All scripts are designed to be easily customizable. You can:
 
