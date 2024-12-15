@@ -23,7 +23,7 @@ NVIDIA_VERSION="550.135"
 NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
 
 wget -qO /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run $NVIDIA_URL
-bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --run-nvidia-xconfig
+bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --run-nvidia-xconfig --silent
 rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
 echo "NVIDIA driver installation completed successfully!"
 
