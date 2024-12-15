@@ -31,19 +31,26 @@ else
     exit 1
 fi
 
-# Install dependencies
-print_status "success" "Installing dependencies"
-
 # Install kernel headers dynamically
-if sudo apt install -y build-essential pve-headers-$(uname -r); then
-    print_status "success" "Kernel headers installed"
+KERNEL_HEADERS="proxmox-headers-$(uname -r)"  # Adjust for Proxmox systems
+print_status "success" "Checking for kernel headers: $KERNEL_HEADERS"
+
+if dpkg-query -W -f='${Status}' $KERNEL_HEADERS 2>/dev/null | grep -q "install ok installed"; then
+    print_status "success" "Kernel headers already installed: $KERNEL_HEADERS"
 else
-    print_status "failure" "Failed to install kernel headers. Verify your Proxmox setup."
-    exit 1
+    if sudo apt install -y build-essential $KERNEL_HEADERS > /dev/null 2>&1; then
+        print_status "success" "Kernel headers and build-essential installed"
+    else
+        print_status "failure" "Failed to install kernel headers. Verify your Proxmox setup."
+        exit 1
+    fi
 fi
 
 # Install additional dependencies
-if sudo apt install -y pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1 > /dev/null 2>&1; then
+DEPENDENCIES="pkg-config libglvnd-dev libx11-dev libxext-dev xorg-dev xserver-xorg-core xserver-xorg-dev lib32z1"
+print_status "success" "Installing additional dependencies: $DEPENDENCIES"
+
+if sudo apt install -y $DEPENDENCIES > /dev/null 2>&1; then
     print_status "success" "Additional dependencies installed successfully"
 else
     print_status "failure" "Failed to install additional dependencies"
