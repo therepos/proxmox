@@ -3,6 +3,8 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/post-pve-install.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/post-pve-install.sh | bash
 
+# Modified by: therepos
+# Modification: defaulting all prompts to yes
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
 # License: MIT
