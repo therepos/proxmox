@@ -19,14 +19,19 @@ else
     echo "PKG_CONFIG_PATH configuration already exists in ~/.bashrc"
 fi
 
-# Download NVIDIA driver installer to a temporary file and execute
+# Download NVIDIA driver installer to a temporary file
 wget -qO /tmp/NVIDIA-Linux-x86_64-550.135.run https://us.download.nvidia.com/XFree86/Linux-x86_64/550.135/NVIDIA-Linux-x86_64-550.135.run
 
-# Run the installer directly
-bash /tmp/NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --update-xconfig --silent
+# Make the installer executable
+chmod +x /tmp/NVIDIA-Linux-x86_64-550.135.run
 
-# Clean up the temporary file
+# Run the installer with all required options to avoid prompts
+/tmp/NVIDIA-Linux-x86_64-550.135.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --update-xconfig --silent
+
+# Clean up the temporary installer
 rm -f /tmp/NVIDIA-Linux-x86_64-550.135.run
+
+echo "NVIDIA driver installation completed successfully!"
 
 # Update and install CUDA keyring
 sudo apt update
