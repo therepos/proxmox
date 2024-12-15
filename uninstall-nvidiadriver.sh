@@ -51,17 +51,33 @@ else
     echo "No NVIDIA uninstaller found. Skipping this step."
 fi
 
-# 4. Remove NVIDIA packages (if installed via package manager)
-echo "Removing NVIDIA packages..."
+# 4. Remove NVIDIA packages
+print_status "success" "Removing NVIDIA packages"
 if command -v apt &> /dev/null; then
-    apt purge -y 'nvidia-*' 'libnvidia-*'
-    apt autoremove -y
+    if sudo apt purge -y 'nvidia-*' 'libnvidia-*' > /dev/null 2>&1; then
+        print_status "success" "NVIDIA packages removed successfully"
+    else
+        print_status "failure" "Failed to remove NVIDIA packages. Check your package manager."
+    fi
+    if sudo apt autoremove -y > /dev/null 2>&1; then
+        print_status "success" "Unused dependencies removed successfully"
+    else
+        print_status "failure" "Failed to remove unused dependencies"
+    fi
 elif command -v yum &> /dev/null; then
-    yum remove -y 'nvidia-*'
+    if sudo yum remove -y 'nvidia-*' > /dev/null 2>&1; then
+        print_status "success" "NVIDIA packages removed successfully"
+    else
+        print_status "failure" "Failed to remove NVIDIA packages with yum"
+    fi
 elif command -v dnf &> /dev/null; then
-    dnf remove -y 'nvidia-*'
+    if sudo dnf remove -y 'nvidia-*' > /dev/null 2>&1; then
+        print_status "success" "NVIDIA packages removed successfully"
+    else
+        print_status "failure" "Failed to remove NVIDIA packages with dnf"
+    fi
 else
-    echo "Package manager not found or unsupported."
+    print_status "failure" "No supported package manager found, skipping package removal"
 fi
 
 # 5. Remove NVIDIA configuration files
