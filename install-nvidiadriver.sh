@@ -3,6 +3,8 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 
+#!/usr/bin/env bash
+
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
@@ -103,7 +105,7 @@ fi
 # Step 6: Install NVIDIA Driver
 if [ ! -f "$STEP_DRIVER_INSTALL" ]; then
     print_status "success" "Installing NVIDIA driver"
-    if bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --run-nvidia-xconfig --silent; then
+    if run_silent bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --glvnd-egl-config-path=/etc/glvnd/egl_vendor.d --dkms --run-nvidia-xconfig --silent; then
         print_status "success" "NVIDIA driver installed successfully"
         touch "$STEP_DRIVER_INSTALL"
     else
@@ -115,7 +117,7 @@ fi
 # Step 7: Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     print_status "success" "Installing CUDA keyring"
-    if apt update && apt install cuda-keyring; then
+    if run_silent apt update && run_silent apt install -y cuda-keyring; then
         print_status "success" "CUDA keyring installed successfully"
         touch "$STEP_CUDA_KEYRING"
     else
@@ -139,4 +141,3 @@ run_silent rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
 run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNEL_HEADERS" "$STEP_DEPENDENCIES" "$STEP_DRIVER_DOWNLOAD" "$STEP_DRIVER_INSTALL" "$STEP_CUDA_KEYRING"
 
 print_status "success" "NVIDIA driver installation completed successfully"
-
