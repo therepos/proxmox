@@ -123,20 +123,32 @@ fi
 # Step 7: Add CUDA Repository and Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     print_status "success" "Adding NVIDIA CUDA repository and installing CUDA keyring"
-    
+
     # Remove any conflicting repository entries
     run_silent rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list /etc/apt/sources.list.d/cuda.list
 
-    # Add the NVIDIA CUDA repository with a consistent signing key
-    if run_silent curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg && \
-       echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" | \
-       tee /etc/apt/sources.list.d/cuda.list > /dev/null && \
-       run_silent apt update && \
-       run_silent apt install -y cuda-keyring; then
-        print_status "success" "CUDA repository added and CUDA keyring installed successfully"
+    # Add NVIDIA CUDA key
+    if run_silent curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg; then
+        print_status "success" "NVIDIA CUDA key added successfully"
+    else
+        print_error "Failed to fetch or add NVIDIA CUDA key"
+        exit 1
+    fi
+
+    # Add NVIDIA CUDA repository
+    if echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" > /etc/apt/sources.list.d/cuda.list; then
+        print_status "success" "NVIDIA CUDA repository added successfully"
+    else
+        print_error "Failed to add NVIDIA CUDA repository"
+        exit 1
+    fi
+
+    # Update repository and install CUDA keyring
+    if run_silent apt update && run_silent apt install -y cuda-keyring; then
+        print_status "success" "CUDA keyring installed successfully"
         touch "$STEP_CUDA_KEYRING"
     else
-        print_error "Failed to add NVIDIA CUDA repository or install CUDA keyring"
+        print_error "Failed to install CUDA keyring"
         exit 1
     fi
 fi
