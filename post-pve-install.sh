@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
+
+# Modified by: therepos
+# Modification: to default all prompts to yes
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
 # License: MIT
