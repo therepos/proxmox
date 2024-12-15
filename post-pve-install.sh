@@ -116,7 +116,7 @@ EOF
   fi
 
   # Enable high availability
-  if [[ ! systemctl is-active --quiet pve-ha-lrm && $CHOICE == "yes" ]]; then
+  if ! pveversion | grep -Eq "pve-manager/8\.[0-2]"; then
     msg_info "Enabling high availability"
     systemctl enable -q --now pve-ha-lrm
     systemctl enable -q --now pve-ha-crm
