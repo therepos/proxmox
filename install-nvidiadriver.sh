@@ -3,8 +3,6 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
 
-#!/usr/bin/env bash
-
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
@@ -36,18 +34,25 @@ if [ ! -f "$STEP_BLACKLIST_NOUVEAU" ]; then
     touch "$STEP_BLACKLIST_NOUVEAU"
 fi
 
-# Step 2: Update initramfs
+# Step 2: Update initramfs and Verify Nouveau Status
 if [ ! -f "$STEP_INITRAMFS_UPDATE" ]; then
     print_status "success" "Updating initramfs"
     if run_silent update-initramfs -u; then
         print_status "success" "initramfs updated successfully"
         touch "$STEP_INITRAMFS_UPDATE"
+    else
+        print_status "failure" "Failed to update initramfs"
+        exit 1
+    fi
+
+    # Check if Nouveau is still loaded
+    print_status "success" "Checking if Nouveau is disabled"
+    if lsmod | grep -q nouveau; then
         print_status "success" "Rebooting to disable Nouveau"
         reboot
         exit 0
     else
-        print_status "failure" "Failed to update initramfs"
-        exit 1
+        print_status "success" "Nouveau is already disabled; no reboot needed"
     fi
 fi
 
@@ -134,3 +139,4 @@ run_silent rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
 run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNEL_HEADERS" "$STEP_DEPENDENCIES" "$STEP_DRIVER_DOWNLOAD" "$STEP_DRIVER_INSTALL" "$STEP_CUDA_KEYRING"
 
 print_status "success" "NVIDIA driver installation completed successfully"
+
