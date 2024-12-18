@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh | bash
 
 # Modified by: therepos
 # Modification: to default all prompts to yes

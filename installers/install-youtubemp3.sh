@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/install-youtubemp3.sh | bash
-# curl -fsSL https://github.com/therepos/proxmox/raw/main/install-youtubemp3.sh | bash
+# wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/installers/install-youtubemp3.sh | bash
+# curl -fsSL https://github.com/therepos/proxmox/raw/main/installers/install-youtubemp3.sh | bash
 
 echo $(date)
 # Allow user to set the port

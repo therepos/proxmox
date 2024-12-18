@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiact.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiact.sh | bash
 
 # Error detection: script halts execution as soon as it encounters a failure.
 set -e

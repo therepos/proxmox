@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/uninstall-vscodeserver.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/uninstall-vscodeserver.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/uninstallers/uninstall-cloudflared.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/uninstallers/uninstall-cloudflared.sh)"
 
-LXC_NAME="vscodeserver"
-SVC_NAME="code-server"
+LXC_NAME="cloudflared"
+SVC_NAME="cloudflared"
 
 msg_info() { echo -e "ℹ️  $1"; }
 msg_ok() { echo -e "✅  $1"; }

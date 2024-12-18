@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-docker.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-docker.sh | bash
 
 # Error detection: halt script on any error
 set -e

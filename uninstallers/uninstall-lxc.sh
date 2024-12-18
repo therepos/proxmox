@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
+# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/uninstallers/main/uninstall-lxc.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstallers/uninstall-lxc.sh | bash
 
 echo "$(date)"
 # Function to display usage instructions
