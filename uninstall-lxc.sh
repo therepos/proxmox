@@ -3,6 +3,7 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 
+echo "$(date)"
 # Function to display usage instructions
 usage() {
     echo "Usage: $0 <container_name_or_id>"
