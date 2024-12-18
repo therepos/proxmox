@@ -32,7 +32,11 @@ pct start $CONTAINER_ID
 echo "=== Installing dependencies in container ==="
 pct exec $CONTAINER_ID -- bash -c "apt update && apt upgrade -y"
 pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano"
-pct exec $CONTAINER_ID -- bash -c "pip3 install flask yt-dlp"
+pct exec $CONTAINER_ID -- bash -c "pip3 install --force-reinstall yt-dlp flask gunicorn"
+
+echo "=== Adding /usr/local/bin to PATH ==="
+pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:/usr/bin:/bin' >> /root/.bashrc"
+pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
 
 echo "=== Setting up MP3 converter script ==="
 pct exec $CONTAINER_ID -- bash -c "mkdir -p $OUTPUT_DIR"
@@ -49,7 +53,6 @@ OUTPUT_DIR = "/root/output"
 # Ensure the output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Root endpoint with embedded JavaScript
 @app.route('/')
 def home():
     return '''
@@ -94,7 +97,6 @@ def home():
         </html>
     '''
 
-# Serve files for download
 @app.route('/download/<filename>')
 def download_file(filename):
     try:
@@ -102,7 +104,6 @@ def download_file(filename):
     except FileNotFoundError:
         return "File not found", 404
 
-# Convert endpoint
 @app.route('/convert', methods=['POST'])
 def convert():
     data = request.get_json()
@@ -111,14 +112,12 @@ def convert():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
-        # Generate a unique filename based on the YouTube URL
         unique_id = hashlib.md5(youtube_url.encode()).hexdigest()
         output_filename = f"{unique_id}.mp3"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-        # Build the yt-dlp command with the full path
         command = [
-            "/usr/local/bin/yt-dlp",  # Full path to yt-dlp
+            "/usr/local/bin/yt-dlp",
             "-f", "bestaudio",
             "--extract-audio",
             "--audio-format", "mp3",
@@ -127,36 +126,18 @@ def convert():
             youtube_url
         ]
 
-        # Run the command
-        subprocess.run(command, check=True)
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print("STDOUT:", result.stdout.decode())
+        print("STDERR:", result.stderr.decode())
 
-        # Return JSON response with the download URL
         download_link = f"/download/{output_filename}"
-        return jsonify({
-            "message": "Conversion completed!",
-            "download_url": download_link
-        }), 200
+        return jsonify({"message": "Conversion completed!", "download_url": download_link}), 200
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
+        return jsonify({"error": f"Conversion failed: {e.stderr.decode()}"}), 500
 
-# Run the Flask app
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
 EOF
 
-pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
-pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
-
-echo "=== Making script executable ==="
-pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
-pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
-pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
-
-echo "=== Running Python script ==="
-pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
-pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && chmod 1777 /tmp"
-pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 youtubemp3:app"
-
-
-
-
+echo "=== Running MP3 Converter ==="
+pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:/usr/bin:/bin && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 youtubemp3:app"
