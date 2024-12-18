@@ -3,12 +3,7 @@
 # wget --header="Cache-Control: no-cache" -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 
-# Function to display usage instructions
-usage() {
-    echo "Usage: $0"
-    echo "This script will prompt you for the container ID or name to uninstall."
-    exit 1
-}
+#!/bin/bash
 
 # Check if the container identifier is provided as a command-line argument
 if [ -z "$1" ]; then
@@ -16,15 +11,7 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-# Use the provided argument as the container identifier
 CONTAINER_IDENTIFIER="$1"
-
-# Check if the input is valid
-if [ -z "$CONTAINER_IDENTIFIER" ]; then
-    echo "No container identifier provided. Exiting."
-    exit 1
-fi
-
 CONTAINER_ID=$(pct list | grep "$CONTAINER_IDENTIFIER" | awk '{print $1}')
 
 if [ -z "$CONTAINER_ID" ]; then
