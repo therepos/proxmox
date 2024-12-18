@@ -27,7 +27,8 @@ pct start $CONTAINER_ID
 
 echo "=== Installing dependencies in container ==="
 pct exec $CONTAINER_ID -- bash -c "apt update && apt upgrade -y"
-pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano flask yt-dlp"
+pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano"
+pct exec $CONTAINER_ID -- bash -c "pip3 install flask yt-dlp"
 
 echo "=== Setting up MP3 converter script ==="
 pct exec $CONTAINER_ID -- bash -c "mkdir -p $OUTPUT_DIR"
@@ -154,4 +155,7 @@ EOF
 
 echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
-pct exec $CONTAINER_ID -- bash -c "/usr/local/bin/youtubemp3.py"
+
+echo "=== Running Python script ==="
+pct exec $CONTAINER_ID -- bash -c "python3 /usr/local/bin/youtubemp3.py"
+
