@@ -3,6 +3,7 @@
 # bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh)"
 # bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh)"
 
+echo "$(date)"
 echo "Containers:"
 # Headers for container output
 echo -e "Container\tIP\tAccess Ports\tStatus"
