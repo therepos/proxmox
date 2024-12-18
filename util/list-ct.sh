@@ -40,6 +40,7 @@ done
 echo "-------------------------------------------------------------"
 
 echo ""
+# VMs
 printf "%-40s %-15s %-40s %-10s\n" "VM" "IP" "Access Ports" "Status"
 qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     # Check if the guest agent is responding
@@ -72,6 +73,7 @@ done
 echo "-------------------------------------------------------------"
 
 echo ""
+# Dockers
 printf "%-40s %-15s %-40s %-10s\n" "Docker" "IP" "Access Ports" "Status"
 docker ps --format '{{.Names}} {{.ID}} {{.State}} {{.Ports}}' | while read NAME ID STATE PORTS; do
     IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$ID")
@@ -84,7 +86,6 @@ echo "-------------------------------------------------------------"
 
 # Services
 printf "%-40s %-15s %-40s %-10s\n" "Service" "IP" "Access Ports" "Status"
-
 systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {print $1}' | while read SERVICE; do
     # Skip invalid entries or empty lines
     if [[ ! $SERVICE =~ \.service$ ]]; then
