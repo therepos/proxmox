@@ -6,7 +6,7 @@
 echo "$(date)"
 echo "Containers:"
 # Headers for container output
-echo -e "Container\tIP\tAccess Ports\tStatus"
+printf "%-40s %-20s %-30s %-15s\n" "Container" "IP" "Access Ports" "Status"
 pct list | awk 'NR > 1 {print $1, $2}' | while read CTID STATUS; do
     # Get the container's IP
     IP=$(pct exec "$CTID" -- ip -4 -o addr show eth0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
@@ -16,14 +16,14 @@ pct list | awk 'NR > 1 {print $1, $2}' | while read CTID STATUS; do
     PORTS=$(pct exec "$CTID" -- ss -tuln 2>/dev/null | awk 'NR > 1 {print $5}' | awk -F':' '{print $NF}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
     [ -z "$PORTS" ] && PORTS="Unknown"
 
-    # Print container information
-    echo -e "CT $CTID\t$IP\t$PORTS\t$STATUS"
-done | column -t
+    # Print aligned container information
+    printf "%-40s %-20s %-30s %-15s\n" "CT $CTID" "$IP" "$PORTS" "$STATUS"
+done
 
 echo ""
 echo "VMs:"
 # Headers for VM output
-echo -e "VM\tIP\tAccess Ports\tStatus"
+printf "%-40s %-20s %-30s %-15s\n" "VM" "IP" "Access Ports" "Status"
 qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
@@ -41,5 +41,5 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     fi
 
     # Print VM information
-    echo -e "VM $VMID\t$IP\t$PORTS\t$STATUS"
-done | column -t
+    printf "%-40s %-20s %-30s %-15s\n" "VM $VMID" "$IP" "$PORTS" "$STATUS"
+done
