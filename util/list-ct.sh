@@ -74,24 +74,40 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     echo "VM $VMID: Status=$STATUS, IP=$IP, Access Ports=$WEB_PORTS"
 done
 
-# Services Section
+# Services
 echo "Services:"
+printf "%-40s %-15s %-20s %-10s\n" "Service" "IP" "Access Ports" "Status"
+
 systemctl list-units --type=service --state=running | awk 'NR > 1 && !/LOAD|ACTIVE|SUB/ {print $1}' | while read SERVICE; do
-    # Detect open ports for the service
-    PORTS=$(ss -tuln | grep -i "$SERVICE" | awk '{print $5}' | awk -F':' '{print $NF}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
-
-    # If no ports are found, set to Unknown
-    [ -z "$PORTS" ] && PORTS="Unknown"
-
-    # Get the host IP
+    # Get IP of the Proxmox host
     IP=$(hostname -I | awk '{print $1}')
     [ -z "$IP" ] && IP="Unknown"
 
-    # Get the service status
+    # Detect access ports dynamically
+    # Step 1: Try ss for ports associated with the service name
+    PORTS=$(ss -tulnp | grep -i "$SERVICE" | awk '{print $5}' | awk -F':' '{print $NF}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+
+    # Step 2: Fallback to PID-based detection if no ports found
+    if [ -z "$PORTS" ]; then
+        PID=$(systemctl show --property=MainPID "$SERVICE" | awk -F= '{print $2}')
+        if [ -n "$PID" ] && [ "$PID" -gt 0 ]; then
+            PORTS=$(ss -tulnp | grep "$PID" | awk '{print $5}' | awk -F':' '{print $NF}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+        fi
+    fi
+
+    # Step 3: Fallback to lsof if still no ports found
+    if [ -z "$PORTS" ]; then
+        PORTS=$(lsof -i -P -n | grep "$SERVICE" | awk -F':' '{print $2}' | awk '{print $1}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    fi
+
+    # If no ports are detected, mark as Unknown
+    [ -z "$PORTS" ] && PORTS="Unknown"
+
+    # Get service status
     STATUS=$(systemctl is-active "$SERVICE")
 
-    # Format the output
-    echo "Service: $SERVICE, IP=$IP, Access Ports=$PORTS, Status=$STATUS"
+    # Format output as a table
+    printf "%-40s %-15s %-20s %-10s\n" "$SERVICE" "$IP" "$PORTS" "$STATUS"
 done
 
 echo "-------------------------------------------------------------"
