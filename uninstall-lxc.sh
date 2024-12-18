@@ -19,7 +19,7 @@ else
 fi
 
 # Validate the provided container identifier
-CONTAINER_ID=$(pct list | grep -w "$CONTAINER_IDENTIFIER" | awk '{print $1}')
+CONTAINER_ID=$(pct list | awk -v id="$CONTAINER_IDENTIFIER" '$1 == id || $NF == id {print $1}')
 if [ -z "$CONTAINER_ID" ]; then
     echo "No container with the identifier '$CONTAINER_IDENTIFIER' found."
     exit 1
@@ -75,5 +75,6 @@ echo "=== Cleanup completed ==="
 
 # Final message
 echo "Container '$CONTAINER_IDENTIFIER' and associated files have been removed."
+
 
 
