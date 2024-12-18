@@ -29,6 +29,11 @@ pct create $CONTAINER_ID $TEMPLATE --storage $STORAGE --hostname $CONTAINER_NAME
 echo "=== Starting container ==="
 pct start $CONTAINER_ID
 
+echo "=== Configuring container for root auto-login ==="
+pct exec $CONTAINER_ID -- bash -c "echo 'root:root' | chpasswd"  # Sets root password to 'root'
+pct exec $CONTAINER_ID -- bash -c "sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config"
+pct exec $CONTAINER_ID -- bash -c "systemctl restart sshd"
+
 echo "=== Installing dependencies in container ==="
 pct exec $CONTAINER_ID -- bash -c "apt update && apt upgrade -y"
 pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano"
