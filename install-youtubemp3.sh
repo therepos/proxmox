@@ -149,5 +149,7 @@ echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
 echo "=== Running Python script ==="
-pct exec $CONTAINER_ID -- bash -c "python3 /usr/local/bin/youtubemp3.py"
+pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
+pct exec $CONTAINER_ID -- bash -c "gunicorn -w 4 -b 0.0.0.0:5010 youtubemp3:app"
+
 
