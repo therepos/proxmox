@@ -3,19 +3,25 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 
+
+#!/bin/bash
+
 # Function to display usage instructions
 usage() {
-    echo "Usage: $0 <container_name_or_id>"
-    echo "Example: $0 mp3-converter"
+    echo "Usage: $0"
+    echo "This script will prompt you for the container ID or name to uninstall."
     exit 1
 }
 
-# Check if container name or ID is provided
-if [ -z "$1" ]; then
-    usage
+# Prompt user for container ID or name
+read -p "Enter the container ID or name to uninstall: " CONTAINER_IDENTIFIER
+
+# Check if the input is valid
+if [ -z "$CONTAINER_IDENTIFIER" ]; then
+    echo "No container identifier provided. Exiting."
+    exit 1
 fi
 
-CONTAINER_IDENTIFIER="$1"
 CONTAINER_ID=$(pct list | grep "$CONTAINER_IDENTIFIER" | awk '{print $1}')
 
 if [ -z "$CONTAINER_ID" ]; then
