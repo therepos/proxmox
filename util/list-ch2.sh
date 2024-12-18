@@ -124,5 +124,3 @@ systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {pri
     printf "%-40s %-15s %-40s %-10s\n" "$SERVICE" "$IP" "$PORTS" "$STATUS"
 done
 echo "-------------------------------------------------------------"
-
-echo "-------------------------------------------------------------"
