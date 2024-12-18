@@ -141,7 +141,7 @@ def convert():
 
 # Run the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=$PORT)
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
 EOF
 
 pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
@@ -152,6 +152,6 @@ pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
 echo "=== Running Python script ==="
 pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
-pct exec $CONTAINER_ID -- bash -c "gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
+pct exec $CONTAINER_ID -- bash -c "export PORT=$PORT && gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
 
 
