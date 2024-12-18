@@ -14,7 +14,7 @@ A collection of scripts designed to simplify the installation, management, and u
 
 ## How to Use
 
-Please refer to [Installation](https://thelibs.gitbook.io/thelibs/proxmox/setup/installation#post-installation) guide. 
+Please refer to [installation](https://thelibs.gitbook.io/thelibs/proxmox/setup/installation#post-installation) guide. 
 
 ---
 
