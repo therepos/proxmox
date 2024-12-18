@@ -14,53 +14,8 @@ A collection of scripts designed to simplify the installation, management, and u
 
 ## How to Use
 
-### Install a Service
-Run the following command to install a service. Replace `<name_of_script>` with the name of the desired script:
+Please refer to [Installation](https://thelibs.gitbook.io/thelibs/proxmox/setup/installation#post-installation) guide. 
 
-```bash
-bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/<name_of_script>.sh)"
-```
-### Example: Install VS Code Server
-
-```bash
-bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/vscodeserver.sh)"
-```
-
-### Uninstall a Service
-Run the following command to uninstall a service. Replace <name_of_script> with the name of the service you want to remove:
-
-```bash
-bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/ct/<name_of_script>-uninstall.sh)"
-```
-
-### Example: Uninstall VS Code Server
-
-```bash
-bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/ct/vscodeserver-uninstall.sh)"
-```
-
----
-
-```bash
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh | bash
-
-wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh | bash
-
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiadriver.sh | bash
-
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiact.sh | bash
-
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-docker.sh | bash
-
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-portainer.sh | bash
-
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-openwebui.sh | bash
-
-wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/ct/cloudflared.sh | bash
-
-wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-vscodeserver.sh | bash
-
-```
 ---
 
 ### Customization
