@@ -72,7 +72,6 @@ done
 echo "-------------------------------------------------------------"
 
 echo ""
-echo "Dockers:"
 printf "%-40s %-15s %-40s %-10s\n" "Docker" "IP" "Access Ports" "Status"
 docker ps --format '{{.Names}} {{.ID}} {{.State}} {{.Ports}}' | while read NAME ID STATE PORTS; do
     IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$ID")
@@ -84,7 +83,6 @@ done
 echo "-------------------------------------------------------------"
 
 # Services
-echo "Services:"
 printf "%-40s %-15s %-40s %-10s\n" "Service" "IP" "Access Ports" "Status"
 
 systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {print $1}' | while read SERVICE; do
