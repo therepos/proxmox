@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
+# wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
 # curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
 
 echo "$(date)"
