@@ -153,5 +153,5 @@ if __name__ == '__main__':
 EOF
 
 echo "=== Making script executable ==="
-pct exec $CONTAINER_ID -- chmod +x /usr/local/bin/youtubemp3.py
-pct exec $CONTAINER_ID -- /usr/local/bin/youtubemp3.py
+pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
+pct exec $CONTAINER_ID -- bash -c "/usr/local/bin/youtubemp3.py"
