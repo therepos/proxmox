@@ -139,5 +139,12 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
 EOF
 
-echo "=== Running MP3 Converter ==="
-pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:/usr/bin:/bin && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 youtubemp3:app"
+echo "=== Edit environment path ==="
+pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
+pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
+
+echo "=== Making script executable ==="
+pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
+
+echo "=== Running Python script ==="
+pct exec $CONTAINER_ID -- bash -c "python3 /usr/local/bin/youtubemp3.py"
