@@ -152,3 +152,23 @@ pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
 echo "=== Running Python script ==="
 pct exec $CONTAINER_ID -- bash -c "python3 /usr/local/bin/youtubemp3.py"
+
+echo "=== Creating systemd service for automatic startup ==="
+pct exec $CONTAINER_ID -- bash -c "cat > /etc/systemd/system/youtubemp3.service" << 'EOF'
+[Unit]
+Description=YouTube MP3 Converter Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/youtubemp3.py
+Restart=always
+Environment=PORT=${PORT}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "=== Enabling and starting the service ==="
+pct exec $CONTAINER_ID -- bash -c "systemctl enable youtubemp3.service"
+pct exec $CONTAINER_ID -- bash -c "systemctl start youtubemp3.service"
+
