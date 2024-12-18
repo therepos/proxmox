@@ -4,6 +4,8 @@
 # curl -fsSL https://github.com/therepos/proxmox/raw/main/install-youtubemp3.sh | bash
 
 echo $(date)
+# Allow user to set the port
+PORT=${1:-5000}  # Use the first argument or default to 5000
 
 # Dynamically find the next available container ID
 NEXT_ID=$(pvesh get /cluster/nextid)
@@ -19,7 +21,7 @@ CONTAINER_NAME="youtubemp3"
 TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
 STORAGE=$DEFAULT_STORAGE
 OUTPUT_DIR="/root/output"
-PORT=5030
+PORT=$PORT
 
 echo "=== Creating LXC container with ID $CONTAINER_ID ==="
 pct create $CONTAINER_ID $TEMPLATE --storage $STORAGE --hostname $CONTAINER_NAME --cores 2 --memory 2048 --net0 name=eth0,bridge=vmbr0,ip=dhcp
@@ -139,7 +141,7 @@ def convert():
 
 # Run the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5010)
+    app.run(host='0.0.0.0', port=$PORT)
 EOF
 
 pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
@@ -150,6 +152,6 @@ pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
 echo "=== Running Python script ==="
 pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
-pct exec $CONTAINER_ID -- bash -c "gunicorn -w 4 -b 0.0.0.0:5010 youtubemp3:app"
+pct exec $CONTAINER_ID -- bash -c "gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
 
 
