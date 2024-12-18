@@ -75,6 +75,22 @@ done
 
 # Services Section
 echo "Services:"
-systemctl list-units --type=service --state=running | awk 'NR > 1 && !/LOAD|ACTIVE|SUB/ {printf "Service: %s, Status: %s\n", $1, $4}'
+systemctl list-units --type=service --state=running | awk 'NR > 1 && !/LOAD|ACTIVE|SUB/ {print $1}' | while read SERVICE; do
+    # Detect open ports for the service
+    PORTS=$(ss -tuln | grep -i "$SERVICE" | awk '{print $5}' | awk -F':' '{print $NF}' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+
+    # If no ports are found, set to Unknown
+    [ -z "$PORTS" ] && PORTS="Unknown"
+
+    # Get the host IP
+    IP=$(hostname -I | awk '{print $1}')
+    [ -z "$IP" ] && IP="Unknown"
+
+    # Get the service status
+    STATUS=$(systemctl is-active "$SERVICE")
+
+    # Format the output
+    echo "Service: $SERVICE, IP=$IP, Access Ports=$PORTS, Status=$STATUS"
+done
 
 echo "-------------------------------------------------------------"
