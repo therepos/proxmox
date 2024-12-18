@@ -47,14 +47,10 @@ OUTPUT_DIR = "/root/output"
 # Ensure the output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Root endpoint with embedded JavaScript
 @app.route('/')
 def home():
-    files = os.listdir(OUTPUT_DIR)
-    history_html = ''.join(
-        f'<div><a href="/download/{file}" download>{file}</a> | <a href="/delete/{file}">Delete</a></div>'
-        for file in files
-    )
-    return f'''
+    return '''
         <html>
         <body>
             <h1>Welcome to the MP3 Converter</h1>
@@ -65,10 +61,6 @@ def home():
             </form>
             <div id="status"></div>
             <div id="download"></div>
-            <h2>Conversion History</h2>
-            <div id="history">
-                {history_html}
-            </div>
             <script>
                 document.getElementById('convertForm').onsubmit = async function(event) {
                     event.preventDefault();
@@ -91,8 +83,6 @@ def home():
                             <a href="${result.download_url}" download>
                                 <button>Download MP3</button>
                             </a>`;
-                        document.getElementById('history').innerHTML += `
-                            <div><a href="${result.download_url}" download>${result.file_name}</a> | <a href="/delete/${result.file_name}">Delete</a></div>`;
                     } else {
                         statusDiv.innerHTML = `<p>Error: ${result.error}</p>`;
                     }
@@ -110,14 +100,7 @@ def download_file(filename):
     except FileNotFoundError:
         return "File not found", 404
 
-@app.route('/delete/<filename>')
-def delete_file(filename):
-    try:
-        os.remove(os.path.join(OUTPUT_DIR, filename))
-        return jsonify({"message": f"File {filename} deleted"}), 200
-    except FileNotFoundError:
-        return jsonify({"error": "File not found"}), 404
-
+# Convert endpoint
 @app.route('/convert', methods=['POST'])
 def convert():
     data = request.get_json()
@@ -126,12 +109,14 @@ def convert():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
+        # Generate a unique filename based on the YouTube URL
         unique_id = hashlib.md5(youtube_url.encode()).hexdigest()
         output_filename = f"{unique_id}.mp3"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
+        # Build the yt-dlp command with the full path
         command = [
-            "/usr/local/bin/yt-dlp",
+            "/usr/local/bin/yt-dlp",  # Full path to yt-dlp
             "-f", "bestaudio",
             "--extract-audio",
             "--audio-format", "mp3",
@@ -140,19 +125,21 @@ def convert():
             youtube_url
         ]
 
+        # Run the command
         subprocess.run(command, check=True)
 
+        # Return JSON response with the download URL
         download_link = f"/download/{output_filename}"
         return jsonify({
             "message": "Conversion completed!",
-            "download_url": download_link,
-            "file_name": output_filename
+            "download_url": download_link
         }), 200
     except subprocess.CalledProcessError as e:
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
+# Run the Flask app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5030)
+    app.run(host='0.0.0.0', port=5010)
 EOF
 
 pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
