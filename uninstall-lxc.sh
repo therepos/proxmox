@@ -10,8 +10,14 @@ usage() {
     exit 1
 }
 
-# Prompt user for container ID or name
-read -p "Enter the container ID or name to uninstall: " CONTAINER_IDENTIFIER
+# Check if the container identifier is provided as a command-line argument
+if [ -z "$1" ]; then
+    echo "Usage: $0 <container_name_or_id>"
+    exit 1
+fi
+
+# Use the provided argument as the container identifier
+CONTAINER_IDENTIFIER="$1"
 
 # Check if the input is valid
 if [ -z "$CONTAINER_IDENTIFIER" ]; then
