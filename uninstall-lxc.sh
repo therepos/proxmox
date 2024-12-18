@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wget --header="Cache-Control: no-cache" -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
+# wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 
 #!/bin/bash
