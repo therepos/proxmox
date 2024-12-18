@@ -3,15 +3,14 @@
 # wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/uninstall-lxc.sh | bash
 
-#!/bin/bash
-
 # Check if the container identifier is provided as a command-line argument
 if [ -z "$1" ]; then
-    echo "Usage: $0 <container_name_or_id>"
-    exit 1
+    echo "No container identifier provided. Switching to interactive mode."
+    read -p "Enter the container ID or name to uninstall: " CONTAINER_IDENTIFIER
+else
+    CONTAINER_IDENTIFIER="$1"
 fi
 
-CONTAINER_IDENTIFIER="$1"
 CONTAINER_ID=$(pct list | grep "$CONTAINER_IDENTIFIER" | awk '{print $1}')
 
 if [ -z "$CONTAINER_ID" ]; then
@@ -61,3 +60,4 @@ echo "=== Cleanup completed ==="
 
 # Final message
 echo "Container '$CONTAINER_IDENTIFIER' and associated files have been removed."
+
