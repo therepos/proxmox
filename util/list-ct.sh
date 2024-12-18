@@ -78,7 +78,12 @@ done
 echo "Services:"
 printf "%-40s %-15s %-20s %-10s\n" "Service" "IP" "Access Ports" "Status"
 
-systemctl list-units --type=service --state=running | awk 'NR > 1 && !/LOAD|ACTIVE|SUB/ {print $1}' | while read SERVICE; do
+systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {print $1}' | while read SERVICE; do
+    # Skip invalid entries or empty lines
+    if [[ ! $SERVICE =~ \.service$ ]]; then
+        continue
+    fi
+
     # Get IP of the Proxmox host
     IP=$(hostname -I | awk '{print $1}')
     [ -z "$IP" ] && IP="Unknown"
