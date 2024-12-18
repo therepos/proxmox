@@ -155,9 +155,6 @@ pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
 echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
-echo "=== Running Python script ==="
-pct exec $CONTAINER_ID -- bash -c "python3 /usr/local/bin/youtubemp3.py"
-
 echo "=== Creating systemd service for automatic startup ==="
 pct exec $CONTAINER_ID -- bash -c "cat > /etc/systemd/system/youtubemp3.service" << 'EOF'
 [Unit]
