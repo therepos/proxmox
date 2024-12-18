@@ -73,7 +73,8 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     echo "VM $VMID: Status=$STATUS, IP=$IP, Access Ports=$WEB_PORTS"
 done
 
+# Services Section
 echo "Services:"
-systemctl list-units --type=service --state=running | awk 'NR > 1 {printf "Service: %s, Status: %s\\n", $1, $4}'
+systemctl list-units --type=service --state=running | awk 'NR > 1 && !/LOAD|ACTIVE|SUB/ {printf "Service: %s, Status: %s\n", $1, $4}'
 
 echo "-------------------------------------------------------------"
