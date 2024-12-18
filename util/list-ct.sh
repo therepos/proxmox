@@ -3,6 +3,7 @@
 # bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
 # bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh)"
 
+echo "$(date)"
 echo "Listing container and VM IPs with detected access ports and statuses:"
 echo "-------------------------------------------------------------"
 
