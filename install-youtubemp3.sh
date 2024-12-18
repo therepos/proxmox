@@ -153,6 +153,9 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5030)
 EOF
 
+pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
+pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
+
 echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
 
