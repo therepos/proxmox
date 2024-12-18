@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh)"
-# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh)"
+# bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/util/list-ct3.sh)"
+# bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct3.sh)"
 
 echo "$(date)"
 echo "Containers:"
