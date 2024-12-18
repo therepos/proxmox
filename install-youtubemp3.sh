@@ -154,7 +154,9 @@ pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
 
 echo "=== Running Python script ==="
 pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
-pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
+pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && chmod 1777 /tmp"
+pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 youtubemp3:app"
+
 
 
 
