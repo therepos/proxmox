@@ -12,8 +12,14 @@ usage() {
 
 # Check if the container identifier is provided as an argument
 if [ -z "$1" ]; then
-    echo "No container identifier provided. Switching to interactive mode."
-    read -p "Enter the container ID or name to uninstall: " CONTAINER_IDENTIFIER
+    # Ensure interactive prompt works in pipelines
+    if [ -t 0 ]; then
+        echo "No container identifier provided. Switching to interactive mode."
+        read -p "Enter the container ID or name to uninstall: " CONTAINER_IDENTIFIER
+    else
+        echo "No container identifier provided and no interactive input available."
+        usage
+    fi
 else
     CONTAINER_IDENTIFIER="$1"
 fi
@@ -75,6 +81,7 @@ echo "=== Cleanup completed ==="
 
 # Final message
 echo "Container '$CONTAINER_IDENTIFIER' and associated files have been removed."
+
 
 
 
