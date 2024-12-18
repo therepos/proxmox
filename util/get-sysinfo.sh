@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/util/get-sysinfo.sh | bash
+# wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/get-sysinfo.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/get-sysinfo.sh | bash
 
 # Define colors for status messages (already include tick and cross)
