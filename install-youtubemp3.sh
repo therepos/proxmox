@@ -13,11 +13,11 @@ if ! pvesm list $DEFAULT_STORAGE &> /dev/null; then
 fi
 
 CONTAINER_ID=$NEXT_ID
-CONTAINER_NAME="mp3-converter"
+CONTAINER_NAME="youtubemp3"
 TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
 STORAGE=$DEFAULT_STORAGE
 OUTPUT_DIR="/root/output"
-PORT=5010
+PORT=5030
 
 echo "=== Creating LXC container with ID $CONTAINER_ID ==="
 pct create $CONTAINER_ID $TEMPLATE --storage $STORAGE --hostname $CONTAINER_NAME --cores 2 --memory 2048 --net0 name=eth0,bridge=vmbr0,ip=dhcp
@@ -27,15 +27,12 @@ pct start $CONTAINER_ID
 
 echo "=== Installing dependencies in container ==="
 pct exec $CONTAINER_ID -- bash -c "apt update && apt upgrade -y"
-pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano"
-
-echo "=== Installing yt-dlp in container ==="
-pct exec $CONTAINER_ID -- bash -c "pip install yt-dlp flask"
+pct exec $CONTAINER_ID -- bash -c "apt install -y python3 python3-pip ffmpeg curl nano flask yt-dlp"
 
 echo "=== Setting up MP3 converter script ==="
 pct exec $CONTAINER_ID -- bash -c "mkdir -p $OUTPUT_DIR"
 
-pct exec $CONTAINER_ID -- bash -c "cat > /usr/local/bin/mp3_server.py" << 'EOF'
+pct exec $CONTAINER_ID -- bash -c "cat > /usr/local/bin/youtubemp3.py" << 'EOF'
 from flask import Flask, request, jsonify, send_from_directory
 import subprocess
 import os
@@ -102,6 +99,7 @@ def home():
         </html>
     '''
 
+# Serve files for download
 @app.route('/download/<filename>')
 def download_file(filename):
     try:
@@ -151,14 +149,14 @@ def convert():
         return jsonify({"error": f"Conversion failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5010)
+    app.run(host='0.0.0.0', port=5030)
 EOF
 
 echo "=== Making script executable ==="
-pct exec $CONTAINER_ID -- chmod +x /usr/local/bin/mp3_server.py
+pct exec $CONTAINER_ID -- chmod +x /usr/local/bin/youtubemp3.py
 
 echo "=== Setting up systemd service ==="
-pct exec $CONTAINER_ID -- bash -c "cat > /etc/systemd/system/mp3_server.service" << EOF
+pct exec $CONTAINER_ID -- bash -c "cat > /etc/systemd/system/youtubemp3.service" << EOF
 [Unit]
 Description=MP3 Converter Flask App
 After=network.target
@@ -166,7 +164,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/root
-ExecStart=/usr/bin/python3 /usr/local/bin/mp3_server.py
+ExecStart=/usr/bin/python3 /usr/local/bin/youtubemp3.py
 Restart=always
 
 [Install]
@@ -174,8 +172,8 @@ WantedBy=multi-user.target
 EOF
 
 echo "=== Enabling and starting the service ==="
-pct exec $CONTAINER_ID -- systemctl enable mp3_server.service
-pct exec $CONTAINER_ID -- systemctl start mp3_server.service
+pct exec $CONTAINER_ID -- systemctl enable youtubemp3.service
+pct exec $CONTAINER_ID -- systemctl start youtubemp3.service
 
 echo "=== Setup complete! ==="
 echo "Access the MP3 converter at http://<container-ip>:$PORT/"
