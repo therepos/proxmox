@@ -17,7 +17,7 @@ CONTAINER_NAME="mp3-converter"
 TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
 STORAGE=$DEFAULT_STORAGE
 OUTPUT_DIR="/root/output"
-PORT=5000
+PORT=5010
 
 echo "=== Creating LXC container with ID $CONTAINER_ID ==="
 pct create $CONTAINER_ID $TEMPLATE --storage $STORAGE --hostname $CONTAINER_NAME --cores 2 --memory 2048 --net0 name=eth0,bridge=vmbr0,ip=dhcp
