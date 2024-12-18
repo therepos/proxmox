@@ -154,4 +154,26 @@ EOF
 
 echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- chmod +x /usr/local/bin/youtubemp3.py
-pct exec $CONTAINER_ID -- /usr/local/bin/youtubemp3.py
+
+echo "=== Setting up systemd service ==="
+pct exec $CONTAINER_ID -- bash -c "cat > /etc/systemd/system/youtubemp3.service" << EOF
+[Unit]
+Description=MP3 Converter Flask App
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root
+ExecStart=/usr/bin/python3 /usr/local/bin/youtubemp3.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "=== Enabling and starting the service ==="
+pct exec $CONTAINER_ID -- systemctl enable youtubemp3.service
+pct exec $CONTAINER_ID -- systemctl start youtubemp3.service
+
+echo "=== Setup complete! ==="
+echo "Access the MP3 converter at http://<container-ip>:$PORT/"
