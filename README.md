@@ -42,23 +42,23 @@ bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/c
 ---
 
 ```bash
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installer/install-postpve.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh | bash
 
 wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh | bash
 
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiadriver.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiadriver.sh | bash
 
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-nvidiact.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiact.sh | bash
 
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-docker.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-docker.sh | bash
 
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-portainer.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-portainer.sh | bash
 
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-openwebui.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-openwebui.sh | bash
 
 wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/ct/cloudflared.sh | bash
 
-wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/install-vscodeserver.sh | bash
+wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-vscodeserver.sh | bash
 
 ```
 ---
