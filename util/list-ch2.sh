@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh | bash
-# curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct2.sh | bash
+# wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
+# curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
 
 echo "$(date)"
 echo "Listing container and VM IPs with detected access ports and statuses:"
@@ -30,21 +30,17 @@ detect_web_ports() {
 }
 
 # Containers
-echo "Containers:"
+printf "%-40s %-15s %-40s %-10s\n" "Container" "IP" "Access Ports" "Status"
 pct list | awk 'NR > 1 {print $1, $2}' | while read CTID STATUS; do
-    # Get the container's IP
     IP=$(pct exec "$CTID" -- ip -4 -o addr show eth0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
     [ -z "$IP" ] && IP="No IP Assigned"
-
-    # Detect web ports
     PORTS=$(detect_web_ports "$CTID" "true")
-
-    # Output
-    echo "CT $CTID: Status=$STATUS, IP=$IP, Access Ports=$PORTS"
+    printf "%-40s %-15s %-40s %-10s\n" "CT $CTID" "$IP" "$PORTS" "$STATUS"
 done
+echo "-------------------------------------------------------------"
 
 echo ""
-echo "VMs:"
+printf "%-40s %-15s %-40s %-10s\n" "VM" "IP" "Access Ports" "Status"
 qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     # Check if the guest agent is responding
     if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
@@ -71,26 +67,25 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     fi
 
     # Output
-    echo "VM $VMID: Status=$STATUS, IP=$IP, Access Ports=$WEB_PORTS"
+    printf "%-40s %-15s %-40s %-10s\n" "VM $VMID" "$IP" "$WEB_PORTS" "$STATUS"
 done
+echo "-------------------------------------------------------------"
 
 echo ""
 echo "Dockers:"
+printf "%-40s %-15s %-40s %-10s\n" "Docker" "IP" "Access Ports" "Status"
 docker ps --format '{{.Names}} {{.ID}} {{.State}} {{.Ports}}' | while read NAME ID STATE PORTS; do
-    # Extract IP and Ports
     IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$ID")
     [ -z "$IP" ] && IP="No IP Assigned"
-
     FORMATTED_PORTS=$(echo "$PORTS" | grep -oE '[0-9]+/tcp' | cut -d/ -f1 | tr '\n' ',' | sed 's/,$//')
     [ -z "$FORMATTED_PORTS" ] && FORMATTED_PORTS="No Recognized Ports"
-
-    # Output
-    echo "Docker $NAME: Status=$STATE, IP=$IP, Access Ports=$FORMATTED_PORTS"
+    printf "%-40s %-15s %-40s %-10s\n" "$NAME" "$IP" "$FORMATTED_PORTS" "$STATE"
 done
+echo "-------------------------------------------------------------"
 
 # Services
 echo "Services:"
-printf "%-40s %-15s %-20s %-10s\n" "Service" "IP" "Access Ports" "Status"
+printf "%-40s %-15s %-40s %-10s\n" "Service" "IP" "Access Ports" "Status"
 
 systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {print $1}' | while read SERVICE; do
     # Skip invalid entries or empty lines
@@ -126,7 +121,8 @@ systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {pri
     STATUS=$(systemctl is-active "$SERVICE")
 
     # Format output as a table
-    printf "%-40s %-15s %-20s %-10s\n" "$SERVICE" "$IP" "$PORTS" "$STATUS"
+    printf "%-40s %-15s %-40s %-10s\n" "$SERVICE" "$IP" "$PORTS" "$STATUS"
 done
+echo "-------------------------------------------------------------"
 
 echo "-------------------------------------------------------------"
