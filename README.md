@@ -2,7 +2,6 @@
 
 A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. These scripts are lightweight, easy to use, and automate common setup tasks for LXC containers.
 
----
 
 ## Features
 
@@ -10,13 +9,11 @@ A collection of scripts designed to simplify the installation, management, and u
 - **Automated Uninstallation**: Cleanly remove services and their associated containers.
 - **Customizable**: Modify scripts to suit your environment.
 
----
 
 ## How to Use
 
 Please refer to [installation](https://thelibs.gitbook.io/thelibs/proxmox/setup/installation#post-installation) guide. 
 
----
 
 ### Customization
 All scripts are designed to be easily customizable. You can:
