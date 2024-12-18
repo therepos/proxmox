@@ -42,7 +42,7 @@ bash -c "$(wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/c
 ---
 
 ```bash
-wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/install-postpve.sh | bash
+wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installer/install-postpve.sh | bash
 
 wget --no-cache -qLO- https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh | bash
 
