@@ -149,9 +149,12 @@ pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
 
 echo "=== Making script executable ==="
 pct exec $CONTAINER_ID -- bash -c "chmod +x /usr/local/bin/youtubemp3.py"
+pct exec $CONTAINER_ID -- bash -c "echo 'export PATH=/usr/local/bin:\$PATH' >> /root/.bashrc"
+pct exec $CONTAINER_ID -- bash -c "source /root/.bashrc"
 
 echo "=== Running Python script ==="
 pct exec $CONTAINER_ID -- bash -c "pip3 install gunicorn"
-pct exec $CONTAINER_ID -- bash -c "export PORT=$PORT && gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
+pct exec $CONTAINER_ID -- bash -c "export PATH=/usr/local/bin:\$PATH && gunicorn -w 4 -b 0.0.0.0:$PORT youtubemp3:app"
+
 
 
