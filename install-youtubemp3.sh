@@ -112,10 +112,16 @@ def convert():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
-        unique_id = hashlib.md5(youtube_url.encode()).hexdigest()
-        output_filename = f"{unique_id}.mp3"
+        # Get video information, including the title, using yt-dlp
+        result = subprocess.run(
+            ["/usr/local/bin/yt-dlp", "--get-title", youtube_url],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        title = result.stdout.decode().strip()  # Get the video title
+        output_filename = f"{title}.mp3"  # Use title as the filename
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
+        # Download the video and extract audio
         command = [
             "/usr/local/bin/yt-dlp",
             "-f", "bestaudio",
@@ -126,9 +132,7 @@ def convert():
             youtube_url
         ]
 
-        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print("STDOUT:", result.stdout.decode())
-        print("STDERR:", result.stderr.decode())
+        subprocess.run(command, check=True)
 
         download_link = f"/download/{output_filename}"
         return jsonify({"message": "Conversion completed!", "download_url": download_link}), 200
