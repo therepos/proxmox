@@ -3,6 +3,8 @@
 # wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/install-youtubemp3.sh | bash
 # curl -fsSL https://github.com/therepos/proxmox/raw/main/install-youtubemp3.sh | bash
 
+echo $(date)
+
 # Dynamically find the next available container ID
 NEXT_ID=$(pvesh get /cluster/nextid)
 
