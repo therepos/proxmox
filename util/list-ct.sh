@@ -37,6 +37,7 @@ pct list | awk 'NR > 1 {print $1, $2}' | while read CTID STATUS; do
     PORTS=$(detect_web_ports "$CTID" "true")
     printf "%-40s %-15s %-40s %-10s\n" "CT $CTID" "$IP" "$PORTS" "$STATUS"
 done
+echo ""
 echo "-------------------------------------------------------------"
 
 echo ""
@@ -70,6 +71,7 @@ qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
     # Output
     printf "%-40s %-15s %-40s %-10s\n" "VM $VMID" "$IP" "$WEB_PORTS" "$STATUS"
 done
+echo ""
 echo "-------------------------------------------------------------"
 
 echo ""
@@ -82,8 +84,10 @@ docker ps --format '{{.Names}} {{.ID}} {{.State}} {{.Ports}}' | while read NAME 
     [ -z "$FORMATTED_PORTS" ] && FORMATTED_PORTS="No Recognized Ports"
     printf "%-40s %-15s %-40s %-10s\n" "$NAME" "$IP" "$FORMATTED_PORTS" "$STATE"
 done
+echo ""
 echo "-------------------------------------------------------------"
 
+echo ""
 # Services
 printf "%-40s %-15s %-40s %-10s\n" "Service" "IP" "Access Ports" "Status"
 systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {print $1}' | while read SERVICE; do
@@ -122,5 +126,5 @@ systemctl list-units --type=service --state=running | awk 'NR > 1 && NF > 1 {pri
     # Format output as a table
     printf "%-40s %-15s %-40s %-10s\n" "$SERVICE" "$IP" "$PORTS" "$STATUS"
 done
-
+echo ""
 echo "-------------------------------------------------------------"
