@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# wget -q0o- "
+# wget --no-cache -qLO - https://github.com/therepos/proxmox/raw/main/uninstall-cloudflared.sh | bash
+# curl -fsSL https://github.com/therepos/proxmox/raw/main/uninstall-cloudflared.sh | bash
 
 # Dynamically find the next available container ID
 NEXT_ID=$(pvesh get /cluster/nextid)
