@@ -10,7 +10,9 @@ set -e
 ARCH=$(dpkg --print-architecture)
 
 # Remove redundant file
-[ -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list ] && rm /etc/apt/sources.list.d/cuda-debian12-x86_64.list
+if [ -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list ]; then
+    rm /etc/apt/sources.list.d/cuda-debian12-x86_64.list
+fi
 
 # Add NVIDIA GPG key
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
