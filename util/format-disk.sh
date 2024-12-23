@@ -49,9 +49,9 @@ echo -e "${GREEN}${RESET} You selected $DISK."
 
 # Step 2: Warning message before proceeding
 echo -e "${RED}${RESET} Warning: This script will erase all data on the disk ${DISK} and create a new partition table."
-read -p "Do you want to continue? (yes/no): " confirm
+read -p "Do you want to continue? (y/n): " confirm
 
-if [[ "$confirm" != "yes" ]]; then
+if [[ "$confirm" != "y" ]]; then
     echo -e "${RED}${RESET} Aborting the process."
     exit 1
 fi
