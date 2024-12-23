@@ -5,6 +5,8 @@
 
 echo $(date)
 
+#!/bin/bash
+
 # Define colors for status messages (green tick and red cross)
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
@@ -36,25 +38,24 @@ echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
 # Step 2: User selection for disk
-while true; do
-    read -r -p "Please select a disk by entering the corresponding number (e.g., 1, 2, 3): " disk_choice
+read -r -p "Please select a disk by entering the corresponding number (e.g., 1, 2, 3): " disk_choice
+
+# Validate user input
+if [[ "$disk_choice" =~ ^[0-9]+$ ]]; then
+    # Get the selected disk based on the user's input
+    DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
     
-    # Validate if the choice is a valid number
-    if [[ "$disk_choice" =~ ^[0-9]+$ ]] && (( disk_choice > 0 )); then
-        # Get the selected disk based on the user's input
-        DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
-        
-        # Check if the disk exists
-        if [ -e "$DISK" ]; then
-            echo -e "${GREEN}${RESET} You selected $DISK."
-            break
-        else
-            echo -e "${RED}${RESET} Invalid disk selection. Please choose a valid disk."
-        fi
+    # Check if the disk exists
+    if [ -e "$DISK" ]; then
+        echo -e "${GREEN}${RESET} You selected $DISK."
     else
-        echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
+        echo -e "${RED}${RESET} Invalid disk selection. Please choose a valid disk."
+        exit 1
     fi
-done
+else
+    echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
+    exit 1
+fi
 
 # Step 3: Warning message before proceeding
 echo -e "${RED}${RESET} Warning: This script will erase all data on the disk ${DISK} and create a new partition table."
@@ -108,73 +109,7 @@ case $fs_choice in
         ;;
     2)
         echo -e "${GREEN}${RESET} Installing ZFS..."
-        install_package_if_missing "zfsutils-linux"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with ZFS..."
-        sudo zpool create $PARTITION $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as ZFS."
-        else
-            echo -e "${RED}${RESET} Failed to format as ZFS."
-            exit 1
-        fi
-        ;;
-    3)
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with FAT32..."
-        sudo mkfs.fat -F 32 $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as FAT32."
-        else
-            echo -e "${RED}${RESET} Failed to format as FAT32."
-            exit 1
-        fi
-        ;;
-    4)
-        echo -e "${GREEN}${RESET} Installing NTFS-3G..."
-        install_package_if_missing "ntfs-3g"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with NTFS..."
-        sudo mkfs.ntfs $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as NTFS."
-        else
-            echo -e "${RED}${RESET} Failed to format as NTFS."
-            exit 1
-        fi
-        ;;
-    5)
-        echo -e "${GREEN}${RESET} Installing exFAT utilities..."
-        install_package_if_missing "exfat-utils"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with exFAT..."
-        sudo mkfs.exfat $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as exFAT."
-        else
-            echo -e "${RED}${RESET} Failed to format as exFAT."
-            exit 1
-        fi
-        ;;
-    *)
-        echo -e "${RED}${RESET} Invalid choice, aborting."
-        exit 1
-        ;;
-esac
+        install_package_if_missi
 
-# Step 8: Create a mount point and mount the partition
-MOUNT_POINT="/mnt/4tb"
-echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
-sudo mkdir -p $MOUNT_POINT > /dev/null 2>&1
-
-echo -e "${GREEN}${RESET} Mounting ${PARTITION} to ${MOUNT_POINT}..."
-sudo mount $PARTITION $MOUNT_POINT > /dev/null 2>&1
-
-# Step 9: Add the partition to /etc/fstab for auto-mount on boot
-UUID=$(sudo blkid -s UUID -o value $PARTITION)
-echo -e "${GREEN}${RESET} Adding ${PARTITION} to /etc/fstab for auto-mount on boot..."
-echo "UUID=$UUID $MOUNT_POINT $fs_choice defaults 0 2" | sudo tee -a /etc/fstab > /dev/null
-
-# Step 10: Verify the changes
-echo -e "${GREEN}${RESET} The disk has been successfully partitioned, formatted, and mounted."
-echo -e "${RESET}You can verify the mounted disk with 'df -h'."
-
-df -h
 
 
