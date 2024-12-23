@@ -35,40 +35,36 @@ install_package_if_missing "parted"
 echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
-# Ensure that the script waits for user input properly
+# Step 2: User selection for disk
 while true; do
-    echo -e "${RESET}Please select a disk by entering the corresponding number (e.g., 1, 2, 3):"
-    read -p "Enter the number of the disk you want to partition: " disk_choice
-
-    # Validate user input
-    if [[ "$disk_choice" =~ ^[0-9]+$ ]]; then
-        break
+    read -r -p "Please select a disk by entering the corresponding number (e.g., 1, 2, 3): " disk_choice
+    
+    # Validate if the choice is a valid number
+    if [[ "$disk_choice" =~ ^[0-9]+$ ]] && (( disk_choice > 0 )); then
+        # Get the selected disk based on the user's input
+        DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
+        
+        # Check if the disk exists
+        if [ -e "$DISK" ]; then
+            echo -e "${GREEN}${RESET} You selected $DISK."
+            break
+        else
+            echo -e "${RED}${RESET} Invalid disk selection. Please choose a valid disk."
+        fi
     else
         echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
     fi
 done
 
-# Get the selected disk based on the user's input
-DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
-
-# Validate the selected disk
-if [ ! -e "$DISK" ]; then
-    echo -e "${RED}${RESET} Error: The selected disk does not exist. Please select a valid disk."
-    exit 1
-fi
-
-echo -e "${GREEN}${RESET} You selected $DISK."
-
-# Step 2: Warning message before proceeding
+# Step 3: Warning message before proceeding
 echo -e "${RED}${RESET} Warning: This script will erase all data on the disk ${DISK} and create a new partition table."
-read -p "Do you want to continue? (yes/no): " confirm
-
-if [[ "$confirm" != "yes" ]]; then
+read -r -p "Do you want to continue? <y/N>: " confirm
+if [[ ${confirm,,} != "y" && ${confirm,,} != "yes" ]]; then
     echo -e "${RED}${RESET} Aborting the process."
     exit 1
 fi
 
-# Step 3: Create GPT partition table on the selected disk
+# Step 4: Create GPT partition table on the selected disk
 echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
 sudo parted $DISK mklabel gpt > /dev/null 2>&1
 if [ $? -eq 0 ]; then
@@ -78,7 +74,7 @@ else
     exit 1
 fi
 
-# Step 4: Create a single partition on the disk
+# Step 5: Create a single partition on the disk
 echo -e "${GREEN}${RESET} Creating primary partition on ${DISK}..."
 sudo parted $DISK mkpart primary 0% 100% > /dev/null 2>&1
 if [ $? -eq 0 ]; then
@@ -88,16 +84,16 @@ else
     exit 1
 fi
 
-# Prompt user to select a file system type
+# Step 6: Prompt user to select a file system type
 echo -e "${RESET}Select a file system to format the partition:"
 echo -e "1) ext4"
 echo -e "2) zfs"
 echo -e "3) fat32"
 echo -e "4) ntfs"
 echo -e "5) exfat"
-read -p "Enter the number of your choice: " fs_choice
+read -r -p "Enter the number of your choice: " fs_choice
 
-# Step 5: Format the new partition with the selected file system
+# Step 7: Format the new partition with the selected file system
 PARTITION="${DISK}p1"
 case $fs_choice in
     1)
@@ -162,7 +158,7 @@ case $fs_choice in
         ;;
 esac
 
-# Step 6: Create a mount point and mount the partition
+# Step 8: Create a mount point and mount the partition
 MOUNT_POINT="/mnt/4tb"
 echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
 sudo mkdir -p $MOUNT_POINT > /dev/null 2>&1
@@ -170,14 +166,15 @@ sudo mkdir -p $MOUNT_POINT > /dev/null 2>&1
 echo -e "${GREEN}${RESET} Mounting ${PARTITION} to ${MOUNT_POINT}..."
 sudo mount $PARTITION $MOUNT_POINT > /dev/null 2>&1
 
-# Step 7: Add the partition to /etc/fstab for auto-mount on boot
+# Step 9: Add the partition to /etc/fstab for auto-mount on boot
 UUID=$(sudo blkid -s UUID -o value $PARTITION)
 echo -e "${GREEN}${RESET} Adding ${PARTITION} to /etc/fstab for auto-mount on boot..."
 echo "UUID=$UUID $MOUNT_POINT $fs_choice defaults 0 2" | sudo tee -a /etc/fstab > /dev/null
 
-# Step 8: Verify the changes
+# Step 10: Verify the changes
 echo -e "${GREEN}${RESET} The disk has been successfully partitioned, formatted, and mounted."
 echo -e "${RESET}You can verify the mounted disk with 'df -h'."
 
 df -h
+
 
