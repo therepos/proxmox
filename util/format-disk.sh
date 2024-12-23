@@ -34,7 +34,13 @@ echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
 # Prompt the user to select a disk by number
-read -p "Enter the number of the disk you want to partition: " disk_choice
+read -p "Enter the number of the disk you want to partition (e.g., 1, 2, 3): " disk_choice
+
+# Validate user input
+if ! [[ "$disk_choice" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
+    exit 1
+fi
 
 # Get the selected disk based on the user's input
 DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
