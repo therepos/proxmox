@@ -3,6 +3,8 @@
 # wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh | bash
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh | bash
 
+echo $(date)
+
 # Define colors for status messages (green tick and red cross)
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
