@@ -35,15 +35,18 @@ install_package_if_missing "parted"
 echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
-# Prompt the user to select a disk by number
-echo -e "${RESET}Please select a disk by entering the corresponding number (e.g., 1, 2, 3):"
-read -p "Enter the number of the disk you want to partition: " disk_choice
+# Ensure that the script waits for user input properly
+while true; do
+    echo -e "${RESET}Please select a disk by entering the corresponding number (e.g., 1, 2, 3):"
+    read -p "Enter the number of the disk you want to partition: " disk_choice
 
-# Validate user input
-if ! [[ "$disk_choice" =~ ^[0-9]+$ ]]; then
-    echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
-    exit 1
-fi
+    # Validate user input
+    if [[ "$disk_choice" =~ ^[0-9]+$ ]]; then
+        break
+    else
+        echo -e "${RED}${RESET} Invalid input. Please enter a valid disk number."
+    fi
+done
 
 # Get the selected disk based on the user's input
 DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
@@ -177,3 +180,4 @@ echo -e "${GREEN}${RESET} The disk has been successfully partitioned, formatted,
 echo -e "${RESET}You can verify the mounted disk with 'df -h'."
 
 df -h
+
