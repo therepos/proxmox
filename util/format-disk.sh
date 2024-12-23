@@ -2,16 +2,21 @@
 
 # Step 1: List available disks and prompt the user to select one
 echo "Listing available disks:"
-lsblk -d -o NAME,SIZE
+lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
-# Prompt the user to enter the disk to partition (e.g., /dev/nvme0n1)
-read -p "Enter the disk you want to partition (e.g., /dev/nvme0n1): " DISK
+# Prompt the user to select a disk by number
+read -p "Enter the number of the disk you want to partition: " disk_choice
 
-# Validate that the disk exists
+# Get the selected disk based on the user's input
+DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
+
+# Validate the selected disk
 if [ ! -e "$DISK" ]; then
-    echo "Error: The disk $DISK does not exist."
+    echo "Error: The selected disk does not exist."
     exit 1
 fi
+
+echo "You selected $DISK."
 
 # Step 2: Warning message before proceeding
 echo "Warning: This script will erase all data on the disk ${DISK} and create a new partition table."
