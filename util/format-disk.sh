@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh | bash
+
 # Step 1: List available disks and prompt the user to select one
 echo "Listing available disks:"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
