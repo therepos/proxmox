@@ -41,7 +41,7 @@ DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '
 
 # Validate the selected disk
 if [ ! -e "$DISK" ]; then
-    echo -e "${RED}${RESET} Error: The selected disk does not exist."
+    echo -e "${RED}${RESET} Error: The selected disk does not exist. Please select a valid disk."
     exit 1
 fi
 
