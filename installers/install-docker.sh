@@ -43,7 +43,7 @@ fi
 # Check if Docker repository exists, if not, add it
 if ! grep -q "docker.com" /etc/apt/sources.list.d/docker.list; then
     print_status "Adding Docker repository"
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | \
         tee /etc/apt/sources.list.d/docker.list > /dev/null
 else
     print_status "Docker repository already exists, skipping"
@@ -51,7 +51,7 @@ fi
 
 # Add Docker repository (use Bullseye for Debian Bookworm compatibility)
 print_status "Adding Docker repository"
-run_silent echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | \
+run_silent echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | \
     tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 # Update package lists and install Docker
