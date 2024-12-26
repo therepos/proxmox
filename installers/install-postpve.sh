@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# bash -c "$(wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh)"
+# bash -c "$(wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-postpve.sh)"
 # bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/installers/install-postpve.sh)"
 
 # Modified by: therepos
