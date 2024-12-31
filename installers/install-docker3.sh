@@ -5,7 +5,7 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-echo "v2"
+echo "v3"
 
 function status_message() {
     local status=$1
@@ -20,16 +20,24 @@ function status_message() {
 
 # Step 0: Select the storage pool
 echo "Available storage pools:"
-pvesm status | awk 'NR > 1 {print NR-1 ") " $1}'
+STORAGE_POOLS=($(pvesm status | awk 'NR > 1 {print $1}'))  # Create an array of storage pool names
 
+# Display storage pool options
+for i in "${!STORAGE_POOLS[@]}"; do
+    echo "$((i+1))) ${STORAGE_POOLS[$i]}"
+done
+
+# Prompt user to select a storage pool
 read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
 
-# Extract the selected storage pool
-STORAGE_POOL=$(pvesm status | awk -v index="$STORAGE_POOL_INDEX" 'NR == index+1 {print $1}')
-if [ -z "$STORAGE_POOL" ]; then
+# Validate input
+if [[ "$STORAGE_POOL_INDEX" -lt 1 || "$STORAGE_POOL_INDEX" -gt "${#STORAGE_POOLS[@]}" ]]; then
     echo -e "${RED}Invalid selection. Exiting.${RESET}"
     exit 1
 fi
+
+# Retrieve selected storage pool
+STORAGE_POOL="${STORAGE_POOLS[$((STORAGE_POOL_INDEX-1))]}"
 echo "Selected storage pool: $STORAGE_POOL"
 
 # Step 1: Verify IOMMU is enabled
