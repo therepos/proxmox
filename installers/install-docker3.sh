@@ -62,7 +62,7 @@ check_success "Disk attachment"
 echo "Configuring cloud-init..."
 qm set $VMID --ide2 $STORAGE_POOL:cloudinit
 qm set $VMID --serial0 socket --vga serial0
-qm set $VMID --cipassword "root" --ciuser "root"
+qm set $VMID --cipassword "yourpassword" --ciuser "youruser"
 check_success "Cloud-init configuration"
 
 # Step 6: Add GPU Passthrough
@@ -79,30 +79,30 @@ check_success "VM start"
 echo "Installing Docker and NVIDIA Toolkit inside the VM..."
 ssh -o "StrictHostKeyChecking=no" youruser@<VM_IP> << 'EOF'
     # Update system
-    sudo apt-get update -y && sudo apt-get upgrade -y
+    apt-get update -y && apt-get upgrade -y
 
     # Install Docker prerequisites
-    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg lsb-release
+    apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg lsb-release
 
     # Add Docker GPG key and repository
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
 
     # Install Docker
-    sudo apt-get update -y
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-    sudo systemctl enable --now docker
+    apt-get update -y
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+    systemctl enable --now docker
 
     # Add NVIDIA Container Toolkit repository
     distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-    curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg
-    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-    sudo apt-get update -y
+    curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg
+    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
+    apt-get update -y
 
     # Install NVIDIA Container Toolkit
-    sudo apt-get install -y nvidia-container-toolkit
-    sudo nvidia-ctk runtime configure --runtime=docker
-    sudo systemctl restart docker
+    apt-get install -y nvidia-container-toolkit
+    nvidia-ctk runtime configure --runtime=docker
+    systemctl restart docker
 
     # Verify GPU access in Docker
     docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi
