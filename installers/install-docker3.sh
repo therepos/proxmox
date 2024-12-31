@@ -20,46 +20,46 @@ function status_message() {
 
 # Step 0: Select the storage pool
 echo "Available storage pools:"
-STORAGE_POOLS=($(pvesm status | awk 'NR > 1 {print $1}'))  # Create an array of storage pool names
+pvesm status | awk 'NR > 1 {print $1}' | nl
 
-# Display storage pool options
-for i in "${!STORAGE_POOLS[@]}"; do
-    echo "$((i+1))) ${STORAGE_POOLS[$i]}"
-done
-
-# Prompt user to select a storage pool
 read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
 
-# Validate input
-if [[ "$STORAGE_POOL_INDEX" -lt 1 || "$STORAGE_POOL_INDEX" -gt "${#STORAGE_POOLS[@]}" ]]; then
+# Extract the selected storage pool
+STORAGE_POOL=$(pvesm status | awk 'NR > 1 {print $1}' | sed -n "${STORAGE_POOL_INDEX}p")
+if [ -z "$STORAGE_POOL" ]; then
     echo -e "${RED}Invalid selection. Exiting.${RESET}"
     exit 1
 fi
-
-# Retrieve selected storage pool
-STORAGE_POOL="${STORAGE_POOLS[$((STORAGE_POOL_INDEX-1))]}"
 echo "Selected storage pool: $STORAGE_POOL"
 
 # Step 1: Verify IOMMU is enabled
 echo "Verifying IOMMU is enabled..."
 if ! dmesg | grep -e DMAR -e IOMMU; then
-    echo "IOMMU is not enabled. Adding to GRUB config..."
-    sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&intel_iommu=on amd_iommu=on /' /etc/default/grub
-    update-grub
-    echo -e "${RED}IOMMU settings updated. Please reboot the system to apply changes.${RESET}"
-    exit 0
+    echo "IOMMU is not enabled. Checking GRUB configuration..."
+    if ! grep -q "intel_iommu=on" /etc/default/grub && ! grep -q "amd_iommu=on" /etc/default/grub; then
+        echo "Adding IOMMU settings to GRUB..."
+        sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/&intel_iommu=on amd_iommu=on /' /etc/default/grub
+        update-grub
+        echo -e "${RED}IOMMU settings updated. Please reboot the system to apply changes.${RESET}"
+        exit 0
+    else
+        echo -e "${GREEN}IOMMU settings already present in GRUB.${RESET}"
+    fi
+else
+    echo -e "${GREEN}IOMMU is already enabled.${RESET}"
 fi
-echo -e "${GREEN}IOMMU is already enabled.${RESET}"
 
 # Step 2: Bind GPU to VFIO
 echo "Binding GPU to VFIO..."
-echo "options vfio-pci ids=10de:2571,10de:228e" > /etc/modprobe.d/vfio.conf
-update-initramfs -u
-if ! lspci -k | grep -A 2 "10de:2571" | grep vfio-pci; then
-    echo -e "${RED}GPU binding to VFIO requires a reboot.${RESET}"
+if ! lspci -k | grep -A 2 "10de:2571" | grep -q "vfio-pci"; then
+    echo "Adding VFIO configuration..."
+    echo "options vfio-pci ids=10de:2571,10de:228e" > /etc/modprobe.d/vfio.conf
+    update-initramfs -u
+    echo -e "${RED}VFIO configuration updated. Please reboot the system to apply changes.${RESET}"
     exit 0
+else
+    echo -e "${GREEN}GPU already bound to VFIO.${RESET}"
 fi
-echo -e "${GREEN}GPU successfully bound to VFIO.${RESET}"
 
 # Step 3: Dynamically determine the next available VMID
 echo "Determining the next available VMID..."
