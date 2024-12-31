@@ -51,14 +51,31 @@ echo "Installing NVIDIA driver..."
 bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --silent
 status_message success "NVIDIA driver installed."
 
-# Step 5: Add CUDA Repository
-echo "Adding CUDA repository..."
-KEY_URL_PRIMARY="https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub"
+# Step: Add CUDA Repository for Bullseye
+echo "Adding CUDA repository for Debian Bullseye..."
+
+# Remove any conflicting repository entries
+rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list /etc/apt/sources.list.d/cuda.list
+
+# Add the Bullseye repository (works for Bookworm in most cases)
+KEY_URL_PRIMARY="https://developer.download.nvidia.com/compute/cuda/repos/bullseye/x86_64/3bf863cc.pub"
+
 curl -fsSL $KEY_URL_PRIMARY | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" > /etc/apt/sources.list.d/cuda.list
-apt-get update
-apt-get install -y cuda-keyring
-status_message success "CUDA repository added."
+if [ $? -ne 0 ]; then
+    echo "Failed to fetch the NVIDIA CUDA key. Exiting."
+    exit 1
+fi
+
+echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/bullseye/x86_64/ /" > /etc/apt/sources.list.d/cuda.list
+
+# Update repositories and install the CUDA keyring
+apt-get update && apt-get install -y cuda-keyring
+if [ $? -ne 0 ]; then
+    echo "Failed to add CUDA repository or install CUDA keyring. Exiting."
+    exit 1
+fi
+
+echo "CUDA repository for Bullseye added successfully."
 
 # Step 6: Install Docker
 echo "Installing Docker..."
