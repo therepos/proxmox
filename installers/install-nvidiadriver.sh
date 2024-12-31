@@ -120,8 +120,6 @@ if [ ! -f "$STEP_DRIVER_INSTALL" ]; then
     fi
 fi
 
-echo "version 16:18"
-
 # Step 7: Add CUDA Repository and Install CUDA Keyring
 if [ ! -f "$STEP_CUDA_KEYRING" ]; then
     print_status "success" "Adding NVIDIA CUDA repository and installing CUDA keyring"
@@ -172,6 +170,16 @@ if nvidia-smi > /dev/null 2>&1; then
 else
     print_status "failure" "NVIDIA driver verification failed. Check hardware or logs."
     exit 1
+fi
+
+# Step 9: Remove Conflicting CUDA List
+print_status "success" "Checking for conflicting CUDA repository lists..."
+if [ -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list ]; then
+    echo "Removing conflicting repository: /etc/apt/sources.list.d/cuda-debian12-x86_64.list"
+    rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list
+    echo "Conflicting repository removed successfully."
+else
+    echo "No conflicting CUDA repository found at /etc/apt/sources.list.d/cuda-debian12-x86_64.list."
 fi
 
 # Cleanup Temporary Files
