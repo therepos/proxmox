@@ -118,10 +118,24 @@ case $fs_choice in
         echo -e "${GREEN}${RESET} Installing ZFS utilities..."
         install_package_if_missing "zfsutils-linux"
 
+        # Check if the disk is already part of a ZFS pool
+        if zpool list | grep -q "${DISK}"; then
+            echo -e "${RED}${RESET} The disk ${DISK} is part of an existing ZFS pool."
+            read -p "Do you want to remove it from the current pool and create a new pool (WARNING: data will be lost)? (y/n): " remove_choice
+            if [[ "$remove_choice" == "y" ]]; then
+                # Forcefully destroy the existing ZFS pool
+                zpool destroy $(zpool list -v | grep "${DISK}" | awk '{print $1}')
+                echo -e "${GREEN}${RESET} Existing ZFS pool destroyed."
+            else
+                echo -e "${RED}${RESET} Aborting. Disk will not be used."
+                exit 1
+            fi
+        fi
+
         # Ensure we create a different pool name to avoid conflicts
         read -p "Enter the name for the new ZFS pool: " pool_name
         echo -e "${GREEN}${RESET} Creating ZFS pool ${pool_name}..."
-        zpool create $pool_name $DISK
+        zpool create -f $pool_name $DISK
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} ZFS pool ${pool_name} created successfully."
         else
