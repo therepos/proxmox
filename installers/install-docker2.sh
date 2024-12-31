@@ -61,7 +61,7 @@ status_message success "NVIDIA Container Toolkit installed and configured succes
 
 # Step 7: Verify Installation
 echo "Verifying NVIDIA Docker integration..."
-docker run --rm --gpus all nvidia/cuda:12.2.1-base-ubuntu20.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi
 if [ $? -eq 0 ]; then
     status_message success "Docker NVIDIA GPU integration verified successfully."
 else
