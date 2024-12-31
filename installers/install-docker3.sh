@@ -52,18 +52,53 @@ fi
 # Step 2: Bind GPU to VFIO
 echo "Binding GPU to VFIO..."
 
-# Check if VFIO configuration already exists
-if grep -q "options vfio-pci ids=10de:2571,10de:228e" /etc/modprobe.d/vfio.conf; then
-    echo -e "${GREEN}VFIO configuration already exists.${RESET}"
-else
-    echo "Adding VFIO configuration..."
-    echo "options vfio-pci ids=10de:2571,10de:228e" > /etc/modprobe.d/vfio.conf
+# Ensure VFIO kernel modules are loaded at boot
+if ! grep -q "vfio" /etc/modules; then
+    echo "Adding VFIO modules to /etc/modules..."
+    echo -e "vfio\nvfio_pci\nvfio_iommu_type1" >> /etc/modules
     update-initramfs -u
-    echo -e "${RED}VFIO configuration updated. Please reboot the system to apply changes.${RESET}"
-    exit 0
+    echo -e "${GREEN}VFIO kernel modules configured to load at boot.${RESET}"
+else
+    echo -e "${GREEN}VFIO kernel modules already configured.${RESET}"
 fi
 
-# Verify GPU binding to VFIO
+# Configure VFIO binding for GPU
+if ! grep -q "options vfio-pci ids=10de:2571,10de:228e" /etc/modprobe.d/vfio.conf; then
+    echo "Adding VFIO binding to /etc/modprobe.d/vfio.conf..."
+    echo "options vfio-pci ids=10de:2571,10de:228e" > /etc/modprobe.d/vfio.conf
+    update-initramfs -u
+    echo -e "${GREEN}VFIO binding configuration updated.${RESET}"
+else
+    echo -e "${GREEN}VFIO binding configuration already exists.${RESET}"
+fi
+
+# Create systemd service for GPU driver override
+VFIO_SERVICE="/etc/systemd/system/vfio-bind.service"
+if [ ! -f "$VFIO_SERVICE" ]; then
+    echo "Creating vfio-bind.service for GPU driver override..."
+    cat <<EOF > "$VFIO_SERVICE"
+[Unit]
+Description=Bind GPU to vfio-pci
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'echo "vfio-pci" > /sys/bus/pci/devices/0000:01:00.0/driver_override && echo "vfio-pci" > /sys/bus/pci/devices/0000:01:00.1/driver_override && modprobe -i vfio-pci'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Enable the service
+    systemctl daemon-reload
+    systemctl enable vfio-bind.service
+    echo -e "${GREEN}vfio-bind.service created and enabled.${RESET}"
+else
+    echo -e "${GREEN}vfio-bind.service already exists.${RESET}"
+fi
+
+# Verify GPU binding
 if ! lspci -k | grep -A 2 "10de:2571" | grep -q "vfio-pci"; then
     echo -e "${RED}GPU is not yet bound to VFIO. Please reboot to apply changes.${RESET}"
     exit 0
