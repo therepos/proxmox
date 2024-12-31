@@ -62,7 +62,7 @@ check_success "Disk attachment"
 echo "Configuring cloud-init..."
 qm set $VMID --ide2 $STORAGE_POOL:cloudinit
 qm set $VMID --serial0 socket --vga serial0
-qm set $VMID --cipassword "yourpassword" --ciuser "youruser"
+qm set $VMID --cipassword "root" --ciuser "root"
 check_success "Cloud-init configuration"
 
 # Step 6: Add GPU Passthrough
