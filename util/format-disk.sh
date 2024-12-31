@@ -13,8 +13,8 @@ install_package_if_missing() {
     local package=$1
     if ! dpkg -l | grep -q "$package"; then
         echo -e "${RED}${RESET} $package not found. Installing..."
-        sudo apt update -y > /dev/null 2>&1
-        sudo apt install -y $package > /dev/null 2>&1
+        apt update -y > /dev/null 2>&1
+        apt install -y $package > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} $package installed successfully."
         else
@@ -58,7 +58,7 @@ fi
 
 # Step 3: Create GPT partition table on the selected disk
 echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
-sudo parted $DISK mklabel gpt > /dev/null 2>&1
+parted $DISK mklabel gpt > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}${RESET} GPT partition table created."
 else
@@ -68,7 +68,7 @@ fi
 
 # Step 4: Create a single partition on the disk
 echo -e "${GREEN}${RESET} Creating primary partition on ${DISK}..."
-sudo parted $DISK mkpart primary 0% 100% > /dev/null 2>&1
+parted $DISK mkpart primary 0% 100% > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}${RESET} Primary partition created."
 else
@@ -90,7 +90,7 @@ PARTITION="${DISK}p1"
 case $fs_choice in
     1)
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with EXT4..."
-        sudo mkfs.ext4 $PARTITION > /dev/null 2>&1
+        mkfs.ext4 $PARTITION > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} Partition formatted as EXT4."
         else
@@ -102,7 +102,7 @@ case $fs_choice in
         echo -e "${GREEN}${RESET} Installing ZFS..."
         install_package_if_missing "zfsutils-linux"
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with ZFS..."
-        sudo zpool create $PARTITION $PARTITION > /dev/null 2>&1
+        zpool create $PARTITION $PARTITION > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} Partition formatted as ZFS."
         else
@@ -112,7 +112,7 @@ case $fs_choice in
         ;;
     3)
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with FAT32..."
-        sudo mkfs.fat -F 32 $PARTITION > /dev/null 2>&1
+        mkfs.fat -F 32 $PARTITION > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} Partition formatted as FAT32."
         else
@@ -124,7 +124,7 @@ case $fs_choice in
         echo -e "${GREEN}${RESET} Installing NTFS-3G..."
         install_package_if_missing "ntfs-3g"
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with NTFS..."
-        sudo mkfs.ntfs $PARTITION > /dev/null 2>&1
+        mkfs.ntfs $PARTITION > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} Partition formatted as NTFS."
         else
@@ -136,7 +136,7 @@ case $fs_choice in
         echo -e "${GREEN}${RESET} Installing exFAT utilities..."
         install_package_if_missing "exfat-utils"
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with exFAT..."
-        sudo mkfs.exfat $PARTITION > /dev/null 2>&1
+        mkfs.exfat $PARTITION > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}${RESET} Partition formatted as exFAT."
         else
@@ -153,15 +153,15 @@ esac
 # Step 6: Create a mount point and mount the partition
 MOUNT_POINT="/mnt/4tb"
 echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
-sudo mkdir -p $MOUNT_POINT > /dev/null 2>&1
+mkdir -p $MOUNT_POINT > /dev/null 2>&1
 
 echo -e "${GREEN}${RESET} Mounting ${PARTITION} to ${MOUNT_POINT}..."
-sudo mount $PARTITION $MOUNT_POINT > /dev/null 2>&1
+mount $PARTITION $MOUNT_POINT > /dev/null 2>&1
 
 # Step 7: Add the partition to /etc/fstab for auto-mount on boot
-UUID=$(sudo blkid -s UUID -o value $PARTITION)
+UUID=$(blkid -s UUID -o value $PARTITION)
 echo -e "${GREEN}${RESET} Adding ${PARTITION} to /etc/fstab for auto-mount on boot..."
-echo "UUID=$UUID $MOUNT_POINT $fs_choice defaults 0 2" | sudo tee -a /etc/fstab > /dev/null
+echo "UUID=$UUID $MOUNT_POINT $fs_choice defaults 0 2" | tee -a /etc/fstab > /dev/null
 
 # Step 8: Verify the changes
 echo -e "${GREEN}${RESET} The disk has been successfully partitioned, formatted, and mounted."
