@@ -19,8 +19,11 @@ function status_message() {
 # Step 0: Select the storage pool
 echo "Available storage pools:"
 pvesm status | awk 'NR > 1 {print NR-1 ") " $1}'
+
 read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
-STORAGE_POOL=$(pvesm status | awk -v index=$((STORAGE_POOL_INDEX + 1)) 'NR == index {print $1}')
+
+# Extract the selected storage pool
+STORAGE_POOL=$(pvesm status | awk -v index=$STORAGE_POOL_INDEX 'NR == index+1 {print $1}')
 if [ -z "$STORAGE_POOL" ]; then
     echo -e "${RED}Invalid selection. Exiting.${RESET}"
     exit 1
