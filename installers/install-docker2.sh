@@ -5,8 +5,6 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-echo "Ver1"
-
 function status_message() {
     local status=$1
     local message=$2
@@ -18,98 +16,56 @@ function status_message() {
     fi
 }
 
-# Step 1: Update the system
+# Step 1: Update the System
 echo "Updating system..."
 apt-get update -y && apt-get upgrade -y
 status_message success "System updated successfully."
 
-# Step 2: Blacklist Nouveau Driver
-echo "Blacklisting Nouveau driver..."
-echo "blacklist nouveau" > /etc/modprobe.d/blacklist-nouveau.conf
-echo "options nouveau modeset=0" >> /etc/modprobe.d/blacklist-nouveau.conf
-status_message success "Nouveau driver blacklisted."
+# Step 2: Install Prerequisites
+echo "Installing prerequisites..."
+apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    software-properties-common \
+    gnupg lsb-release
+status_message success "Prerequisites installed successfully."
 
-echo "Updating initramfs..."
-update-initramfs -u
-if lsmod | grep -q nouveau; then
-    status_message failure "Nouveau is still loaded. Reboot required."
-    reboot
-fi
-status_message success "Nouveau is disabled."
-
-# Step 3: Install Kernel Headers
-echo "Installing kernel headers..."
-apt-get install -y build-essential linux-headers-$(uname -r)
-status_message success "Kernel headers installed."
-
-# Step 4: Install NVIDIA Driver
-NVIDIA_VERSION=${1:-"550.135"}
-NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
-echo "Downloading NVIDIA driver version ${NVIDIA_VERSION}..."
-wget -O /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run "$NVIDIA_URL"
-status_message success "NVIDIA driver downloaded."
-
-echo "Installing NVIDIA driver..."
-bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --silent
-status_message success "NVIDIA driver installed."
-
-# Step: Add CUDA Repository for Bullseye
-echo "Adding CUDA repository for Debian Bullseye..."
-
-# Remove any conflicting repository entries
-rm -f /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/cuda-debian12-x86_64.list
-
-# Add the Bullseye repository (compatible with Bookworm)
-KEY_URL_PRIMARY="https://developer.download.nvidia.com/compute/cuda/repos/bullseye/x86_64/3bf863cc.pub"
-
-curl -fsSL $KEY_URL_PRIMARY | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg
-if [ $? -ne 0 ]; then
-    echo "Failed to fetch the NVIDIA CUDA key. Exiting."
-    exit 1
-fi
-
-echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/bullseye/x86_64/ /" > /etc/apt/sources.list.d/cuda.list
-
-# Update repositories and install the CUDA keyring
-apt-get update && apt-get install -y cuda-keyring
-if [ $? -ne 0 ]; then
-    echo "Failed to add CUDA repository or install CUDA keyring. Exiting."
-    exit 1
-fi
-
-echo "CUDA repository for Bullseye added successfully."
-
-# Step 6: Install Docker
-echo "Installing Docker..."
+# Step 3: Add Docker GPG Key and Repository
+echo "Adding Docker GPG key and repository..."
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
 apt-get update
+status_message success "Docker GPG key and repository added."
+
+# Step 4: Install Docker
+echo "Installing Docker..."
 apt-get install -y docker-ce docker-ce-cli containerd.io
 systemctl enable --now docker
-status_message success "Docker installed successfully."
+status_message success "Docker installed and started successfully."
 
-# Step 7: Install NVIDIA Docker Runtime
-echo "Installing NVIDIA Docker runtime..."
+# Step 5: Add NVIDIA GPG Key and Repository
+echo "Adding NVIDIA Container Toolkit GPG key and repository..."
 distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
 curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg
 curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
 apt-get update
-apt-get install -y nvidia-container-toolkit nvidia-container-runtime
+status_message success "NVIDIA Container Toolkit repository added."
+
+# Step 6: Install NVIDIA Container Toolkit
+echo "Installing NVIDIA Container Toolkit..."
+apt-get install -y nvidia-container-toolkit
+nvidia-ctk runtime configure --runtime=docker
 systemctl restart docker
-status_message success "NVIDIA Docker runtime installed successfully."
+status_message success "NVIDIA Container Toolkit installed and configured successfully."
 
-# Step 8: Verify NVIDIA and Docker GPU Integration
-echo "Verifying NVIDIA installation..."
-nvidia-smi
-status_message success "NVIDIA driver verification successful."
-
-echo "Verifying Docker GPU integration..."
+# Step 7: Verify Installation
+echo "Verifying NVIDIA Docker integration..."
 docker run --rm --gpus all nvidia/cuda:12.2.1-base-ubuntu20.04 nvidia-smi
-status_message success "Docker GPU integration verified."
+if [ $? -eq 0 ]; then
+    status_message success "Docker NVIDIA GPU integration verified successfully."
+else
+    status_message failure "Docker NVIDIA GPU integration failed. Check logs for details."
+fi
 
-# Cleanup
-echo "Cleaning up temporary files..."
-rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
-status_message success "Temporary files removed."
-
-echo -e "${GREEN}All installations and verifications completed successfully.${RESET}"
+echo -e "${GREEN}Docker and NVIDIA integration setup completed successfully.${RESET}"
