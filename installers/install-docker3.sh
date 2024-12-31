@@ -16,6 +16,21 @@ function status_message() {
     fi
 }
 
+# Step 0: Verify or create the storage pool
+echo "Checking if storage pool 'dpool' exists..."
+pvesm list dpool > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "Storage pool 'dpool' does not exist. Creating 'dpool'..."
+    pvesm create dir dpool --path /mnt/pve/dpool
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Failed to create storage pool 'dpool'. Exiting.${RESET}"
+        exit 1
+    fi
+    echo -e "${GREEN}Storage pool 'dpool' created successfully.${RESET}"
+else
+    echo -e "${GREEN}Storage pool 'dpool' exists.${RESET}"
+fi
+
 # Step 1: Dynamically determine the next available VMID
 echo "Determining the next available VMID..."
 VMID=$(pvesh get /cluster/nextid)
