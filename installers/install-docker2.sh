@@ -18,59 +18,79 @@ function status_message() {
 
 # Step 1: Update the system
 echo "Updating system..."
-apt-get update -y
+apt-get update -y && apt-get upgrade -y
 status_message success "System updated successfully."
 
-# Step 2: Install prerequisites
-echo "Installing prerequisites..."
-apt-get install -y \
-    build-essential \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    software-properties-common \
-    lsb-release \
-    gnupg
-status_message success "Prerequisites installed successfully."
+# Step 2: Blacklist Nouveau Driver
+echo "Blacklisting Nouveau driver..."
+echo "blacklist nouveau" > /etc/modprobe.d/blacklist-nouveau.conf
+echo "options nouveau modeset=0" >> /etc/modprobe.d/blacklist-nouveau.conf
+status_message success "Nouveau driver blacklisted."
 
-# Step 3: Install NVIDIA drivers
-echo "Installing NVIDIA drivers..."
-rm -f /usr/share/keyrings/nvidia-archive-keyring.gpg
-curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/$(lsb_release -cs)/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/nvidia-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/nvidia-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/$(lsb_release -cs)/x86_64/ /" | tee /etc/apt/sources.list.d/cuda.list
-apt-get update -y
-apt-get install -y nvidia-driver-525
-status_message success "NVIDIA drivers installed successfully."
+echo "Updating initramfs..."
+update-initramfs -u
+if lsmod | grep -q nouveau; then
+    status_message failure "Nouveau is still loaded. Reboot required."
+    reboot
+fi
+status_message success "Nouveau is disabled."
 
-# Step 4: Verify NVIDIA installation
-echo "Verifying NVIDIA installation..."
-nvidia-smi
-status_message success "NVIDIA drivers verified successfully."
+# Step 3: Install Kernel Headers
+echo "Installing kernel headers..."
+apt-get install -y build-essential linux-headers-$(uname -r)
+status_message success "Kernel headers installed."
 
-# Step 5: Install Docker
+# Step 4: Install NVIDIA Driver
+NVIDIA_VERSION=${1:-"550.135"}
+NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
+echo "Downloading NVIDIA driver version ${NVIDIA_VERSION}..."
+wget -O /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run "$NVIDIA_URL"
+status_message success "NVIDIA driver downloaded."
+
+echo "Installing NVIDIA driver..."
+bash /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run --accept-license --install-compat32-libs --silent
+status_message success "NVIDIA driver installed."
+
+# Step 5: Add CUDA Repository
+echo "Adding CUDA repository..."
+KEY_URL_PRIMARY="https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub"
+curl -fsSL $KEY_URL_PRIMARY | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/nvidia-cuda-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /" > /etc/apt/sources.list.d/cuda.list
+apt-get update
+apt-get install -y cuda-keyring
+status_message success "CUDA repository added."
+
+# Step 6: Install Docker
 echo "Installing Docker..."
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
-apt-get update -y
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io
 systemctl enable --now docker
-usermod -aG docker $USER
 status_message success "Docker installed successfully."
 
-# Step 6: Install NVIDIA Docker
-echo "Installing NVIDIA Docker..."
+# Step 7: Install NVIDIA Docker Runtime
+echo "Installing NVIDIA Docker runtime..."
 distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
 curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
-apt-get update -y
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
+apt-get update
 apt-get install -y nvidia-container-toolkit nvidia-container-runtime
 systemctl restart docker
 status_message success "NVIDIA Docker runtime installed successfully."
 
-# Step 7: Verify Docker with GPU
+# Step 8: Verify NVIDIA and Docker GPU Integration
+echo "Verifying NVIDIA installation..."
+nvidia-smi
+status_message success "NVIDIA driver verification successful."
+
 echo "Verifying Docker GPU integration..."
 docker run --rm --gpus all nvidia/cuda:12.2.1-base-ubuntu20.04 nvidia-smi
-status_message success "Docker GPU integration verified successfully."
+status_message success "Docker GPU integration verified."
 
-# Final Message
-echo -e "${GREEN}All installations and verifications completed successfully. Log out and back in to use Docker without sudo.${RESET}"
+# Cleanup
+echo "Cleaning up temporary files..."
+rm -f /tmp/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run
+status_message success "Temporary files removed."
+
+echo -e "${GREEN}All installations and verifications completed successfully.${RESET}"
