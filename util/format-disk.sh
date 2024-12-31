@@ -106,14 +106,16 @@ case $fs_choice in
         echo -e "${GREEN}${RESET} Installing ZFS..."
         install_package_if_missing "zfsutils-linux"
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with ZFS..."
-        zpool create $PARTITION $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as ZFS."
-        else
-            echo -e "${RED}${RESET} Failed to format as ZFS."
-            exit 1
-        fi
-        ;;
+        # Prompt for ZFS pool name
+        read -p "Enter a name for the ZFS pool: " pool_name
+        # Create ZFS pool on the entire disk, not just the partition
+        zpool create $pool_name $DISK
+        # Set a custom mount point (optional)
+        read -p "Enter a mount point (default: /mnt/$pool_name): " mount_point
+        mount_point=${mount_point:-/mnt/$pool_name}
+        zfs set mountpoint=$mount_point $pool_name
+        echo -e "${GREEN}${RESET} ZFS pool '$pool_name' created and mounted at '$mount_point'."
+
     3)
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with FAT32..."
         mkfs.fat -F 32 $PARTITION > /dev/null 2>&1
