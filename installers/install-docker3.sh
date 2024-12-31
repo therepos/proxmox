@@ -5,7 +5,7 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-echo "v3"
+echo "v4"
 
 function status_message() {
     local status=$1
