@@ -3,12 +3,14 @@
 # bash -c "$(wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
 # bash -c "$(curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
 
+#!/bin/bash
+
 # Define colors for status messages
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-# Function to check and install missing packages
+# Function to check if a package is installed, and install it if not
 install_package_if_missing() {
     local package=$1
     if ! dpkg -l | grep -q "$package"; then
@@ -26,14 +28,15 @@ install_package_if_missing() {
     fi
 }
 
-# Ensure `parted` is available
-install_package_if_missing "parted"
+# Function to check if the disk is part of an existing ZFS pool
+check_zfs_pool() {
+    local disk=$1
+    zpool list -v | grep -q "${disk}" && return 0 || return 1
+}
 
-# Step 1: List available disks
+# List available disks and prompt the user to select one
 echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
-
-# Prompt the user to select a disk
 read -p "Enter the number of the disk you want to partition: " disk_choice
 DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
 
@@ -42,7 +45,35 @@ if [ ! -e "$DISK" ]; then
     echo -e "${RED}${RESET} Error: The selected disk does not exist."
     exit 1
 fi
-echo -e "${GREEN}${RESET} You selected $DISK."
+
+# Step 1: Check if the disk is part of an existing ZFS pool
+if check_zfs_pool "${DISK}"; then
+    echo -e "${GREEN}${RESET} The disk ${DISK} is part of an existing ZFS pool."
+    
+    # Check for unallocated space on the disk
+    UNALLOCATED=$(parted ${DISK} print free | grep "Free Space")
+    if [ -z "$UNALLOCATED" ]; then
+        echo -e "${GREEN}${RESET} The drive ${DISK} is already fully partitioned and allocated. No further action is required."
+        exit 0
+    fi
+
+    # Prompt the user to expand the pool
+    read -p "Unallocated space found. Do you want to expand the ZFS pool using this space? (y/n): " expand_choice
+    if [[ "$expand_choice" == "y" ]]; then
+        echo -e "${GREEN}${RESET} Adding unallocated space to the ZFS pool..."
+        zpool online -e $(zpool list -v | grep "${DISK}" | awk '{print $1}') ${DISK}
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}${RESET} ZFS pool expanded successfully."
+            exit 0
+        else
+            echo -e "${RED}${RESET} Failed to expand ZFS pool. Aborting."
+            exit 1
+        fi
+    else
+        echo -e "${RED}${RESET} Expansion aborted by user."
+        exit 0
+    fi
+fi
 
 # Step 2: Warning and Cleanup
 echo -e "${RED}${RESET} Warning: This will erase all data on ${DISK}."
