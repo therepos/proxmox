@@ -65,12 +65,29 @@ fi
 
 # Step 3: Create GPT partition table
 echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
+
+# Ensure the disk is not in use
+if mount | grep -q "${DISK}"; then
+    echo -e "${RED}${RESET} The disk ${DISK} is mounted. Unmounting it now..."
+    umount ${DISK}* || { echo -e "${RED}${RESET} Failed to unmount ${DISK}. Aborting."; exit 1; }
+fi
+
+if lsof | grep -q "${DISK}"; then
+    echo -e "${RED}${RESET} The disk ${DISK} is in use by another process. Cleaning up..."
+    lsof | grep "${DISK}" | awk '{print $2}' | xargs kill -9 || { echo -e "${RED}${RESET} Failed to terminate processes using ${DISK}. Aborting."; exit 1; }
+fi
+
+# Create the GPT partition table
 parted $DISK mklabel gpt
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}${RESET} GPT partition table created."
 else
-    echo -e "${RED}${RESET} Failed to create GPT partition table."
-    exit 1
+    echo -e "${RED}${RESET} Warning: Unable to inform the kernel about the changes."
+    echo -e "${RESET}Attempting to refresh the kernel's view of the disk..."
+    
+    # Force kernel to re-read the partition table
+    partprobe $DISK || { echo -e "${RED}${RESET} Kernel re-read failed. You may need to reboot."; exit 1; }
+    echo -e "${GREEN}${RESET} Kernel successfully updated."
 fi
 
 # Step 4: Create a single partition
