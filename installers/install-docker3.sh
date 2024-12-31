@@ -27,7 +27,7 @@ echo "Next available VMID: $VMID"
 
 # Define VM Name, Cloud-init Image, and other variables
 VM_NAME="docker-vm"
-STORAGE_POOL="dpool"    # ZFS pool for storage (replace with your desired pool)
+STORAGE_POOL="dpool"    # Using dpool as the storage pool (already confirmed)
 CLOUD_IMAGE="ubuntu-22.04-cloudimg.img"  # Cloud-init image filename
 BRIDGE="vmbr0"          # Network bridge
 GPU_PCI="01:00.0"       # GPU PCI ID for passthrough (adjust accordingly)
