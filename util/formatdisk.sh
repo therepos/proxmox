@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# bash -c "$(wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
-# bash -c "$(curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
+# bash -c "$(wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/formatdisk.sh)"
+# bash -c "$(curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/formatdisk.sh)"
 
 #!/bin/bash
 
