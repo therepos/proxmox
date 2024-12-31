@@ -58,12 +58,16 @@ fi
 
 # Step 3: Create GPT partition table on the selected disk
 echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
-parted $DISK mklabel gpt # > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}${RESET} GPT partition table created."
+if parted $DISK print | grep -q 'gpt'; then
+    echo -e "${GREEN}${RESET} GPT partition table already exists on ${DISK}."
 else
-    echo -e "${RED}${RESET} Failed to create GPT partition table."
-    exit 1
+    parted $DISK mklabel gpt # > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}${RESET} GPT partition table created."
+    else
+        echo -e "${RED}${RESET} Failed to create GPT partition table."
+        exit 1
+    fi
 fi
 
 # Step 4: Create a single partition on the disk
