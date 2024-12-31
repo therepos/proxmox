@@ -234,6 +234,25 @@ if [ "$fs_choice" -ne 1 ]; then
     fi
 fi
 
-# Step 9: Verify the changes
+# Step 9: Add ZFS as a storage pool in Proxmox
+# Get the Proxmox node name dynamically
+echo "Determining the Proxmox node name..."
+NODE_NAME=$(hostname)
+if [ -z "$NODE_NAME" ]; then
+    echo "Failed to get the node name. Exiting."
+    exit 1
+fi
+echo "Node name: $NODE_NAME"
+echo "Adding '${pool_name}' as a storage pool in Proxmox..."
+# Use dynamic node name to add storage pool
+pvesh create /nodes/$NODE_NAME/storage --storage ${pool_name} --type zfs --content iso,images
+status_message "success" "ZFS pool '${pool_name}' added to Proxmox storage configuration."
+# Verify the storage pool is added
+echo "Verifying the storage pool '${pool_name}'..."
+pvesh get /nodes/$NODE_NAME/storage
+status_message "success" "Storage pool '${pool_name}' verified."
+echo -e "${GREEN}Storage pool ${pool_name} successfully created and added to Proxmox.${RESET}"
+
+# Step 10: Verify the changes
 echo -e "${GREEN}${RESET} The disk has been successfully formatted and mounted."
 df -h
