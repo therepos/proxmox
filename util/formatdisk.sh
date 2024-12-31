@@ -41,10 +41,11 @@ if [ ! -e "$DISK" ]; then
     exit 1
 fi
 
-# Step 3: Ask the user whether they want to format or expand the disk
-read -p "Do you want to format or expand the disk ${DISK}? (format/expand): " action_choice
+# Step 3: Ask the user whether they want to format or expand the disk (with numeric options)
+echo -e "Choose an option:\n1) Format the disk\n2) Expand the disk"
+read -p "Enter your choice (1/2): " action_choice
 
-if [[ "$action_choice" == "expand" ]]; then
+if [[ "$action_choice" == "2" ]]; then
     echo -e "${GREEN}${RESET} Expanding the disk..."
     
     # Step 4: Check the current format and expand the drive accordingly
@@ -130,6 +131,9 @@ case $fs_choice in
         ;;
     2)  # ext4
         echo -e "${GREEN}${RESET} Formatting the disk ${DISK} with ext4..."
+        # Unmount and wipe the drive if it is already mounted/formatted
+        umount ${DISK}p1 2>/dev/null
+        wipefs --all $DISK
         parted $DISK mklabel gpt
         parted $DISK mkpart primary 0% 100%
         mkfs.ext4 ${DISK}p1
@@ -142,6 +146,9 @@ case $fs_choice in
         ;;
     3)  # fat32
         echo -e "${GREEN}${RESET} Formatting the disk ${DISK} with FAT32..."
+        # Unmount and wipe the drive if it is already mounted/formatted
+        umount ${DISK}p1 2>/dev/null
+        wipefs --all $DISK
         parted $DISK mklabel gpt
         parted $DISK mkpart primary 0% 100%
         mkfs.fat -F 32 ${DISK}p1
@@ -154,6 +161,9 @@ case $fs_choice in
         ;;
     4)  # ntfs
         echo -e "${GREEN}${RESET} Formatting the disk ${DISK} with NTFS..."
+        # Unmount and wipe the drive if it is already mounted/formatted
+        umount ${DISK}p1 2>/dev/null
+        wipefs --all $DISK
         parted $DISK mklabel gpt
         parted $DISK mkpart primary 0% 100%
         mkfs.ntfs ${DISK}p1
@@ -166,6 +176,9 @@ case $fs_choice in
         ;;
     5)  # exfat
         echo -e "${GREEN}${RESET} Formatting the disk ${DISK} with exFAT..."
+        # Unmount and wipe the drive if it is already mounted/formatted
+        umount ${DISK}p1 2>/dev/null
+        wipefs --all $DISK
         parted $DISK mklabel gpt
         parted $DISK mkpart primary 0% 100%
         mkfs.exfat ${DISK}p1
