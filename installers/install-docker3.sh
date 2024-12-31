@@ -5,7 +5,7 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-echo "v4"
+echo "v5"
 
 function status_message() {
     local status=$1
@@ -51,14 +51,24 @@ fi
 
 # Step 2: Bind GPU to VFIO
 echo "Binding GPU to VFIO..."
-if ! lspci -k | grep -A 2 "10de:2571" | grep -q "vfio-pci"; then
+
+# Check if VFIO configuration already exists
+if grep -q "options vfio-pci ids=10de:2571,10de:228e" /etc/modprobe.d/vfio.conf; then
+    echo -e "${GREEN}VFIO configuration already exists.${RESET}"
+else
     echo "Adding VFIO configuration..."
     echo "options vfio-pci ids=10de:2571,10de:228e" > /etc/modprobe.d/vfio.conf
     update-initramfs -u
     echo -e "${RED}VFIO configuration updated. Please reboot the system to apply changes.${RESET}"
     exit 0
+fi
+
+# Verify GPU binding to VFIO
+if ! lspci -k | grep -A 2 "10de:2571" | grep -q "vfio-pci"; then
+    echo -e "${RED}GPU is not yet bound to VFIO. Please reboot to apply changes.${RESET}"
+    exit 0
 else
-    echo -e "${GREEN}GPU already bound to VFIO.${RESET}"
+    echo -e "${GREEN}GPU is successfully bound to VFIO.${RESET}"
 fi
 
 # Step 3: Dynamically determine the next available VMID
