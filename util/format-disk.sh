@@ -3,12 +3,12 @@
 # bash -c "$(wget --no-cache -qLO- https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
 # bash -c "$(curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/util/format-disk.sh)"
 
-# Define colors for status messages (green tick and red cross)
+# Define colors for status messages
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-# Function to check if a package is installed, and install it if not
+# Function to check and install missing packages
 install_package_if_missing() {
     local package=$1
     if ! dpkg -l | grep -q "$package"; then
@@ -26,17 +26,15 @@ install_package_if_missing() {
     fi
 }
 
-# Check and install parted if not installed
+# Ensure `parted` is available
 install_package_if_missing "parted"
 
-# Step 1: List available disks and prompt the user to select one
+# Step 1: List available disks
 echo -e "${RESET}Listing available disks:${RESET}"
 lsblk -d -o NAME,SIZE | grep -v "NAME" | nl
 
-# Prompt the user to select a disk by number
+# Prompt the user to select a disk
 read -p "Enter the number of the disk you want to partition: " disk_choice
-
-# Get the selected disk based on the user's input
 DISK=$(lsblk -d -o NAME,SIZE | grep -v "NAME" | sed -n "${disk_choice}p" | awk '{print "/dev/" $1}')
 
 # Validate the selected disk
@@ -44,35 +42,40 @@ if [ ! -e "$DISK" ]; then
     echo -e "${RED}${RESET} Error: The selected disk does not exist."
     exit 1
 fi
-
 echo -e "${GREEN}${RESET} You selected $DISK."
 
-# Step 2: Warning message before proceeding
-echo -e "${RED}${RESET} Warning: This script will erase all data on the disk ${DISK} and create a new partition table."
-read -p "Do you want to continue? (y/n): " confirm
-
+# Step 2: Warning and Cleanup
+echo -e "${RED}${RESET} Warning: This will erase all data on ${DISK}."
+read -p "Do you want to clean the disk and proceed? (y/n): " confirm
 if [[ "$confirm" != "y" ]]; then
-    echo -e "${RED}${RESET} Aborting the process."
+    echo -e "${RED}${RESET} Aborting."
     exit 1
 fi
 
-# Step 3: Create GPT partition table on the selected disk
-echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
-if parted $DISK print | grep -q 'gpt'; then
-    echo -e "${GREEN}${RESET} GPT partition table already exists on ${DISK}."
+# Cleanup existing partitions and filesystems
+echo -e "${GREEN}${RESET} Wiping existing filesystems and partitions on ${DISK}..."
+wipefs --all $DISK
+dd if=/dev/zero of=$DISK bs=1M count=10 > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}${RESET} Disk wiped successfully."
 else
-    parted $DISK mklabel gpt # > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}${RESET} GPT partition table created."
-    else
-        echo -e "${RED}${RESET} Failed to create GPT partition table."
-        exit 1
-    fi
+    echo -e "${RED}${RESET} Failed to wipe the disk."
+    exit 1
 fi
 
-# Step 4: Create a single partition on the disk
+# Step 3: Create GPT partition table
+echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
+parted $DISK mklabel gpt
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}${RESET} GPT partition table created."
+else
+    echo -e "${RED}${RESET} Failed to create GPT partition table."
+    exit 1
+fi
+
+# Step 4: Create a single partition
 echo -e "${GREEN}${RESET} Creating primary partition on ${DISK}..."
-parted $DISK mkpart primary 0% 100% # > /dev/null 2>&1
+parted $DISK mkpart primary 0% 100%
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}${RESET} Primary partition created."
 else
@@ -80,7 +83,8 @@ else
     exit 1
 fi
 
-# Prompt user to select a file system type
+# Step 5: Format the partition
+PARTITION="${DISK}p1"
 echo -e "${RESET}Select a file system to format the partition:"
 echo -e "1) ext4"
 echo -e "2) zfs"
@@ -89,85 +93,59 @@ echo -e "4) ntfs"
 echo -e "5) exfat"
 read -p "Enter the number of your choice: " fs_choice
 
-# Step 5: Format the new partition with the selected file system
-PARTITION="${DISK}p1"
 case $fs_choice in
     1)
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with EXT4..."
-        mkfs.ext4 $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as EXT4."
-        else
-            echo -e "${RED}${RESET} Failed to format as EXT4."
-            exit 1
-        fi
+        mkfs.ext4 $PARTITION
         ;;
     2)
-        echo -e "${GREEN}${RESET} Installing ZFS..."
+        echo -e "${GREEN}${RESET} Installing ZFS utilities..."
         install_package_if_missing "zfsutils-linux"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with ZFS..."
-        # Prompt for ZFS pool name
-        read -p "Enter a name for the ZFS pool: " pool_name
-        # Create ZFS pool on the entire disk, not just the partition
-        zpool create $pool_name $DISK
-        # Set a custom mount point (optional)
-        read -p "Enter a mount point (default: /mnt/$pool_name): " mount_point
-        mount_point=${mount_point:-/mnt/$pool_name}
-        zfs set mountpoint=$mount_point $pool_name
-        echo -e "${GREEN}${RESET} ZFS pool '$pool_name' created and mounted at '$mount_point'."
-
+        echo -e "${GREEN}${RESET} Formatting the disk ${DISK} as a ZFS pool..."
+        zpool create -f -o ashift=12 mypool $DISK
+        ;;
     3)
         echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with FAT32..."
-        mkfs.fat -F 32 $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as FAT32."
-        else
-            echo -e "${RED}${RESET} Failed to format as FAT32."
-            exit 1
-        fi
+        mkfs.fat -F 32 $PARTITION
         ;;
     4)
-        echo -e "${GREEN}${RESET} Installing NTFS-3G..."
+        echo -e "${GREEN}${RESET} Installing NTFS utilities..."
         install_package_if_missing "ntfs-3g"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with NTFS..."
-        mkfs.ntfs $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as NTFS."
-        else
-            echo -e "${RED}${RESET} Failed to format as NTFS."
-            exit 1
-        fi
+        mkfs.ntfs $PARTITION
         ;;
     5)
         echo -e "${GREEN}${RESET} Installing exFAT utilities..."
         install_package_if_missing "exfat-utils"
-        echo -e "${GREEN}${RESET} Formatting the partition ${PARTITION} with exFAT..."
-        mkfs.exfat $PARTITION > /dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Partition formatted as exFAT."
-        else
-            echo -e "${RED}${RESET} Failed to format as exFAT."
-            exit 1
-        fi
+        mkfs.exfat $PARTITION
         ;;
     *)
-        echo -e "${RED}${RESET} Invalid choice, aborting."
+        echo -e "${RED}${RESET} Invalid choice. Aborting."
         exit 1
         ;;
 esac
 
-# Step 6: Create a mount point and mount the partition
-MOUNT_POINT="/mnt/4tb"
-echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
-mkdir -p $MOUNT_POINT > /dev/null 2>&1
-
-echo -e "${GREEN}${RESET} Mounting ${PARTITION} to ${MOUNT_POINT}..."
-mount $PARTITION $MOUNT_POINT > /dev/null 2>&1
-
-# Step 7: Add the partition to /etc/fstab for auto-mount on boot
-UUID=$(blkid -s UUID -o value $PARTITION)
-echo -e "${GREEN}${RESET} Adding ${PARTITION} to /etc/fstab for auto-mount on boot..."
-echo "UUID=$UUID $MOUNT_POINT $fs_choice defaults 0 2" | tee -a /etc/fstab > /dev/null
+# Step 6: Mount the partition or ZFS pool
+if [[ "$fs_choice" -ne 2 ]]; then
+    MOUNT_POINT="/mnt/4tb"
+    echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
+    mkdir -p $MOUNT_POINT
+    mount $PARTITION $MOUNT_POINT
+    echo -e "${GREEN}${RESET} Partition mounted at ${MOUNT_POINT}."
+    
+    # Step 7: Add to /etc/fstab for auto-mount
+    echo -e "${GREEN}${RESET} Adding ${PARTITION} to /etc/fstab for auto-mount on boot..."
+    UUID=$(blkid -s UUID -o value $PARTITION)
+    echo "UUID=$UUID $MOUNT_POINT ext4 defaults 0 2" >> /etc/fstab
+    mount -a
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}${RESET} Partition added to /etc/fstab and verified successfully."
+    else
+        echo -e "${RED}${RESET} Failed to add partition to /etc/fstab or verify mount."
+        exit 1
+    fi
+else
+    echo -e "${GREEN}${RESET} ZFS does not require /etc/fstab entry. Pool is mounted automatically."
+fi
 
 # Step 8: Verify the changes
 echo -e "${GREEN}${RESET} The disk has been successfully partitioned, formatted, and mounted."
