@@ -8,6 +8,28 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
+# Function to check if a package is installed, and install it if not
+install_package_if_missing() {
+    local package=$1
+    if ! dpkg -l | grep -q "$package"; then
+        echo -e "${RED}${RESET} $package not found. Installing..."
+        apt update -y > /dev/null 2>&1
+        apt install -y $package > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}${RESET} $package installed successfully."
+        else
+            echo -e "${RED}${RESET} Failed to install $package."
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}${RESET} $package is already installed."
+    fi
+}
+
+# Check if parted and util-linux (for partprobe) are installed, and install them if not
+install_package_if_missing "parted"
+install_package_if_missing "util-linux"
+
 # Function to check if the disk is part of an existing ZFS pool
 check_zfs_pool() {
     local disk=$1
