@@ -25,7 +25,7 @@ pvesm status | awk 'NR > 1 {print NR-1 ") " $1}'
 read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
 
 # Extract the selected storage pool
-STORAGE_POOL=$(pvesm status | awk -v index=$STORAGE_POOL_INDEX 'NR == index+1 {print $1}')
+STORAGE_POOL=$(pvesm status | awk -v index="$STORAGE_POOL_INDEX" 'NR == index+1 {print $1}')
 if [ -z "$STORAGE_POOL" ]; then
     echo -e "${RED}Invalid selection. Exiting.${RESET}"
     exit 1
