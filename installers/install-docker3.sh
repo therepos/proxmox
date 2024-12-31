@@ -27,7 +27,7 @@ echo "Next available VMID: $VMID"
 
 # Define VM Name, Cloud-init Image, and other variables
 VM_NAME="docker-vm"
-STORAGE_POOL="dpool"    # Using dpool as the storage pool (already confirmed)
+STORAGE_POOL="dpool"    # Using dpool as the storage pool (ensure dpool exists)
 CLOUD_IMAGE="ubuntu-22.04-cloudimg.img"  # Cloud-init image filename
 BRIDGE="vmbr0"          # Network bridge
 GPU_PCI="01:00.0"       # GPU PCI ID for passthrough (adjust accordingly)
@@ -72,7 +72,7 @@ check_success "Disk attachment"
 echo "Configuring cloud-init..."
 qm set $VMID --ide2 $STORAGE_POOL:cloudinit
 qm set $VMID --serial0 socket --vga serial0
-qm set $VMID --cipassword "yourpassword" --ciuser "youruser"
+qm set $VMID --cipassword "root" --ciuser "root"
 check_success "Cloud-init configuration"
 
 # Step 7: Add GPU Passthrough
