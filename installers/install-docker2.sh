@@ -57,9 +57,9 @@ status_message success "NVIDIA driver installed."
 echo "Adding CUDA repository for Debian Bullseye..."
 
 # Remove any conflicting repository entries
-rm -f /etc/apt/sources.list.d/cuda-debian12-x86_64.list /etc/apt/sources.list.d/cuda.list
+rm -f /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/cuda-debian12-x86_64.list
 
-# Add the Bullseye repository (works for Bookworm in most cases)
+# Add the Bullseye repository (compatible with Bookworm)
 KEY_URL_PRIMARY="https://developer.download.nvidia.com/compute/cuda/repos/bullseye/x86_64/3bf863cc.pub"
 
 curl -fsSL $KEY_URL_PRIMARY | gpg --dearmor -o /usr/share/keyrings/nvidia-cuda-keyring.gpg
