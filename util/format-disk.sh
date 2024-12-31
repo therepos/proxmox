@@ -66,10 +66,16 @@ fi
 # Step 3: Create GPT partition table
 echo -e "${GREEN}${RESET} Creating GPT partition table on ${DISK}..."
 
-# Ensure the disk is not in use
-if mount | grep -q "${DISK}"; then
-    echo -e "${RED}${RESET} The disk ${DISK} is mounted. Unmounting it now..."
-    umount ${DISK}* || { echo -e "${RED}${RESET} Failed to unmount ${DISK}. Aborting."; exit 1; }
+# Check if any partitions on the disk are mounted and unmount them
+MOUNTED_PARTS=$(lsblk -ln -o MOUNTPOINT ${DISK} | grep -v '^$')
+if [ -n "$MOUNTED_PARTS" ]; then
+    echo -e "${RED}${RESET} The disk ${DISK} has mounted partitions. Unmounting them now..."
+    for PART in $(lsblk -ln -o NAME,MOUNTPOINT | grep "^$(basename ${DISK})" | awk '{print "/dev/" $1}'); do
+        umount $PART || { echo -e "${RED}${RESET} Failed to unmount ${PART}. Aborting."; exit 1; }
+    done
+    echo -e "${GREEN}${RESET} All partitions on ${DISK} unmounted successfully."
+else
+    echo -e "${GREEN}${RESET} No mounted partitions found on ${DISK}."
 fi
 
 if lsof | grep -q "${DISK}"; then
