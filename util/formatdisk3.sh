@@ -60,7 +60,7 @@ if [[ "$confirm_wipe" != "y" ]]; then
 fi
 
 # Check if the disk is part of a ZFS pool
-old_pool_name=$(zpool status | grep -B1 $DISK | head -n1 | awk '{print $1}')
+old_pool_name=$(zpool status | grep -B1 "$DISK" | head -n1 | awk '{print $1}')
 
 if [[ -n "$old_pool_name" ]]; then
     echo -e "${GREEN}${RESET} Disk is part of ZFS pool $old_pool_name."
@@ -69,23 +69,23 @@ if [[ -n "$old_pool_name" ]]; then
     if grep -q "zfspool: $old_pool_name" /etc/pve/storage.cfg; then
         echo -e "${GREEN}${RESET} Removing ZFS pool $old_pool_name from Proxmox configuration..."
         sed -i "/zfspool: $old_pool_name/,/^$/d" /etc/pve/storage.cfg
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Successfully removed ZFS pool $old_pool_name from Proxmox configuration."
-        else
-            echo -e "${RED}${RESET} Failed to remove ZFS pool $old_pool_name from configuration."
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}${RESET} Failed to remove ZFS pool configuration for $old_pool_name."
             exit 1
         fi
+        echo -e "${GREEN}${RESET} Successfully removed ZFS pool configuration for $old_pool_name."
     fi
 
     # Export the pool
     echo -e "${GREEN}${RESET} Exporting ZFS pool $old_pool_name..."
-    zpool export $old_pool_name
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}${RESET} ZFS pool $old_pool_name exported successfully."
-    else
-        echo -e "${RED}${RESET} Failed to export ZFS pool $old_pool_name."
+    zpool export "$old_pool_name"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}${RESET} Failed to export ZFS pool $old_pool_name. Ensure the pool is not in use."
         exit 1
     fi
+    echo -e "${GREEN}${RESET} ZFS pool $old_pool_name exported successfully."
+else
+    echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
 fi
 
 # Wipe the disk
