@@ -59,9 +59,8 @@ if [[ "$confirm_wipe" != "y" ]]; then
     exit 0
 fi
 
-# Identify ZFS identifier for the selected disk
-identifier=$(udevadm info $DISK | grep ID_SERIAL | awk -F'=' '{print $2}')
-
+# ============
+# Check if its ZFS pool, if yes remove the config
 # Find the pool name associated with the identifier
     # Get the WWN of the selected disk
     disk_wwn=$(lsblk -o NAME,WWN | grep $(basename $DISK) | awk '{print $2}')
@@ -102,6 +101,7 @@ identifier=$(udevadm info $DISK | grep ID_SERIAL | awk -F'=' '{print $2}')
 
     echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
 
+# ============
 # Wipe the disk
 echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
 wipefs --all $DISK
