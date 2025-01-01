@@ -6,9 +6,6 @@ source <(curl -s https://raw.githubusercontent.com/tteck/Proxmox/main/misc/build
 # License: MIT
 # https://github.com/tteck/Proxmox/raw/main/LICENSE
 
-# Allow user to define the port, default to 8080 if not provided
-PORT=${1:-8080}  # Use the first argument or default to 8080
-
 function header_info {
 clear
 cat <<"EOF"     
@@ -78,6 +75,9 @@ systemctl start open-webui.service
 msg_ok "Updated Successfully"
 exit
 }
+
+# Allow user to define the port, default to 8080 if not provided
+PORT=${1:-8080}  # Use the first argument or default to 8080
 
 # Modify the default port in the Open WebUI backend configuration
   pct exec $CT_ID -- bash -c "
