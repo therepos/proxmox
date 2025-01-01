@@ -7,7 +7,7 @@ VMNAME="docker-vm"
 DISK_SIZE=32G
 
 # Automatically determine the next available VMID
-NEXT_VMID=$(qm list | awk -F',' '{print $1}' | sort -n | tail -1)
+NEXT_VMID=$(qm list | awk '{print $1}' | sort -n | tail -1)
 VMID=$((NEXT_VMID+1))
 
 # Create VM
