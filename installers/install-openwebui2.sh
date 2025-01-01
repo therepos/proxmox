@@ -76,6 +76,17 @@ msg_ok "Updated Successfully"
 exit
 }
 
+# Modify the default port in the Open WebUI backend configuration
+  pct exec $CT_ID -- bash -c "
+    if [[ -f /opt/open-webui/backend/open_webui/__init__.py ]]; then
+      echo 'Modifying Open WebUI default port to $PORT in __init__.py...'
+      sed -i \"s/port=8080/port=$PORT/\" /opt/open-webui/backend/open_webui/__init__.py
+      echo 'Port modified successfully in __init__.py.'
+    else
+      echo 'Warning: __init__.py not found. Unable to modify default port.'
+    fi
+  "
+  
 start
 build_container
 description
