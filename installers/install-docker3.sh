@@ -86,12 +86,11 @@ echo "Configuring EFI vars disk and cloud-init settings for VM $VMID..."
 
 # Step 6.1: Configure EFI vars disk
 echo "Configuring EFI vars disk..."
-qm set $VMID --efidisk0 "$STORAGE_POOL:128K,efitype=4m,size=128K"
-if [ $? -ne 0 ]; then
+if qm set $VMID --efidisk0 "$STORAGE_POOL:vm-$VMID-efi,size=128K"; then
+    echo -e "${GREEN}EFI vars disk configured.${RESET}"
+else
     echo -e "${RED}Failed to configure EFI vars disk. Exiting.${RESET}"
     exit 1
-else
-    echo -e "${GREEN}EFI vars disk configured.${RESET}"
 fi
 
 # Step 6.2: Import Cloud-Init Image
