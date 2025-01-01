@@ -59,7 +59,6 @@ if [[ "$confirm_wipe" != "y" ]]; then
     exit 0
 fi
 
-# ============
 # Check if its ZFS pool, if yes remove the config
 # Find the pool name associated with the identifier
     # Get the WWN of the selected disk
@@ -97,8 +96,6 @@ fi
         echo "No pool detected for $DISK."
         echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
     fi
-    
-# ============
 
 # Wipe the disk
 echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
@@ -144,6 +141,7 @@ if [ "$fs_choice" == "1" ]; then
         # Add the new ZFS pool configuration
         echo -e "${GREEN}${RESET} Adding ZFS pool $pool_name to Proxmox storage configuration..."
         {
+            echo
             echo "zfspool: $pool_name"
             echo "    pool $pool_name"
             echo "    content images,iso"
