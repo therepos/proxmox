@@ -63,10 +63,20 @@ fi
 identifier=$(udevadm info $DISK | grep ID_SERIAL | awk -F'=' '{print $2}')
 
 # Find the pool name associated with the identifier
-old_pool_name=$(zpool list -v | grep -B1 $identifier | head -n1 | awk '{print $1}')
-
-if [[ -n "$old_pool_name" ]]; then
-    echo -e "${GREEN}${RESET} Detected ZFS pool: $old_pool_name."
+    # Get the WWN of the selected disk
+    disk_wwn=$(lsblk -o NAME,WWN | grep $(basename $DISK) | awk '{print $2}')
+    echo "Disk WWN: $disk_wwn"
+    
+    # Find the pool name associated with the WWN
+    old_pool_name=$(zpool list -v | grep -B1 "$disk_wwn" | head -n1 | awk '{print $1}')
+    echo "Old Pool Name: $old_pool_name"
+    
+    # Check if a pool name was found
+    if [[ -n "$old_pool_name" ]]; then
+        echo "Detected pool: $old_pool_name associated with $DISK."
+    else
+        echo "No pool detected for $DISK."
+    fi
 
     # Remove old pool configuration from /etc/pve/storage.cfg
     if grep -q "zfspool: $old_pool_name" /etc/pve/storage.cfg; then
