@@ -90,7 +90,7 @@ status_message success "NVIDIA Container Toolkit installed and configured succes
 status_message "Configuring Docker for ZFS storage driver and NVIDIA runtime"
 DOCKER_CONFIG="/etc/docker/daemon.json"
 if [ ! -f "$DOCKER_CONFIG" ]; then
-    run_silent tee "$DOCKER_CONFIG" > /dev/null <<EOF
+    tee "$DOCKER_CONFIG" > /dev/null <<EOF
 {
     "storage-driver": "zfs",
     "runtimes": {
