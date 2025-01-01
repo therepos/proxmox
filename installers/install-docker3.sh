@@ -6,134 +6,88 @@ RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
 function status_message() {
-    local status=$1
-    local message=$2
-    if [[ "$status" == "success" ]]; then
-        echo -e "${GREEN} ${message}"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN} $1 succeeded.${RESET}"
     else
-        echo -e "${RED} ${message}"
+        echo -e "${RED} $1 failed. Exiting.${RESET}"
         exit 1
     fi
 }
 
-# Enable debugging to show all executed commands
-set -x
-
-# Step 1: Select the storage pool
-echo "Available storage pools:"
-pvesm status | awk 'NR > 1 {print $1}' | nl
-
-read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
-
-STORAGE_POOL=$(pvesm status | awk 'NR > 1 {print $1}' | sed -n "${STORAGE_POOL_INDEX}p")
-if [ -z "$STORAGE_POOL" ]; then
-    echo -e "${RED}Invalid selection. Exiting.${RESET}"
+# Step 1: Verify Storage Pool
+STORAGE_POOL="local"
+echo "Checking if storage pool '$STORAGE_POOL' exists..."
+pvesm list $STORAGE_POOL > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Storage pool '$STORAGE_POOL' does not exist. Exiting.${RESET}"
     exit 1
+else
+    echo -e "${GREEN}Storage pool '$STORAGE_POOL' verified.${RESET}"
 fi
-echo "Selected storage pool: $STORAGE_POOL"
 
-# Step 2: Dynamically determine the next available VMID
-echo "Determining the next available VMID..."
+# Step 2: Dynamically Determine VM ID
+echo "Determining the next available VM ID..."
 VMID=$(pvesh get /cluster/nextid)
 if [ -z "$VMID" ]; then
-    echo -e "${RED}Failed to get the next available VMID. Exiting.${RESET}"
+    echo -e "${RED}Failed to get the next available VM ID. Exiting.${RESET}"
     exit 1
 fi
-echo "Next available VMID: $VMID"
+echo "Next available VM ID: $VMID"
 
-# Step 3: Verify or create the storage pool
-echo "Checking if storage pool '$STORAGE_POOL' exists..."
-pvesm list $STORAGE_POOL
-if [ $? -ne 0 ]; then
-    echo "Storage pool '$STORAGE_POOL' does not exist. Creating '$STORAGE_POOL'..."
-    pvesm create dir $STORAGE_POOL --path /mnt/pve/$STORAGE_POOL
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to create storage pool '$STORAGE_POOL'. Exiting.${RESET}"
-        exit 1
-    fi
-    echo -e "${GREEN}Storage pool '$STORAGE_POOL' created successfully.${RESET}"
-else
-    echo -e "${GREEN}Storage pool '$STORAGE_POOL' exists.${RESET}"
-fi
-
-# Step 4: Download the Cloud-Init Image if it doesn't exist
+# Step 3: Download Cloud-Init Image
 CLOUD_IMAGE="/var/lib/vz/template/iso/ubuntu-22.04-cloudimg.img"
-echo "Checking for the cloud-init image..."
 if [ ! -f "$CLOUD_IMAGE" ]; then
-    echo "Cloud-init image not found. Downloading the image..."
+    echo "Cloud-init image not found. Downloading..."
     wget https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img -O "$CLOUD_IMAGE"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to download the cloud-init image. Exiting.${RESET}"
-        exit 1
-    fi
-    echo -e "${GREEN}Cloud-init image downloaded successfully.${RESET}"
+    status_message "Cloud-init image download"
 else
     echo -e "${GREEN}Cloud-init image already exists.${RESET}"
 fi
 
-# Step 5: Create the VM
-echo "Creating VM with ID $VMID..."
-qm create $VMID --name docker-vm --memory 4096 --cores 4 --net0 virtio,bridge=vmbr0 --ostype l26 --machine q35 --bios ovmf
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to create VM $VMID. Exiting.${RESET}"
-    exit 1
-else
-    echo -e "${GREEN}VM $VMID successfully created.${RESET}"
-fi
+# Step 4: Create the VM
+echo "Creating Docker VM with ID $VMID..."
+qm create $VMID --name docker-vm --memory 4096 --cores 4 --net0 virtio,bridge=vmbr0 --ostype l26 --scsihw virtio-scsi-pci --bios ovmf
+status_message "VM creation"
 
-# Step 6: Configure EFI vars disk and attach storage
-echo "Configuring EFI vars disk and cloud-init settings for VM $VMID..."
-
-# Step 6.1: Configure EFI vars disk
-echo "Configuring EFI vars disk..."
-if qm set $VMID --efidisk0 "$STORAGE_POOL:vm-$VMID-efi,size=128K"; then
-    echo -e "${GREEN}EFI vars disk configured.${RESET}"
-else
-    echo -e "${RED}Failed to configure EFI vars disk. Exiting.${RESET}"
-    exit 1
-fi
-
-# Step 6.2: Import Cloud-Init Image
-echo "Importing Cloud-Init Image..."
+# Step 5: Import Cloud-Init Disk
+echo "Importing Cloud-Init disk..."
 qm importdisk $VMID "$CLOUD_IMAGE" $STORAGE_POOL
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to import cloud-init image. Exiting.${RESET}"
-    exit 1
-else
-    echo -e "${GREEN}Cloud-init image imported successfully.${RESET}"
-fi
+status_message "Cloud-init disk import"
 
-# Step 6.3: Attach the disk to VM
-echo "Attaching the disk to VM..."
-qm set $VMID --scsihw virtio-scsi-pci --scsi0 "$STORAGE_POOL:vm-$VMID-disk-0" --boot c --bootdisk scsi0
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to attach disk to VM. Exiting.${RESET}"
-    exit 1
-else
-    echo -e "${GREEN}Disk attached to VM.${RESET}"
-fi
-
-# Step 6.4: Configure Cloud-Init
-echo "Configuring Cloud-Init..."
-qm set $VMID --ide2 "$STORAGE_POOL:cloudinit" --serial0 socket --vga serial0 --cipassword "root" --ciuser "root"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to configure cloud-init. Exiting.${RESET}"
-    exit 1
-else
-    echo -e "${GREEN}Cloud-init configured successfully.${RESET}"
-fi
+# Step 6: Configure VM Disk and Cloud-Init
+echo "Configuring VM disks and cloud-init..."
+qm set $VMID --efidisk0 $STORAGE_POOL:vm-$VMID-efi,size=128K --scsi0 $STORAGE_POOL:vm-$VMID-disk-0,boot=1 --boot c
+qm set $VMID --ide2 $STORAGE_POOL:cloudinit --serial0 socket --vga serial0 --cipassword "root" --ciuser "root"
+status_message "VM configuration"
 
 # Step 7: Start the VM
-echo "Starting VM $VMID..."
+echo "Starting Docker VM with ID $VMID..."
 qm start $VMID
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Failed to start VM $VMID. Exiting.${RESET}"
-    exit 1
-else
-    echo -e "${GREEN}VM $VMID started successfully.${RESET}"
-fi
+status_message "VM start"
 
-echo -e "${GREEN}VM created and configured successfully with cloud-init and Docker support.${RESET}"
+# Step 8: Install Docker Inside the VM
+echo "To install Docker in the VM, follow these steps:"
+echo "1. SSH into the VM using the IP address set during the cloud-init configuration."
+echo "2. Run the following commands to install Docker:"
+echo "
+# Uninstall any conflicting packages
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove -y \$pkg; done
 
-# Disable debugging after execution
-set +x
+# Add Docker's official GPG key
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add Docker repository
+echo 'deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \$(. /etc/os-release && echo \$VERSION_CODENAME) stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Verify Docker installation
+sudo docker run hello-world
+"
+echo -e "${GREEN}Docker VM setup completed. Follow the instructions above to install Docker inside the VM.${RESET}"
