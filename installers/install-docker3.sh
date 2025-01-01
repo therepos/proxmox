@@ -59,12 +59,23 @@ else
     echo "Cloud-init image already exists."
 fi
 
-# Step 4: Create the VM
-VM_NAME="docker-vm"
-BRIDGE="vmbr0"
+# Step 6: Create the VM
 echo "Creating VM with ID $VMID..."
-qm create $VMID --name $VM_NAME --memory 4096 --cores 4 --net0 virtio,bridge=$BRIDGE --ostype l26 --machine q35 --bios ovmf
-status_message $? "VM created"
+if qm create $VMID --name docker-vm --memory 4096 --cores 4 --net0 virtio,bridge=vmbr0 --ostype l26 --machine q35 --bios ovmf; then
+    echo -e "${GREEN}VM $VMID successfully created.${RESET}"
+else
+    echo -e "${RED}Failed to create VM $VMID. Please check the logs for details.${RESET}"
+    exit 1
+fi
+
+# Validate VM existence
+echo "Validating VM creation..."
+if qm config $VMID &>/dev/null; then
+    echo -e "${GREEN}VM $VMID exists and is ready for further configuration.${RESET}"
+else
+    echo -e "${RED}VM $VMID not found after creation. Exiting.${RESET}"
+    exit 1
+fi
 
 # Step 5: Configure EFI vars disk and attach storage
 qm set $VMID --efidisk0 $STORAGE_POOL:128K,efitype=4m,size=128K
