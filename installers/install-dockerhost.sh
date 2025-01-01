@@ -87,7 +87,7 @@ systemctl restart docker
 status_message success "NVIDIA Container Toolkit installed and configured successfully."
 
 # Step 8: Configure Docker for ZFS storage driver and NVIDIA runtime (NEW)
-print_status "Configuring Docker for ZFS storage driver and NVIDIA runtime"
+status_message "Configuring Docker for ZFS storage driver and NVIDIA runtime"
 DOCKER_CONFIG="/etc/docker/daemon.json"
 if [ ! -f "$DOCKER_CONFIG" ]; then
     run_silent tee "$DOCKER_CONFIG" > /dev/null <<EOF
@@ -102,9 +102,9 @@ if [ ! -f "$DOCKER_CONFIG" ]; then
 }
 EOF
 else
-    print_status "Updating existing Docker configuration"
-    run_silent jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
-    run_silent mv /tmp/daemon.json "$DOCKER_CONFIG"
+    status_message "Updating existing Docker configuration"
+    jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
+    mv /tmp/daemon.json "$DOCKER_CONFIG"
 fi
 
 # Step 9: Verify Installation
