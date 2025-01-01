@@ -18,19 +18,30 @@ function status_message() {
     fi
 }
 
+function check_success() {
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}$1 failed. Exiting.${RESET}"
+        exit 1
+    else
+        echo -e "${GREEN}$1 completed successfully.${RESET}"
+    fi
+}
+
 # Step 0: Select the storage pool
-echo "Available storage pools:"
-pvesm status | awk 'NR > 1 {print $1}' | nl
+while true; do
+    echo "Available storage pools:"
+    pvesm status | awk 'NR > 1 {print NR-1 ") " $1}' | nl
 
-read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
+    read -p "Enter the number corresponding to the storage pool to use: " STORAGE_POOL_INDEX
 
-# Extract the selected storage pool
-STORAGE_POOL=$(pvesm status | awk 'NR > 1 {print $1}' | sed -n "${STORAGE_POOL_INDEX}p")
-if [ -z "$STORAGE_POOL" ]; then
-    echo -e "${RED}Invalid selection. Exiting.${RESET}"
-    exit 1
-fi
-echo "Selected storage pool: $STORAGE_POOL"
+    STORAGE_POOL=$(pvesm status | awk 'NR > 1 {print $1}' | sed -n "${STORAGE_POOL_INDEX}p")
+    if [ -n "$STORAGE_POOL" ]; then
+        echo "Selected storage pool: $STORAGE_POOL"
+        break
+    else
+        echo -e "${RED}Invalid selection. Please try again.${RESET}"
+    fi
+done
 
 # Step 1: Verify IOMMU is enabled
 echo "Verifying IOMMU is enabled..."
@@ -132,10 +143,11 @@ fi
 
 # Step 5: Download the Cloud-Init Image if it doesn't exist
 CLOUD_IMAGE="ubuntu-22.04-cloudimg.img"
+CLOUD_IMAGE_PATH="/var/lib/vz/template/iso/$CLOUD_IMAGE"
 echo "Checking for the cloud-init image..."
-if [ ! -f /var/lib/vz/template/iso/$CLOUD_IMAGE ]; then
+if [ ! -f $CLOUD_IMAGE_PATH ]; then
     echo "Cloud-init image not found. Downloading the image..."
-    wget https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img -O /var/lib/vz/template/iso/$CLOUD_IMAGE
+    wget --tries=3 --timeout=30 https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img -O $CLOUD_IMAGE_PATH
     check_success "Cloud-init image download"
 else
     echo "Cloud-init image already exists."
@@ -175,6 +187,13 @@ check_success "Cloud-init configuration"
 echo "Configuring GPU passthrough..."
 qm set $VMID --hostpci0 $GPU_PCI,pcie=1
 check_success "GPU passthrough configuration"
+
+# Verify GPU passthrough inside the VM
+echo "Validating GPU passthrough..."
+if ! qm config $VMID | grep -q "hostpci0"; then
+    echo -e "${RED}GPU passthrough configuration failed. Exiting.${RESET}"
+    exit 1
+fi
 
 # Step 12: Start the VM
 echo "Starting VM $VMID..."
