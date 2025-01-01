@@ -104,9 +104,10 @@ if [ "$fs_choice" == "1" ]; then
         echo -e "${GREEN}${RESET} Adding ZFS pool $pool_name to Proxmox storage configuration..."
         {
             echo
-            echo "zfspool: $pool_name"
+            echo "zfspool: data-zfs"
             echo "    pool $pool_name"
-            echo "    content images,iso"
+            echo "    content rootdir,images,backup,vztmpl,iso"
+            echo "    sparse 1"
         } >> /etc/pve/storage.cfg
         systemctl reload pvedaemon
         if [ $? -eq 0 ]; then
