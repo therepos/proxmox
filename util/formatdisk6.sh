@@ -73,35 +73,33 @@ fi
     # Check if a pool name was found
     if [[ -n "$old_pool_name" ]]; then
         echo "Detected pool: $old_pool_name associated with $DISK."
-    else
-        echo "No pool detected for $DISK."
-    fi
-
-    # Remove old pool configuration from /etc/pve/storage.cfg
-    if grep -q "zfspool: $old_pool_name" /etc/pve/storage.cfg; then
-        echo -e "${GREEN}${RESET} Removing ZFS pool $old_pool_name from Proxmox configuration..."
-        sed -i "/zfspool: $old_pool_name/,/^$/d" /etc/pve/storage.cfg
+        # Remove old pool configuration from /etc/pve/storage.cfg
+        if grep -q "zfspool: $old_pool_name" /etc/pve/storage.cfg; then
+            echo -e "${GREEN}${RESET} Removing ZFS pool $old_pool_name from Proxmox configuration..."
+            sed -i "/zfspool: $old_pool_name/,/^$/d" /etc/pve/storage.cfg
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}${RESET} Successfully removed ZFS pool configuration for $old_pool_name."
+            else
+                echo -e "${RED}${RESET} Failed to remove ZFS pool configuration for $old_pool_name."
+                exit 1
+            fi
+        fi
+        # Export the pool
+        echo -e "${GREEN}${RESET} Exporting ZFS pool $old_pool_name..."
+        zpool export "$old_pool_name"
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}${RESET} Successfully removed ZFS pool configuration for $old_pool_name."
+            echo -e "${GREEN}${RESET} ZFS pool $old_pool_name exported successfully."
         else
-            echo -e "${RED}${RESET} Failed to remove ZFS pool configuration for $old_pool_name."
+            echo -e "${RED}${RESET} Failed to export ZFS pool $old_pool_name. Ensure the pool is not in use."
             exit 1
         fi
-    fi
-
-    # Export the pool
-    echo -e "${GREEN}${RESET} Exporting ZFS pool $old_pool_name..."
-    zpool export "$old_pool_name"
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}${RESET} ZFS pool $old_pool_name exported successfully."
     else
-        echo -e "${RED}${RESET} Failed to export ZFS pool $old_pool_name. Ensure the pool is not in use."
-        exit 1
+        echo "No pool detected for $DISK."
+        echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
     fi
-
-    echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
-
+    
 # ============
+
 # Wipe the disk
 echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
 wipefs --all $DISK
