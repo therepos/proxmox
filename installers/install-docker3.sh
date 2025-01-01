@@ -1,65 +1,42 @@
 #!/bin/bash
 
-# Set VM name
-VMNAME="docker-vm"
+# Variables
+STORAGE_POOL="local-zfs"  # Adjust as per your storage configuration
+ISO_STORAGE="local"      # Storage where the ISO is stored
+ISO_FILE="debian.iso" # Replace with your actual ISO file name
+CPU_CORES=2
+MEMORY=2048 # Memory in MB
+DISK_SIZE=20G # Disk size in GB
+BRIDGE="vmbr0" # Network bridge
 
-# Set disk size (adjust as needed)
-DISK_SIZE=32G
-
-# Automatically determine the next available VMID
-NEXT_VMID=$(qm list | awk '{print $1}' | sort -n | tail -1)
-VMID=$((NEXT_VMID+1))
+# Detect next available VM ID
+NEXT_ID=$(pvesh get /cluster/nextid)
 
 # Create VM
-qm create $VMID \
-  --name $VMNAME \
-  --ostype l26 \
-  --memory 4096 \
-  --cores 2 \
-  --net0 virtio,bridge=vmbr0 \
-  --onboot 1 \
-  --disk0 tank:vm-$VMID-disk-0,size=$DISK_SIZE
+echo "Creating VM with ID $NEXT_ID..."
+qm create $NEXT_ID \
+    --name vm-$NEXT_ID \
+    --memory $MEMORY \
+    --cores $CPU_CORES \
+    --net0 virtio,bridge=$BRIDGE \
+    --ostype l26 \
+    --scsihw virtio-scsi-pci \
+    --sockets 1
 
-# Install cloud-init
-qm set $VMID --ide2 tank:cloudinit,media=cdrom
+# Add disk to the VM
+qm set $NEXT_ID \
+    --scsi0 $STORAGE_POOL:vm-$NEXT_ID-disk-0,size=$DISK_SIZE
 
-# Start VM
-qm start $VMID
+# Attach ISO file for installation
+qm set $NEXT_ID \
+    --cdrom $ISO_STORAGE:iso/$ISO_FILE
 
-# Wait for VM to boot
-sleep 30
+# Set boot order to CD-ROM
+echo "Configuring boot order..."
+qm set $NEXT_ID --boot order=cdrom
 
-# Get VM IP address
-VMIP=$(qm agent $VMID get-status | grep -oE '"ip-address": "[0-9.]+"' | cut -d '"' -f 4)
+# Start the VM
+echo "Starting VM $NEXT_ID..."
+qm start $NEXT_ID
 
-# SSH into VM and install Docker
-ssh root@$VMIP << EOF
-apt-get update
-apt-get install -y \
-  apt-transport-https \
-  ca-certificates \
-  curl \
-  gnupg \
-  lsb-release
-
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-echo \
-  "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io
-
-# Add user to docker group (optional)
-usermod -aG docker \$USER
-
-# Verify Docker installation
-docker run hello-world
-EOF
-
-# Remove cloud-init drive
-qm set $VMID --ide2 none
-
-echo "VM created with ID: $VMID"
-echo "Docker installed on VM with IP: $VMIP"
+echo "VM $NEXT_ID has been created and started successfully."
