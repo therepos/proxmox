@@ -32,11 +32,26 @@ fi
 # Configuration variables
 VM_NAME="docker-vm"
 STORAGE="local-lvm"
-ISO_PATH="local:iso/debian.iso" # Path to the Debian ISO
+ISO_NAME="debian.iso" # ISO name to search for
+ISO_PATH=$(pvesm list local --content iso | awk -v iso="$ISO_NAME" '$2 == iso {print "local:"$2}')
 MEMORY="2048"                 # RAM in MB
 CORES="2"                     # Number of CPU cores
 DISK_SIZE="32G"               # Disk size
 BRIDGE="vmbr0"                # Network bridge
+
+# Check if ISO path exists
+if [ -z "$ISO_PATH" ]; then
+    echo -e "\nISO file $ISO_NAME does not exist in storage. Downloading..."
+    wget -O /var/lib/vz/template/iso/$ISO_NAME https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$ISO_NAME
+    if [ $? -eq 0 ]; then
+        display_status 0 "ISO file downloaded successfully: $ISO_NAME"
+        ISO_PATH="local:iso/$ISO_NAME"
+    else
+        display_status 1 "Failed to download the ISO file."
+    fi
+else
+    display_status 0 "ISO file found: $ISO_PATH"
+fi
 
 # Step 1: Create the VM in Proxmox
 echo -e "\nCreating VM in Proxmox..."
