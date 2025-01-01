@@ -4,7 +4,6 @@
 # curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-openwebui.sh | bash
 
 source <(curl -s https://raw.githubusercontent.com/tteck/Proxmox/main/misc/build.func)
-echo "NEXTID: $NEXTID"
 
 # Copyright (c) 2021-2024 tteck
 # Author: tteck
