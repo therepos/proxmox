@@ -138,6 +138,10 @@ case $fs_choice in
             fi
         fi
 
+        # Wipe the disk before creating the new ZFS pool
+        echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
+        wipefs --all $DISK
+
         # Ensure we create a different pool name to avoid conflicts
         read -p "Enter the name for the new ZFS pool: " pool_name
         echo -e "${GREEN}${RESET} Creating ZFS pool ${pool_name}..."
