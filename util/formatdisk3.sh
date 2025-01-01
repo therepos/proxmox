@@ -41,14 +41,35 @@ if [ ! -e "$DISK" ]; then
     exit 1
 fi
 
-# Step 3: Ask the user whether they want to format or expand the disk (with numeric options)
+# Step 3: Check if the disk is mounted, part of swap, or part of a ZFS pool
+echo -e "${RESET}Checking if the disk is in use...${RESET}"
+
+# Check if the disk is mounted
+if mount | grep -q "$DISK"; then
+    echo -e "${RED}${RESET} The disk $DISK is currently mounted. Please unmount it before proceeding."
+    exit 1
+fi
+
+# Check if the disk is used as swap
+if swapon -s | grep -q "$DISK"; then
+    echo -e "${RED}${RESET} The disk $DISK is currently being used as swap. Please disable swap on the disk before proceeding."
+    exit 1
+fi
+
+# Check if the disk is part of any ZFS pools
+if zpool status | grep -q "$DISK"; then
+    echo -e "${RED}${RESET} The disk $DISK is part of an existing ZFS pool. Please destroy the pool or use a different disk."
+    exit 1
+fi
+
+# Step 4: Ask the user whether they want to format or expand the disk (with numeric options)
 echo -e "Choose an option:\n1) Format the disk\n2) Expand the disk"
 read -p "Enter your choice (1/2): " action_choice
 
 if [[ "$action_choice" == "2" ]]; then
     echo -e "${GREEN}${RESET} Expanding the disk..."
     
-    # Step 4: Check the current format and expand the drive accordingly
+    # Step 5: Check the current format and expand the drive accordingly
     PARTITION="${DISK}p1"
     CURRENT_FS=$(lsblk -no FSTYPE $PARTITION)
     
@@ -103,7 +124,7 @@ if [[ "$action_choice" == "2" ]]; then
     exit 0
 fi
 
-# Step 5: Ask the user for the format type
+# Step 6: Ask the user for the format type
 echo -e "${RESET}Select the file system type to format the disk:"
 echo -e "1) ZFS"
 echo -e "2) ext4"
@@ -112,35 +133,16 @@ echo -e "4) ntfs"
 echo -e "5) exfat"
 read -p "Enter the number of your choice: " fs_choice
 
-# Step 6: Handle formatting based on the selected file system type
+# Step 7: Handle formatting based on the selected file system type
 case $fs_choice in
     1)  # ZFS
         echo -e "${GREEN}${RESET} Installing ZFS utilities..."
         install_package_if_missing "zfsutils-linux"
 
-        # Check if the disk is already part of a ZFS pool
-        if zpool list | grep -q "${DISK}"; then
-            echo -e "${RED}${RESET} The disk ${DISK} is part of an existing ZFS pool."
-            read -p "Do you want to destroy the existing pool and create a new ZFS pool (WARNING: all data will be lost)? (y/n): " remove_choice
-            if [[ "$remove_choice" == "y" ]]; then
-                # Forcefully destroy the existing ZFS pool
-                echo -e "${GREEN}${RESET} Destroying existing ZFS pool..."
-                zpool destroy $(zpool list -v | grep "${DISK}" | awk '{print $1}')
-                if [ $? -eq 0 ]; then
-                    echo -e "${GREEN}${RESET} ZFS pool destroyed successfully."
-                else
-                    echo -e "${RED}${RESET} Failed to destroy existing ZFS pool. Aborting."
-                    exit 1
-                fi
-            else
-                echo -e "${RED}${RESET} Aborting. Disk will not be used."
-                exit 1
-            fi
-        fi
-
         # Wipe the disk before creating the new ZFS pool
         echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
         wipefs --all $DISK
+        parted $DISK mklabel gpt  # Create a new partition table
 
         # Ensure we create a different pool name to avoid conflicts
         read -p "Enter the name for the new ZFS pool: " pool_name
@@ -229,7 +231,7 @@ case $fs_choice in
         ;;
 esac
 
-# Step 7: Mount the partition or ZFS pool
+# Step 8: Mount the partition or ZFS pool
 if [ "$fs_choice" -ne 1 ]; then  # Only mount for non-ZFS file systems
     MOUNT_POINT="/mnt/$(basename $DISK)"
     echo -e "${GREEN}${RESET} Creating mount point ${MOUNT_POINT}..."
@@ -240,7 +242,7 @@ else
     echo -e "${GREEN}${RESET} ZFS pool is automatically mounted."
 fi
 
-# Step 8: Add to /etc/fstab for auto-mount (if not ZFS)
+# Step 9: Add to /etc/fstab for auto-mount (if not ZFS)
 if [ "$fs_choice" -ne 1 ]; then
     echo -e "${GREEN}${RESET} Adding ${DISK} to /etc/fstab for auto-mount on boot..."
     UUID=$(blkid -s UUID -o value ${DISK}p1)
@@ -254,6 +256,6 @@ if [ "$fs_choice" -ne 1 ]; then
     fi
 fi
 
-# Step 9: Verify the changes
+# Step 10: Verify the changes
 echo -e "${GREEN}${RESET} The disk has been successfully formatted and mounted."
 df -h
