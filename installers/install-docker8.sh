@@ -51,8 +51,9 @@ qm set $NEXT_ID \
 
 # Attach ISO file for installation
 echo "Attaching ISO $ISO_FILE to VM $NEXT_ID..."
+ISO_FILENAME=$(basename "$ISO_FILE")
 qm set $NEXT_ID \
-    --cdrom "$ISO_STORAGE:iso/$(basename $ISO_FILE)"
+    --cdrom "$ISO_STORAGE:iso/$ISO_FILENAME"
 
 # Set boot order
 echo "Configuring boot order..."
