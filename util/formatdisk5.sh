@@ -99,9 +99,8 @@ identifier=$(udevadm info $DISK | grep ID_SERIAL | awk -F'=' '{print $2}')
         echo -e "${RED}${RESET} Failed to export ZFS pool $old_pool_name. Ensure the pool is not in use."
         exit 1
     fi
-else
+
     echo -e "${GREEN}${RESET} No ZFS pool detected for the selected disk. Proceeding with wipe."
-fi
 
 # Wipe the disk
 echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
