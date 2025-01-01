@@ -1,140 +1,65 @@
 #!/bin/bash
 
-# Function to display status indicators
-display_status() {
-    local status=$1
-    local message=$2
+# Set VM name
+VMNAME="docker-vm"
 
-    if [ "$status" -eq 0 ]; then
-        echo -e "\e[32m\u2714 $message\e[0m" # Green checkmark
-    else
-        echo -e "\e[31m\u274C $message\e[0m" # Red cross
-        exit 1
-    fi
-}
+# Set disk size (adjust as needed)
+DISK_SIZE=32G
 
-# Detect Proxmox host
-PROXMOX_HOST=$(hostname -I | awk '{print $1}')
-if [ -z "$PROXMOX_HOST" ]; then
-    display_status 1 "Failed to detect Proxmox host IP. Ensure the script is running on a Proxmox server."
-else
-    display_status 0 "Proxmox host detected: $PROXMOX_HOST"
-fi
+# Automatically determine the next available VMID
+NEXT_VMID=$(qm list | awk -F',' '{print $1}' | sort -n | tail -1)
+VMID=$((NEXT_VMID+1))
 
-# Fetch the next available VM ID
-VM_ID=$(pvesh get /cluster/nextid)
-if [ -z "$VM_ID" ]; then
-    display_status 1 "Failed to fetch the next available VM ID."
-else
-    display_status 0 "Next available VM ID: $VM_ID"
-fi
+# Create VM
+qm create $VMID \
+  --name $VMNAME \
+  --ostype l26 \
+  --memory 4096 \
+  --cores 2 \
+  --net0 virtio,bridge=vmbr0 \
+  --onboot 1 \
+  --disk0 tank:vm-$VMID-disk-0,size=$DISK_SIZE
 
-# Configuration variables
-VM_NAME="docker-vm"
-STORAGE="local-lvm"
-ISO_NAME="debian.iso" # ISO name to search for
-ISO_PATH="/var/lib/vz/template/iso/$ISO_NAME"
-MEMORY="2048"                 # RAM in MB
-CORES="2"                     # Number of CPU cores
-DISK_SIZE="32G"               # Disk size
-BRIDGE="vmbr0"                # Network bridge
+# Install cloud-init
+qm set $VMID --ide2 tank:cloudinit,media=cdrom
 
-# Check if ISO path exists
-if [ -f "$ISO_PATH" ]; then
-    display_status 0 "ISO file found: $ISO_PATH"
-else
-    echo -e "\nISO file $ISO_NAME does not exist locally. Downloading..."
-    wget -O "$ISO_PATH" "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/$ISO_NAME"
-    if [ $? -eq 0 ]; then
-        display_status 0 "ISO file downloaded successfully: $ISO_NAME"
-    else
-        display_status 1 "Failed to download the ISO file."
-    fi
-fi
+# Start VM
+qm start $VMID
 
-# Register the ISO in Proxmox storage
-pvesm add local --path /var/lib/vz/template/iso > /dev/null 2>&1
-pvesm reload local
-ISO_STORAGE_PATH="local:iso/$ISO_NAME"
+# Wait for VM to boot
+sleep 30
 
-# Step 1: Create the VM in Proxmox
-echo -e "\nCreating VM in Proxmox..."
-qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CORES --net0 virtio,bridge=$BRIDGE
-status=$?
-display_status $status "VM configuration created"
+# Get VM IP address
+VMIP=$(qm agent $VMID get-status | grep -oE '"ip-address": "[0-9.]+"' | cut -d '"' -f 4)
 
-qm set $VM_ID --ide2 $ISO_STORAGE_PATH,media=cdrom
-status=$?
-display_status $status "ISO attached"
-
-qm set $VM_ID --scsihw virtio-scsi-pci --scsi0 $STORAGE:$DISK_SIZE
-status=$?
-display_status $status "Disk configured"
-
-qm set $VM_ID --boot c --bootdisk scsi0 --agent enabled=1
-status=$?
-display_status $status "Boot and agent settings configured"
-
-qm start $VM_ID
-status=$?
-display_status $status "VM started"
-
-# Step 2: Wait for VM initialization
-echo -e "\nWaiting for VM initialization..."
-sleep 60 # Adjust based on expected VM boot time
-
-# Step 3: SSH into the VM and install Docker
-echo -e "\nInstalling Docker inside the VM..."
-ssh root@$VM_NAME << 'EOF'
-# Inside the VM
-# Function to display status inside the VM
-status_indicator() {
-    if [ $1 -eq 0 ]; then
-        echo -e "\e[32m\u2714 $2\e[0m" # Green checkmark
-    else
-        echo -e "\e[31m\u274C $3\e[0m" # Red cross
-        exit 1
-    fi
-}
-
-# Remove conflicting packages
-for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do 
-    apt-get remove -y $pkg
-    status_indicator $? "Removed $pkg" "Failed to remove $pkg"
-done
-
-# Update system and install prerequisites
+# SSH into VM and install Docker
+ssh root@$VMIP << EOF
 apt-get update
-status_indicator $? "System updated" "Failed to update system"
+apt-get install -y \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release
 
-apt-get install -y ca-certificates curl
-status_indicator $? "Installed prerequisites" "Failed to install prerequisites"
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
-# Add Docker GPG key and repository
-install -m 0755 -d /etc/apt/keyrings
-status_indicator $? "Directory for keyrings created" "Failed to create keyrings directory"
-
-curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-status_indicator $? "GPG key downloaded" "Failed to download GPG key"
-
-chmod a+r /etc/apt/keyrings/docker.asc
-status_indicator $? "GPG key permissions set" "Failed to set GPG key permissions"
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-tee /etc/apt/sources.list.d/docker.list > /dev/null
-status_indicator $? "Docker repository added" "Failed to add Docker repository"
+echo \
+  "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 apt-get update
-status_indicator $? "Package index updated" "Failed to update package index"
+apt-get install -y docker-ce docker-ce-cli containerd.io
 
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-status_indicator $? "Docker installed" "Failed to install Docker"
+# Add user to docker group (optional)
+usermod -aG docker \$USER
 
-# Test Docker installation
+# Verify Docker installation
 docker run hello-world
-status_indicator $? "Docker is running successfully" "Docker test failed"
 EOF
-status=$?
-display_status $status "Docker installed and tested inside VM"
 
-echo -e "\nScript completed!"
+# Remove cloud-init drive
+qm set $VMID --ide2 none
+
+echo "VM created with ID: $VMID"
+echo "Docker installed on VM with IP: $VMIP"
