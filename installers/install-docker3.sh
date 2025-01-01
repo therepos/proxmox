@@ -1,93 +1,121 @@
 #!/bin/bash
 
-# Define colors and status symbols
-GREEN="\e[32m✔\e[0m"
-RED="\e[31m✘\e[0m"
-RESET="\e[0m"
+# Function to display status indicators
+display_status() {
+    local status=$1
+    local message=$2
 
-function status_message() {
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN} $1 succeeded.${RESET}"
+    if [ "$status" -eq 0 ]; then
+        echo -e "\e[32m\u2714 $message\e[0m" # Green checkmark
     else
-        echo -e "${RED} $1 failed. Exiting.${RESET}"
+        echo -e "\e[31m\u274C $message\e[0m" # Red cross
         exit 1
     fi
 }
 
-# Step 1: Verify Storage Pool
-STORAGE_POOL="local"
-echo "Checking if storage pool '$STORAGE_POOL' exists..."
-pvesm list $STORAGE_POOL > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Storage pool '$STORAGE_POOL' does not exist. Exiting.${RESET}"
-    exit 1
+# Detect Proxmox host
+PROXMOX_HOST=$(hostname -I | awk '{print $1}')
+if [ -z "$PROXMOX_HOST" ]; then
+    display_status 1 "Failed to detect Proxmox host IP. Ensure the script is running on a Proxmox server."
 else
-    echo -e "${GREEN}Storage pool '$STORAGE_POOL' verified.${RESET}"
+    display_status 0 "Proxmox host detected: $PROXMOX_HOST"
 fi
 
-# Step 2: Dynamically Determine VM ID
-echo "Determining the next available VM ID..."
-VMID=$(pvesh get /cluster/nextid)
-if [ -z "$VMID" ]; then
-    echo -e "${RED}Failed to get the next available VM ID. Exiting.${RESET}"
-    exit 1
-fi
-echo "Next available VM ID: $VMID"
-
-# Step 3: Download Cloud-Init Image
-CLOUD_IMAGE="/var/lib/vz/template/iso/ubuntu-22.04-cloudimg.img"
-if [ ! -f "$CLOUD_IMAGE" ]; then
-    echo "Cloud-init image not found. Downloading..."
-    wget https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img -O "$CLOUD_IMAGE"
-    status_message "Cloud-init image download"
+# Fetch the next available VM ID
+VM_ID=$(pvesh get /cluster/nextid)
+if [ -z "$VM_ID" ]; then
+    display_status 1 "Failed to fetch the next available VM ID."
 else
-    echo -e "${GREEN}Cloud-init image already exists.${RESET}"
+    display_status 0 "Next available VM ID: $VM_ID"
 fi
 
-# Step 4: Create the VM
-echo "Creating Docker VM with ID $VMID..."
-qm create $VMID --name docker-vm --memory 4096 --cores 4 --net0 virtio,bridge=vmbr0 --ostype l26 --scsihw virtio-scsi-pci --bios ovmf
-status_message "VM creation"
+# Configuration variables
+VM_NAME="docker-vm"
+STORAGE="local-lvm"
+ISO_PATH="local:iso/debian.iso" # Path to the Debian ISO
+MEMORY="2048"                 # RAM in MB
+CORES="2"                     # Number of CPU cores
+DISK_SIZE="32G"               # Disk size
+BRIDGE="vmbr0"                # Network bridge
 
-# Step 5: Import Cloud-Init Disk
-echo "Importing Cloud-Init disk..."
-qm importdisk $VMID "$CLOUD_IMAGE" $STORAGE_POOL
-status_message "Cloud-init disk import"
+# Step 1: Create the VM in Proxmox
+echo -e "\nCreating VM in Proxmox..."
+qm create $VM_ID --name $VM_NAME --memory $MEMORY --cores $CORES --net0 virtio,bridge=$BRIDGE
+status=$?
+display_status $status "VM configuration created"
 
-# Step 6: Configure VM Disk and Cloud-Init
-echo "Configuring VM disks and cloud-init..."
-qm set $VMID --efidisk0 $STORAGE_POOL:vm-$VMID-efi,size=128K --scsi0 $STORAGE_POOL:vm-$VMID-disk-0,boot=1 --boot c
-qm set $VMID --ide2 $STORAGE_POOL:cloudinit --serial0 socket --vga serial0 --cipassword "root" --ciuser "root"
-status_message "VM configuration"
+qm set $VM_ID --ide2 $ISO_PATH,media=cdrom
+status=$?
+display_status $status "ISO attached"
 
-# Step 7: Start the VM
-echo "Starting Docker VM with ID $VMID..."
-qm start $VMID
-status_message "VM start"
+qm set $VM_ID --scsihw virtio-scsi-pci --scsi0 $STORAGE:$DISK_SIZE
+status=$?
+display_status $status "Disk configured"
 
-# Step 8: Install Docker Inside the VM
-echo "To install Docker in the VM, follow these steps:"
-echo "1. SSH into the VM using the IP address set during the cloud-init configuration."
-echo "2. Run the following commands to install Docker:"
-echo "
-# Uninstall any conflicting packages
-for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove -y \$pkg; done
+qm set $VM_ID --boot c --bootdisk scsi0 --agent enabled=1
+status=$?
+display_status $status "Boot and agent settings configured"
 
-# Add Docker's official GPG key
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+qm start $VM_ID
+status=$?
+display_status $status "VM started"
 
-# Add Docker repository
-echo 'deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \$(. /etc/os-release && echo \$VERSION_CODENAME) stable' | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
+# Step 2: Wait for VM initialization
+echo -e "\nWaiting for VM initialization..."
+sleep 60 # Adjust based on expected VM boot time
 
-# Install Docker
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# Step 3: SSH into the VM and install Docker
+echo -e "\nInstalling Docker inside the VM..."
+ssh root@$VM_NAME << 'EOF'
+# Inside the VM
+# Function to display status inside the VM
+status_indicator() {
+    if [ $1 -eq 0 ]; then
+        echo -e "\e[32m\u2714 $2\e[0m" # Green checkmark
+    else
+        echo -e "\e[31m\u274C $3\e[0m" # Red cross
+        exit 1
+    fi
+}
 
-# Verify Docker installation
-sudo docker run hello-world
-"
-echo -e "${GREEN}Docker VM setup completed. Follow the instructions above to install Docker inside the VM.${RESET}"
+# Remove conflicting packages
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do 
+    apt-get remove -y $pkg
+    status_indicator $? "Removed $pkg" "Failed to remove $pkg"
+done
+
+# Update system and install prerequisites
+apt-get update
+status_indicator $? "System updated" "Failed to update system"
+
+apt-get install -y ca-certificates curl
+status_indicator $? "Installed prerequisites" "Failed to install prerequisites"
+
+# Add Docker GPG key and repository
+install -m 0755 -d /etc/apt/keyrings
+status_indicator $? "Directory for keyrings created" "Failed to create keyrings directory"
+
+curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+status_indicator $? "GPG key downloaded" "Failed to download GPG key"
+
+chmod a+r /etc/apt/keyrings/docker.asc
+status_indicator $? "GPG key permissions set" "Failed to set GPG key permissions"
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+tee /etc/apt/sources.list.d/docker.list > /dev/null
+status_indicator $? "Docker repository added" "Failed to add Docker repository"
+
+apt-get update
+status_indicator $? "Package index updated" "Failed to update package index"
+
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+status_indicator $? "Docker installed" "Failed to install Docker"
+
+# Test Docker installation
+docker run hello-world
+status_indicator $? "Docker is running successfully" "Docker test failed"
+EOF
+status=$?
+display_status $status "Docker installed and tested inside VM"
+
+echo -e "\nScript completed!"
