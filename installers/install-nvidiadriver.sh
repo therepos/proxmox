@@ -57,6 +57,7 @@ if [ ! -f "$STEP_INITRAMFS_UPDATE" ]; then
     print_status "success" "Checking if Nouveau is disabled"
     if lsmod | grep -q nouveau; then
         print_status "success" "Rebooting to disable Nouveau"
+        echo "Please rerun the script after reboot"
         reboot
         exit 0
     else
@@ -66,7 +67,7 @@ fi
 
 # Step 3: Install Kernel Headers
 if [ ! -f "$STEP_KERNEL_HEADERS" ]; then
-    print_status "success" "Checking and installing kernel headers"
+    print_status "success" "Checking and installing kernel headers (patience...)"
     KERNEL_HEADERS="proxmox-headers-$(uname -r)"
     if dpkg-query -W -f='${Status}' $KERNEL_HEADERS 2>/dev/null | grep -q "install ok installed"; then
         print_status "success" "Kernel headers already installed: $KERNEL_HEADERS"
