@@ -6,6 +6,9 @@ source <(curl -s https://raw.githubusercontent.com/tteck/Proxmox/main/misc/build
 # License: MIT
 # https://github.com/tteck/Proxmox/raw/main/LICENSE
 
+# Allow user to define the port, default to 8080 if not provided
+PORT=${1:-8080}  # Use the first argument or default to 8080
+
 function header_info {
 clear
 cat <<"EOF"     
@@ -76,10 +79,46 @@ msg_ok "Updated Successfully"
 exit
 }
 
+# Modify the default port in the Open WebUI backend configuration
+  pct exec $CT_ID -- bash -c "
+    if [[ -f /opt/open-webui/backend/open_webui/__init__.py ]]; then
+      echo 'Modifying Open WebUI default port to $PORT in __init__.py...'
+      sed -i \"s/port=8080/port=$PORT/\" /opt/open-webui/backend/open_webui/__init__.py
+      echo 'Port modified successfully in __init__.py.'
+    else
+      echo 'Warning: __init__.py not found. Unable to modify default port.'
+    fi
+  "
+
+  # Optional: Also modify the start.sh script as a fallback
+  pct exec $CT_ID -- bash -c "
+    if [[ -f /opt/open-webui/backend/start.sh ]]; then
+      echo 'Modifying Open WebUI default port to $PORT in start.sh...'
+      sed -i 's/--port 8080/--port $PORT/' /opt/open-webui/backend/start.sh
+      echo 'Port modified successfully in start.sh.'
+    else
+      echo 'Warning: start.sh not found. Unable to modify default port.'
+    fi
+  "
+
+  # Restart the Open WebUI service to apply changes
+  pct exec $CT_ID -- bash -c "
+    if systemctl is-active --quiet open-webui.service; then
+      echo 'Restarting Open WebUI service...'
+      systemctl restart open-webui.service
+      echo 'Service restarted successfully.'
+    else
+      echo 'Warning: Open WebUI service not found. Restart failed.'
+    fi
+  "
+
+# Display the chosen port for clarity
+echo "Open WebUI will be configured to use port $PORT."
+
 start
 build_container
 description
 
 msg_ok "Completed Successfully!\n"
 echo -e "${APP} should be reachable by going to the following URL.
-         ${BL}http://${IP}:8080${CL} \n"
+         ${BL}http://${IP}:$PORT${CL} \n"
