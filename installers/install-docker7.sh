@@ -9,24 +9,6 @@ MEMORY=2048               # Memory in MB
 DISK_SIZE=20G             # Disk size in GB
 BRIDGE="vmbr0"            # Network bridge
 
-# Retry mechanism for Zvol creation
-retry_zvol() {
-    local vmid=$1
-    local disk_path
-    local retries=10
-
-    while [ $retries -gt 0 ]; do
-        disk_path=$(find /dev/zvol/$STORAGE_POOL -name "vm-$vmid-disk-0")
-        if [ -n "$disk_path" ]; then
-            return 0
-        fi
-        sleep 1
-        retries=$((retries - 1))
-    done
-    echo "Error: Timeout waiting for Zvol device link."
-    return 1
-}
-
 # Function to detect or download the latest ISO
 find_or_download_iso() {
     echo "Searching for a local Debian ISO file..."
@@ -62,13 +44,10 @@ qm create $NEXT_ID \
     --scsihw virtio-scsi-pci \
     --sockets 1
 
-# Add disk to the VM
+# Add disk to the VM (skip waiting for Zvol device)
 echo "Adding disk to VM $NEXT_ID..."
 qm set $NEXT_ID \
     --scsi0 $STORAGE_POOL:vm-$NEXT_ID-disk-0,size=$DISK_SIZE
-
-# Wait for Zvol device link
-retry_zvol $NEXT_ID || exit 1
 
 # Attach ISO file for installation
 echo "Attaching ISO $ISO_FILE to VM $NEXT_ID..."
