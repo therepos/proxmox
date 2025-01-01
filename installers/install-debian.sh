@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # URL of the ISO file
-ISO_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.1.0-amd64-netinst.iso"
+ISO_URL="https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.8.0-amd64-netinst.iso"
 
 # Destination directory (Proxmox ISO storage)
 DEST_DIR="/var/lib/vz/template/iso"
