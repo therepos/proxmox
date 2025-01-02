@@ -76,7 +76,7 @@ read -p "Enter your choice (1/2): " action_choice
 if [ "$action_choice" == "1" ]; then
     echo -e "${GREEN}${RESET} Expanding the disk..."
     parted $DISK resizepart 1 100%
-    resize2fs ${DISK}1
+    resize2fs ${DISK}
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}${RESET} Disk expanded successfully."
     else
@@ -123,11 +123,22 @@ elif [ "$fs_choice" == "2" ]; then
     echo -e "${GREEN}${RESET} Formatting disk with ext4..."
     parted $DISK mklabel gpt
     parted $DISK mkpart primary ext4 0% 100%
-    mkfs.ext4 ${DISK}1
+    
+    # Correct partition name
+    PARTITION="${DISK}"
+    
+    # Format partition with ext4
+    mkfs.ext4 $PARTITION
     MOUNT_POINT="/mnt/$(basename $DISK)"
     mkdir -p $MOUNT_POINT
-    mount ${DISK}1 $MOUNT_POINT
-    echo "UUID=$(blkid -s UUID -o value ${DISK}1) $MOUNT_POINT ext4 defaults 0 2" >> /etc/fstab
+    mount $PARTITION $MOUNT_POINT
+    
+    # Ensure fstab is updated
+    echo "UUID=$(blkid -s UUID -o value $PARTITION) $MOUNT_POINT ext4 defaults 0 2" >> /etc/fstab
+    
+    # Reload systemd to apply fstab changes
+    systemctl daemon-reload
+    
     echo -e "${GREEN}${RESET} ext4 filesystem formatted and mounted at $MOUNT_POINT."
 else
     echo -e "${RED}${RESET} Invalid choice."
