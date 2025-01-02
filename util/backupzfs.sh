@@ -1,10 +1,9 @@
 #!/bin/bash
-
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/backupzfs.sh)"
 
 # Variables
 ZFS_POOL="rpool"
-SNAPSHOT_NAME="backup_snapshot_$(date +%Y%m%d%H%M)"
+SNAPSHOT_NAME="backup_snapshot_$(date +%Y%m%d%H%M%S)"  # Ensuring full date/time format
 BACKUP_DEST="/mnt/nvme0n1"
 BACKUP_FILE="${BACKUP_DEST}/zfs_backup_${SNAPSHOT_NAME}.gz"
 LOG_FILE="${BACKUP_DEST}/zfs_backup_log.txt"
@@ -36,11 +35,9 @@ if ! zfs send "${ZFS_POOL}@${SNAPSHOT_NAME}" | gzip > "$BACKUP_FILE"; then
 fi
 log_message "Snapshot ${SNAPSHOT_NAME} backed up successfully to ${BACKUP_FILE}."
 
-# Step 3: Optional - Clean up old snapshots (older than 7 days)
+# Step 3: Optional - Clean up snapshots older than 7 days
 log_message "Cleaning up snapshots older than 7 days..."
-if ! zfs list -t snapshot | grep -q "${ZFS_POOL}"; then
-    log_message "Error: No snapshots found for cleanup."
-else
+if zfs list -t snapshot | grep -q "${ZFS_POOL}@"; then
     zfs list -H -o name -t snapshot | grep "${ZFS_POOL}@" | while read snapshot; do
         # Delete snapshots older than 7 days
         snapshot_date=$(echo "$snapshot" | sed 's/.*@\(.*\)/\1/')
@@ -53,6 +50,8 @@ else
             zfs destroy "$snapshot"
         fi
     done
+else
+    log_message "No snapshots found for cleanup."
 fi
 
 # Step 4: Clean up the snapshot created for backup
@@ -66,3 +65,4 @@ log_message "Backup snapshot ${SNAPSHOT_NAME} destroyed successfully."
 log_message "Backup process completed successfully."
 
 exit 0
+
