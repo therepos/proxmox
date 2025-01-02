@@ -76,7 +76,7 @@ read -p "Enter your choice (1/2): " action_choice
 if [ "$action_choice" == "1" ]; then
     echo -e "${GREEN}${RESET} Expanding the disk..."
     parted $DISK resizepart 1 100%
-    resize2fs ${DISK}1
+    resize2fs ${DISK}
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}${RESET} Disk expanded successfully."
     else
@@ -125,7 +125,7 @@ elif [ "$fs_choice" == "2" ]; then
     parted $DISK mkpart primary ext4 0% 100%
     
     # Correct partition name
-    PARTITION="${DISK}1"
+    PARTITION="${DISK}"
     
     # Format partition with ext4
     mkfs.ext4 $PARTITION
