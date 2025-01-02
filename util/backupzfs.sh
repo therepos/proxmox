@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/backupzfs.sh)"
+
 # Variables
 ZFS_POOL="rpool"
 SNAPSHOT_NAME="backup_snapshot_$(date +%Y%m%d%H%M)"
