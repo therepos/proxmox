@@ -12,9 +12,10 @@ log_message() {
 
 # List available backups
 log_message "Listing available backups in ${BACKUP_DEST}..."
-backups=($(ls "$BACKUP_DEST" | grep 'zfs_backup_.*\\.gz$' || true))
+backups=($(ls "$BACKUP_DEST" | grep '\\.gz$' || true))  # Match all .gz files
 if [ ${#backups[@]} -eq 0 ]; then
     log_message "No valid backup files found in ${BACKUP_DEST}. Exiting."
+    ls "$BACKUP_DEST" >> "$LOG_FILE"  # Log directory contents for debugging
     exit 1
 fi
 
