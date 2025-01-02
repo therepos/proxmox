@@ -60,6 +60,7 @@ if [[ "$confirm_wipe" != "y" ]]; then
 fi
 
 # Wipe the disk
+# Improvement: To remove ZFS entry in /etc/pve/storage.cfg
 echo -e "${GREEN}${RESET} Wiping the disk ${DISK}..."
 wipefs --all $DISK
 if [ $? -eq 0 ]; then
