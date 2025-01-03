@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-plex.sh)"
 
-#!/bin/bash
-
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
@@ -31,6 +29,19 @@ IMAGE="plexinc/pms-docker:latest"
 HOST_IP=$(hostname -I | awk '{print $1}')
 ADVERTISE_IP="http://$HOST_IP:32400/"
 
+# Check if Plex is already running or installed
+if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+    echo "Plex is already installed."
+    read -p "Do you want to uninstall it? (y/n): " UNINSTALL
+    if [[ "$UNINSTALL" == "y" || "$UNINSTALL" == "Y" ]]; then
+        echo "Stopping and removing existing Plex container..."
+        docker stop "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Stopped existing Plex container."
+        docker rm "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Removed existing Plex container."
+    else
+        status_message "error" "Installation aborted as Plex is already installed."
+    fi
+fi
+
 # Prompt user for Plex claim token
 echo "Please obtain your Plex claim token from: https://www.plex.tv/claim"
 read -p "Enter your Plex claim token: " PLEX_CLAIM
@@ -45,13 +56,6 @@ for dir in "$CONFIG_DIR" "$TRANSCODE_DIR" "$MEDIA_DIR"; do
     fi
     status_message "success" "Directory $dir exists."
 done
-
-# Stop and remove existing container if it exists
-echo "Stopping existing Plex container (if any)..."
-docker stop "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Stopped existing Plex container." || status_message "success" "No existing Plex container running."
-
-echo "Removing existing Plex container (if any)..."
-docker rm "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Removed existing Plex container." || status_message "success" "No existing Plex container to remove."
 
 # Run the Plex container with NVIDIA GPU support
 echo "Starting Plex Media Server with NVIDIA GPU support..."
