@@ -1,104 +1,77 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-plex.sh)"
 
-# Art: https://patorjk.com/software/taag/#p=display&f=Big&t=vscodeserver 
-# Modified by: therepos
-# Copyright (c) 2021-2024 tteck
-# Author: tteck (tteckster)
-# License: MIT
-# https://github.com/therepos/proxmox/raw/main/LICENSE
+#!/bin/bash
 
-source <(curl -s https://raw.githubusercontent.com/therepos/proxmox/main/lib/build.func)
+# Define colors and status symbols
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+RESET="\e[0m"
 
-function header_info {
-clear
-cat <<"EOF"
-        _           
-       | |          
-  _ __ | | _____  __
- | '_ \| |/ _ \ \/ /
- | |_) | |  __/>  < 
- | .__/|_|\___/_/\_\
- | |                
- |_|                                      
-
-EOF
-}
-header_info
-echo -e "Loading..."
-APP="PlexMS"
-SVC="plexms"
-PORT="8030"
-var_disk="2"
-var_cpu="2"
-var_ram="8192"
-var_os="debian"
-var_version="12"
-variables
-color
-catch_errors
-
-function default_settings() {
-  CT_TYPE="1"
-  PW=""
-  CT_ID=$NEXTID
-  HN=$NSAPP
-  DISK_SIZE="$var_disk"
-  CORE_COUNT="$var_cpu"
-  RAM_SIZE="$var_ram"
-  BRG="vmbr0"
-  NET="dhcp"
-  GATE=""
-  APT_CACHER=""
-  APT_CACHER_IP=""
-  DISABLEIP6="no"
-  MTU=""
-  SD=""
-  NS=""
-  MAC=""
-  VLAN=""
-  SSH="no"
-  VERB="no"
-  echo_default
+function status_message() {
+    local status=$1
+    local message=$2
+    if [[ "$status" == "success" ]]; then
+        echo -e "${GREEN} ${message}"
+    else
+        echo -e "${RED} ${message}"
+        exit 1
+    fi
 }
 
-function update_script() {
-header_info
-if [[ ! -d /opt/${SVC} ]]; then msg_error "No ${APP} Installation Found!"; exit; fi
+# Variables
+TZ="Asia/Singapore"
+CONFIG_DIR="/mnt/nvme0n1/apps/plex/config"
+TRANSCODE_DIR="/mnt/nvme0n1/apps/plex/transcode"
+MEDIA_DIR="/mnt/nvme0n1/media"
+CONTAINER_NAME="plex"
+IMAGE="plexinc/pms-docker:latest"
 
-# Storage check
-if (( $(df /boot | awk 'NR==2{gsub("%","",$5); print $5}') > 80 )); then
-  read -r -p "Warning: Storage is dangerously low, continue anyway? <y/N> " prompt
-  [[ ${prompt,,} =~ ^(y|yes)$ ]] || exit
+# Dynamically retrieve the host IP
+HOST_IP=$(hostname -I | awk '{print $1}')
+ADVERTISE_IP="http://$HOST_IP:32400/"
+
+# Prompt user for Plex claim token
+echo "Please obtain your Plex claim token from: https://www.plex.tv/claim"
+read -p "Enter your Plex claim token: " PLEX_CLAIM
+if [[ -z "$PLEX_CLAIM" ]]; then
+    status_message "error" "Plex claim token is required. Exiting."
 fi
 
-msg_info "Stopping ${SVC} service"
-systemctl stop "${SVC}"
-msg_ok "Stopped ${SVC} service"
+# Check if directories exist
+for dir in "$CONFIG_DIR" "$TRANSCODE_DIR" "$MEDIA_DIR"; do
+    if [[ ! -d "$dir" ]]; then
+        status_message "error" "Directory $dir does not exist. Please create it and try again."
+    fi
+    status_message "success" "Directory $dir exists."
+done
 
-msg_info "Updating ${SVC}"
-curl -fsSL https://code-server.dev/install.sh | sh || {
-    msg_error "Failed to update ${SVC}";
-    exit
-}
-msg_ok "Updated ${SVC}"
+# Stop and remove existing container if it exists
+echo "Stopping existing Plex container (if any)..."
+docker stop "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Stopped existing Plex container." || status_message "success" "No existing Plex container running."
 
-msg_info "Starting ${SVC} service"
-systemctl start "${SVC}" || msg_error "Failed to start ${SVC}"; exit
-msg_ok "Started ${SVC} service"
+echo "Removing existing Plex container (if any)..."
+docker rm "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Removed existing Plex container." || status_message "success" "No existing Plex container to remove."
 
-msg_info "Cleaning Up"
-rm -rf /tmp/${SVC}-installation-files  # Adjust if temp files are used
-msg_ok "Cleaned up installation files"
-msg_ok "${APP} Updated Successfully"
-exit
-}
+# Run the Plex container with NVIDIA GPU support
+echo "Starting Plex Media Server with NVIDIA GPU support..."
+docker run -d \
+  --name="$CONTAINER_NAME" \
+  --runtime=nvidia \
+  --network=host \
+  -e TZ="$TZ" \
+  -e PLEX_CLAIM="$PLEX_CLAIM" \
+  -e ADVERTISE_IP="$ADVERTISE_IP" \
+  -e NVIDIA_VISIBLE_DEVICES=all \
+  -e NVIDIA_DRIVER_CAPABILITIES=video,compute,utility \
+  -v "$CONFIG_DIR:/config" \
+  -v "$TRANSCODE_DIR:/transcode" \
+  -v "$MEDIA_DIR:/data/media" \
+  "$IMAGE"
 
-# Calls build.func
-start
-build_container
-description
-
-msg_ok "Completed Successfully!\n"
-echo -e "${APP} Setup should be reachable by going to the following URL.
-         ${BL}http://${IP}:${PORT}${CL} \n"
+if [ $? -eq 0 ]; then
+    status_message "success" "Plex Media Server with NVIDIA GPU support is up and running!"
+    echo "Access it at: $ADVERTISE_IP/web"
+else
+    status_message "error" "Failed to start Plex Media Server with NVIDIA GPU support. Check the logs for details."
+fi
