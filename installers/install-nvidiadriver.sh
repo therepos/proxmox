@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiadriver.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-nvidiadriver.sh | bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-nvidiadriver.sh)"
 
 # Function to print status with green or red check marks
 print_status() {
