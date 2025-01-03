@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-openwebui.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-openwebui.sh | bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-openwebui.sh)"
 
 source <(curl -s https://raw.githubusercontent.com/tteck/Proxmox/main/misc/build.func)
 
