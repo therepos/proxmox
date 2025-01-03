@@ -1,7 +1,5 @@
 #!/bin/bash
-
-# wget --no-cache -qLO- https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
-# curl -fsSL https://github.com/therepos/proxmox/raw/main/util/list-ct.sh | bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/listct.sh)"
 
 echo "$(date)"
 echo "Listing container and VM IPs with detected access ports and statuses:"
