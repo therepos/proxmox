@@ -1,7 +1,5 @@
 #!/bin/bash
-
-# wget --no-cache -qO- https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-portainer.sh | bash
-# curl -fsSL https://raw.githubusercontent.com/therepos/proxmox/main/installers/install-portainer.sh | bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-portainer.sh)"
 
 # Function to print status with green or red check marks
 print_status() {
