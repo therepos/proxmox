@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/mountdrive.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
