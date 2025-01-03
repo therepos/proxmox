@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/sambashare.sh)"
 
 # Define colors and status symbols
