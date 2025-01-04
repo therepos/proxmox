@@ -2,3 +2,8 @@ apt update
 apt install net-tools
 apt install sysstat
 apt install sudo
+apt install acl
+
+# notes:
+# acl: getfacl
+# systat: 
