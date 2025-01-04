@@ -1,7 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/sambashare.sh)"
 
-# notes: map windows network drive with \\<proxmox-ip-only>\mediadb
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
@@ -75,3 +74,10 @@ status_message "success" "Samba service restarted successfully."
 status_message "success" "Samba share '$SHARE_NAME' has been created successfully."
 echo "You can access it from other machines using:"
 echo "smb://<Proxmox-IP>/$SHARE_NAME"
+
+# notes: 
+# map windows network drive with: \\<proxmox-ip-only>\mediadb
+# list samba connections to text file: smbstatus > results.txt
+# append output: smbstatus >> results.txt
+# output real-time connections: watch -n 2 -o results.txt smbstatus
+# output logs: tail -f /var/log/samba/log.* > log.txt
