@@ -19,9 +19,9 @@ function status_message() {
 
 # Variables
 TZ="Asia/Singapore"
-CONFIG_DIR="/mnt/nvme0n1/apps/plex/config"
-TRANSCODE_DIR="/mnt/nvme0n1/apps/plex/transcode"
-MEDIA_DIR="/mnt/nvme0n1/media"
+CONFIG_DIR="/mnt/sec/apps/plex/config"
+TRANSCODE_DIR="/mnt/sec/apps/plex/transcode"
+MEDIA_DIR="/mnt/sec/media"
 CONTAINER_NAME="plex"
 IMAGE="plexinc/pms-docker:latest"
 
