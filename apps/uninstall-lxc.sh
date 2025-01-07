@@ -11,9 +11,9 @@ function status_message() {
     local status=$1
     local message=$2
     if [[ "$status" == "success" ]]; then
-        echo -e "\n${GREEN} ${message}${RESET}"
+        echo -e "${GREEN} ${message}${RESET}"
     else
-        echo -e "\n${RED} ${message}${RESET}"
+        echo -e "${RED} ${message}${RESET}"
         exit 1
     fi
 }
@@ -36,8 +36,8 @@ select container_name in $(echo "$containers" | awk -F ' - ' '{print $2}'); do
     fi
 done
 
-# Step 2: Confirm uninstallation
-read -p "Are you sure you want to uninstall container '$container' (ID: $CT_ID)? (y/n): " confirmation
+# Confirm uninstallation
+read -p "Are you sure you want to uninstall container (ID: $CT_ID)? (y/n): " confirmation
 if [[ ! "$confirmation" =~ ^[Yy]$ ]]; then
     status_message "failure" "Uninstallation canceled."
 fi
@@ -46,62 +46,40 @@ fi
 CONTAINER_STATUS=$(pct status "$CT_ID" 2>/dev/null)
 
 if [[ "$CONTAINER_STATUS" == "status: running" ]]; then
-    echo "Stopping container '$container'..."
-    pct stop "$CT_ID" && status_message "success" "Container '$container' stopped." || status_message "failure" "Failed to stop container '$container'."
+    pct stop "$CT_ID" &>/dev/null
+    status_message "success" "Container '$container_name' stopped."
 else
-    status_message "success" "Container '$container' is already stopped."
+    status_message "success" "Container '$container_name' is already stopped."
 fi
 
 # Step 4: Remove the container
-echo "Removing container '$container'..."
-pct destroy "$CT_ID" && status_message "success" "Container '$container' removed." || status_message "failure" "Failed to remove container '$container'."
+pct destroy "$CT_ID" &>/dev/null
+status_message "success" "Container '$container_name' removed."
 
 # Step 5: Remove associated data if needed
-# Check if any data directory exists (e.g., mount points or persistent data)
 DATA_DIR="/var/lib/lxc/$CT_ID"
 if [ -d "$DATA_DIR" ]; then
-    echo "Removing data directory for '$container' at $DATA_DIR..."
-    rm -rf "$DATA_DIR" && status_message "success" "Data directory for '$container' removed." || status_message "failure" "Failed to remove data directory for '$container'."
+    rm -rf "$DATA_DIR" &>/dev/null
+    status_message "success" "Data directory for '$container_name' removed."
 fi
 
-# Step 6: Remove container's configuration file
-CONF_FILE="/etc/pve/lxc/$CT_ID.conf"
-if [ -f "$CONF_FILE" ]; then
-    echo "Removing configuration file for '$container' at $CONF_FILE..."
-    rm -f "$CONF_FILE" && status_message "success" "Configuration file for '$container' removed." || status_message "failure" "Failed to remove configuration file for '$container'."
-fi
-
-# Step 7: Remove network settings or interfaces
-# Check for specific container-related network interfaces or settings
-NETWORK_CONFIG="/etc/network/interfaces.d/$CT_ID"
-if [ -f "$NETWORK_CONFIG" ]; then
-    echo "Removing custom network config for '$container' at $NETWORK_CONFIG..."
-    rm -f "$NETWORK_CONFIG" && status_message "success" "Network config for '$container' removed." || status_message "failure" "Failed to remove network config for '$container'."
-fi
-
-# Step 8: Remove log files
-LOG_DIR="/var/log/lxc/$CT_ID"
-if [ -d "$LOG_DIR" ]; then
-    echo "Removing log files for '$container' at $LOG_DIR..."
-    rm -rf "$LOG_DIR" && status_message "success" "Log files for '$container' removed." || status_message "failure" "Failed to remove log files for '$container'."
-fi
-
-# Step 9: Remove any backup files
+# Step 6: Remove backup files
 BACKUP_DIR="/var/lib/vz/dump"
-if [ -d "$BACKUP_DIR" ]; then
-    echo "Removing backup files for '$container' in $BACKUP_DIR..."
-    rm -f "$BACKUP_DIR/$CT_ID.tar.gz" && status_message "success" "Backup files for '$container' removed." || status_message "failure" "Failed to remove backup files for '$container'."
+if [ -f "$BACKUP_DIR/$CT_ID.tar.gz" ]; then
+    rm -f "$BACKUP_DIR/$CT_ID.tar.gz" &>/dev/null
+    status_message "success" "Backup files for '$container_name' removed."
 fi
 
-# Optional: Clean up any custom volumes or associated configuration files
-# Uncomment and modify the following section if additional files need cleanup
+# Optional: Clean up additional resources
+# Uncomment and modify the following if needed:
 # CUSTOM_VOLUMES=("/path/to/volume1" "/path/to/volume2")
 # for volume in "${CUSTOM_VOLUMES[@]}"; do
 #     if [ -d "$volume" ]; then
-#         echo "Removing custom volume or directory: $volume..."
-#         rm -rf "$volume" && status_message "success" "Custom volume '$volume' removed." || status_message "failure" "Failed to remove custom volume '$volume'."
+#         rm -rf "$volume" &>/dev/null
+#         status_message "success" "Custom volume '$volume' removed."
 #     fi
 # done
 
-status_message "success" "Container '$container' has been cleanly uninstalled."
+# Final message
+status_message "success" "Container '$container_name' has been cleanly uninstalled."
 exit 0
