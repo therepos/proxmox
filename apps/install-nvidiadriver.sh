@@ -188,4 +188,8 @@ run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNE
 
 print_status "success" "NVIDIA driver installation completed successfully"
 
+# notes:
+# continuous monitoring: watch -n 1 nvidia-smi
+
+
 
