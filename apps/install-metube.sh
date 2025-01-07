@@ -105,6 +105,7 @@ services:
   metube:
     image: $IMAGE
     container_name: $CONTAINER_NAME
+    network_mode: bridge
     restart: unless-stopped
     environment:
       - TZ=$TZ
