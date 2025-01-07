@@ -113,7 +113,7 @@ services:
       - $DATA_DIR:/data
       - $DOWNLOAD_DIR:/downloads
     ports:
-      - "$PORT:$PORT"
+      - "$PORT:8081"
 EOL
 status_message "success" "Docker Compose file created at $COMPOSE_FILE_PATH."
 
