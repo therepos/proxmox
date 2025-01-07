@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/installers/install-debian.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-debian.sh)"
 
 # Variables
 ISO_STORAGE="local"       # Storage where the ISO is stored

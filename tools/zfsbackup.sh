@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/zfsbackup.sh)"
 
 # Variables
 ZFS_POOL="rpool"

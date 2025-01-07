@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/util/listworkloads.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/listworkloads.sh)"
 
 echo "$(date)"
 echo "Listing container and VM IPs with detected access ports and statuses:"
