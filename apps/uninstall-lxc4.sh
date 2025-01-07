@@ -24,10 +24,6 @@ if [ -z "$containers" ]; then
     status_message "failure" "No containers found."
 fi
 
-# Debug: Print the parsed container list
-echo "Available containers:"
-echo "$containers"
-
 # Display header and containers for user selection
 echo -e "Select container by number:"
 select container_name in $(echo "$containers" | awk -F ' - ' '{print $2}'); do
