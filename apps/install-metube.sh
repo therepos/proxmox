@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-metube.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -48,28 +49,39 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
     if [[ "$UNINSTALL" == "y" || "$UNINSTALL" == "Y" ]]; then
         echo "Stopping and removing existing MeTube container, images, volumes, networks, and associated files..."
 
-        # Stop and remove the container
-        docker stop "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Stopped existing MeTube container."
-        docker rm "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Removed existing MeTube container."
+        # Stop and remove the container (suppress verbose output)
+        docker stop "$CONTAINER_NAME" &>/dev/null
+        status_message "success" "Stopped existing MeTube container."
+        
+        docker rm "$CONTAINER_NAME" &>/dev/null
+        status_message "success" "Removed existing MeTube container."
 
-        # Remove the image
-        docker rmi "$IMAGE" 2>/dev/null && status_message "success" "Removed MeTube image."
+        # Remove the image (suppress verbose output)
+        docker rmi "$IMAGE" &>/dev/null
+        status_message "success" "Removed MeTube image."
 
-        # Clean up Docker volumes and networks
-        docker volume prune -f 2>/dev/null && status_message "success" "Cleaned up Docker volumes."
-        docker network prune -f 2>/dev/null && status_message "success" "Cleaned up Docker networks."
+        # Clean up Docker volumes and networks (suppress verbose output)
+        docker volume prune -f &>/dev/null
+        status_message "success" "Cleaned up Docker volumes."
+        
+        docker network prune -f &>/dev/null
+        status_message "success" "Cleaned up Docker networks."
 
-        # Clean up unused Docker resources (optional)
-        docker system prune -f 2>/dev/null && status_message "success" "Cleaned up unused Docker resources."
+        # Clean up unused Docker resources (suppress verbose output)
+        docker system prune -f &>/dev/null
+        status_message "success" "Cleaned up unused Docker resources."
 
         # Remove the directories related to MeTube
-        rm -rf "$CONFIG_DIR" "$DATA_DIR" "$DOWNLOAD_DIR" && status_message "success" "Removed MeTube associated directories."
+        rm -rf "$CONFIG_DIR" "$DATA_DIR" "$DOWNLOAD_DIR"
+        status_message "success" "Removed MeTube associated directories."
 
         # Remove the app directory itself
-        rm -rf "$APP_DIR" && status_message "success" "Removed the MeTube app directory ($APP_DIR)."
+        rm -rf "$APP_DIR"
+        status_message "success" "Removed the MeTube app directory ($APP_DIR)."
 
         # Remove the Docker Compose file
-        rm -f "$COMPOSE_FILE_PATH" && status_message "success" "Removed Docker Compose file."
+        rm -f "$COMPOSE_FILE_PATH"
+        status_message "success" "Removed Docker Compose file."
 
         exit 0
     else
@@ -80,7 +92,6 @@ fi
 # Check if directories exist, and create them if not
 for dir in "$CONFIG_DIR" "$DATA_DIR" "$DOWNLOAD_DIR"; do
     if [[ ! -d "$dir" ]]; then
-        echo "Directory $dir does not exist. Creating it now..."
         mkdir -p "$dir" && status_message "success" "Created directory $dir."
     else
         status_message "success" "Directory $dir exists."
@@ -89,6 +100,7 @@ done
 
 # Generate Docker Compose file
 cat <<EOL > "$COMPOSE_FILE_PATH"
+version: "3.8"
 services:
   metube:
     image: $IMAGE
@@ -105,13 +117,11 @@ services:
 EOL
 status_message "success" "Docker Compose file created at $COMPOSE_FILE_PATH."
 
-# Start MeTube using Docker Compose
-echo "Starting MeTube using Docker Compose..."
-cd "$(dirname "$COMPOSE_FILE_PATH")" && docker-compose up -d
+# Pull the latest MeTube Docker image (suppress output)
+docker pull "$IMAGE" &>/dev/null
+status_message "success" "Pulled the latest MeTube Docker image."
 
-if [ $? -eq 0 ]; then
-    status_message "success" "MeTube is up and running!"
-    echo "Access it at: $ADVERTISE_IP"
-else
-    status_message "error" "Failed to start MeTube. Check the logs for details."
-fi
+# Start MeTube using Docker Compose (suppress output)
+cd "$(dirname "$COMPOSE_FILE_PATH")" && docker-compose up -d &>/dev/null
+status_message "success" "MeTube is up and running!"
+echo "Access it at: $ADVERTISE_IP"
