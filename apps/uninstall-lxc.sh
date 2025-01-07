@@ -19,24 +19,20 @@ function status_message() {
 }
 
 # Step 1: List all available containers with their IDs and names for user selection
-containers=$(pct list | tail -n +2 | awk '{printf "%s - %s\n", $1, $2}')
+containers=$(pct list | tail -n +2 | awk '{print $1, "-", $NF}')
 if [ -z "$containers" ]; then
     status_message "failure" "No containers found."
 fi
 
-# Debug: Print the parsed container list
-echo "Available containers:"
-echo "$containers"
-
 # Display header and containers for user selection
 echo -e "Select container by number:"
-select container_line in $(echo "$containers" | awk -F ' - ' '{print $2}'); do
-    if [ -n "$container_line" ]; then
-        CT_ID=$(echo "$containers" | grep " - $container_line$" | awk -F ' - ' '{print $1}')
-        echo "You selected container: $container_line (ID: $CT_ID)"
+select container_name in $(echo "$containers" | awk -F ' - ' '{print $2}'); do
+    if [ -n "$container_name" ]; then
+        CT_ID=$(echo "$containers" | grep " - $container_name$" | awk -F ' - ' '{print $1}')
+        echo "You selected container: $container_name (ID: $CT_ID)"
         break
     else
-        echo "Invalid choice, please select a valid container."
+        echo "Invalid choice. Please select a valid container."
     fi
 done
 
