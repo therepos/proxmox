@@ -3,6 +3,9 @@ apt install net-tools
 apt install sysstat
 apt install sudo
 apt install acl
+apt install zip
+apt install unzip
+apt install htop
 
 # notes:
 # acl: getfacl
