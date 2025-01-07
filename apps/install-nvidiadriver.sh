@@ -190,6 +190,7 @@ print_status "success" "NVIDIA driver installation completed successfully"
 
 # notes:
 # continuous monitoring: watch -n 1 nvidia-smi
+# container specific monitoring: docker exec -it <container_id> /bin/bash
 
 
 
