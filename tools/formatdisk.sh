@@ -130,7 +130,7 @@ elif [ "$fs_choice" == "2" ]; then
     
     # Format partition with ext4
     mkfs.ext4 $PARTITION
-    MOUNT_POINT="/mnt/$(basename $DISK)"
+    MOUNT_POINT="/mnt/sec"
     mkdir -p $MOUNT_POINT
     mount $PARTITION $MOUNT_POINT
     
@@ -147,3 +147,7 @@ else
 fi
 
 exit 0
+
+# notes:
+# check mounted drives: df -h
+
