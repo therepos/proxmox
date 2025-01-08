@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/cronrebootserver.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -81,7 +82,7 @@ chmod +x /usr/local/bin/check_cloudflared_pct.sh
 status_message "success" "Setting up the cron job to run the script every 2 minutes..."
 
 # Add the cron job to the root crontab
-(crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/bin/check_cloudflared_pct.sh") | crontab -
+(crontab -l 2>/dev/null; echo "* * * * * /usr/local/bin/check_cloudflared_pct.sh") | crontab -
 
 # Step 4: Confirmation message
 status_message "success" "The script has been written to /usr/local/bin, made executable, and the cron job has been set up to run every 2 minutes."
