@@ -34,6 +34,11 @@ if ! command -v docker &>/dev/null; then
     status_message "error" "Docker is not installed. Please install Docker first."
 fi
 
+# Check if Docker Compose is installed
+if ! command -v docker-compose &>/dev/null; then
+    status_message "error" "Docker Compose is not installed. Please install Docker Compose first."
+fi
+
 # Check if Navidrome is already running or installed
 if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
     echo "Navidrome is already installed."
