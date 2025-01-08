@@ -85,7 +85,7 @@ status_message "success" "Setting up the cron job to run the script every minute
 (crontab -l 2>/dev/null; echo "* * * * * /usr/local/bin/check_cloudflared_pct.sh") | crontab -
 
 # Step 4: Confirmation message
-status_message "success" "The script has been written to /usr/local/bin, made executable, and the cron job has been set up to run every 2 minutes."
+status_message "success" "The executable script has been written to /usr/local/bin and the cron job has been set up to run every 2 minutes."
 
 # Optional: Print the current cron jobs to verify
 echo "Current cron jobs:"
