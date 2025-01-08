@@ -6,8 +6,13 @@ apt install acl
 apt install zip
 apt install unzip
 apt install htop
-apt install monit
+
+
+
+
 
 # notes:
 # acl: getfacl
 # systat: 
+# sudo apt-get autoremove: remove unused dependencies
+# sudo apt-get clean: clear out cached package files 
