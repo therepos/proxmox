@@ -19,9 +19,9 @@ function status_message() {
 
 # Variables
 TZ="Asia/Singapore"
-CONFIG_DIR="/mnt/nvme0n1/apps/navidrome/config"
-DATA_DIR="/mnt/nvme0n1/apps/navidrome/data"
-MUSIC_DIR="/mnt/nvme0n1/media/music"
+CONFIG_DIR="/mnt/sec/apps/navidrome/config"
+DATA_DIR="/mnt/sec/apps/navidrome/data"
+MUSIC_DIR="/mnt/sec/media/music"
 CONTAINER_NAME="navidrome"
 IMAGE="deluan/navidrome:latest"
 
