@@ -6,6 +6,7 @@ apt install acl
 apt install zip
 apt install unzip
 apt install htop
+apt install monit
 
 # notes:
 # acl: getfacl
