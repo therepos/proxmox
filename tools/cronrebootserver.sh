@@ -78,8 +78,8 @@ EOF
 status_message "success" "Making the script executable..."
 chmod +x /usr/local/bin/check_cloudflared_pct.sh
 
-# Step 3: Set up the cron job to run the script every 2 minutes
-status_message "success" "Setting up the cron job to run the script every 2 minutes..."
+# Step 3: Set up the cron job to run the script every minute
+status_message "success" "Setting up the cron job to run the script every minute..."
 
 # Add the cron job to the root crontab
 (crontab -l 2>/dev/null; echo "* * * * * /usr/local/bin/check_cloudflared_pct.sh") | crontab -
