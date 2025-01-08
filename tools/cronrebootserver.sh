@@ -17,6 +17,29 @@ function status_message() {
     fi
 }
 
+# Step 1: Write the check_cloudflared_pct.sh script to the necessary directory
+status_message "success" "Writing the check_cloudflared_pct.sh script to /usr/local/bin..."
+
+cat <<'EOF' > /usr/local/bin/check_cloudflared_pct.sh
+#!/bin/bash
+
+# Define colors and status symbols
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+RESET="\e[0m"
+
+# Function to display status messages with color
+function status_message() {
+    local status=$1
+    local message=$2
+    if [[ "$status" == "success" ]]; then
+        echo -e "${GREEN} ${message}"
+    else
+        echo -e "${RED} ${message}"
+        exit 1
+    fi
+}
+
 # Set the Proxmox container ID (replace with your actual container ID)
 PCT_CONTAINER_ID="100"  # Replace with your container ID
 
@@ -48,3 +71,21 @@ then
 else
     status_message "success" "Cloudflared is running inside the container."
 fi
+EOF
+
+# Step 2: Make the script executable
+status_message "success" "Making the script executable..."
+chmod +x /usr/local/bin/check_cloudflared_pct.sh
+
+# Step 3: Set up the cron job to run the script every 2 minutes
+status_message "success" "Setting up the cron job to run the script every 2 minutes..."
+
+# Add the cron job to the root crontab
+(crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/bin/check_cloudflared_pct.sh") | crontab -
+
+# Step 4: Confirmation message
+status_message "success" "The script has been written to /usr/local/bin, made executable, and the cron job has been set up to run every 2 minutes."
+
+# Optional: Print the current cron jobs to verify
+echo "Current cron jobs:"
+crontab -l
