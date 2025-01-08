@@ -19,9 +19,7 @@ function status_message() {
 
 # Variables
 TZ="Asia/Singapore"
-CONFIG_DIR="/mnt/sec/apps/metube/config"
-DATA_DIR="/mnt/sec/apps/metube/data"
-DOWNLOAD_DIR="/mnt/sec/media/videos"
+DOWNLOAD_DIR="/mnt/sec/apps/metube/downloads"
 CONTAINER_NAME="metube"
 IMAGE="alexta69/metube:latest"
 COMPOSE_FILE_PATH="/mnt/sec/apps/metube/docker-compose.yml"
@@ -72,7 +70,7 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
         status_message "success" "Cleaned up unused Docker resources."
 
         # Remove the directories related to MeTube
-        rm -rf "$CONFIG_DIR" "$DATA_DIR" "$DOWNLOAD_DIR"
+        rm -rf "$DOWNLOAD_DIR"
         status_message "success" "Removed MeTube associated directories."
 
         # Remove the app directory itself
@@ -90,7 +88,7 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
 fi
 
 # Check if directories exist, and create them if not
-for dir in "$CONFIG_DIR" "$DATA_DIR" "$DOWNLOAD_DIR"; do
+for dir in "$DOWNLOAD_DIR"; do
     if [[ ! -d "$dir" ]]; then
         mkdir -p "$dir" && status_message "success" "Created directory $dir."
     else
@@ -110,8 +108,6 @@ services:
     environment:
       - TZ=$TZ
     volumes:
-      - $CONFIG_DIR:/config
-      - $DATA_DIR:/data
       - $DOWNLOAD_DIR:/downloads
     ports:
       - "$PORT:8081"
