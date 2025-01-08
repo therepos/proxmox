@@ -22,7 +22,7 @@ TZ="Asia/Singapore"
 CONFIG_DIR="/mnt/sec/apps/crontab-ui/config"
 DATA_DIR="/mnt/sec/apps/crontab-ui/data"
 CONTAINER_NAME="crontab-ui"
-IMAGE="alseambusher/crontab-ui:latest"
+IMAGE="alseambusher/crontab-ui"
 COMPOSE_FILE_PATH="/mnt/sec/apps/crontab-ui/docker-compose.yml"
 PORT="3012"
 APP_DIR="/mnt/sec/apps/crontab-ui"
@@ -112,11 +112,8 @@ services:
       - TZ=$TZ
       - ADMIN_USER=$ADMIN_USER
       - ADMIN_PASSWORD=$ADMIN_PASSWORD
-    volumes:
-      - $CONFIG_DIR:/config
-      - $DATA_DIR:/data
     ports:
-      - "$PORT:8080"
+      - "$PORT:8000"
 EOL
 status_message "success" "Docker Compose file created at $COMPOSE_FILE_PATH."
 
