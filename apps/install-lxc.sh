@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-TEMPLATE=$1
+TEMPLATE="/var/lib/vz/template/cache/debian-12-standard_12.7-1_amd64.tar.zst"
 
 # Check if template is provided
 if [ -z "$TEMPLATE" ]; then
