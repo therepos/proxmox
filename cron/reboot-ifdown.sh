@@ -2,6 +2,7 @@
 # reboot proxmox if cloudflared lxc service is down
 # via shell:
 # chmod +x /usr/local/bin/reboot-ifdown.sh
+# sed -i 's/\r//' /usr/local/bin/reboot-ifdown.sh
 # via crontab-ui:
 # command: /usr/local/bin/reboot-ifdown.sh
 # schedule: /5 * * * *
