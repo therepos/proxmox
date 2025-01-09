@@ -2,26 +2,33 @@
 
 # Variables
 TEMPLATE="/var/lib/vz/template/cache/debian-12-standard_12.7-1_amd64.tar.zst"
+STORAGE="local-zfs"  # Using local-zfs as the storage backend for LXC containers
 
-# Check if template is provided
-if [ -z "$TEMPLATE" ]; then
-    echo "Usage: $0 <template_name>"
+# Prompt for container ID (CT name)
+echo "Enter the desired container ID (e.g., 101):"
+read CONTAINER_ID
+
+# Check if the template exists at the specified path
+if [ ! -f "$TEMPLATE" ]; then
+    echo "Template not found at $TEMPLATE"
     exit 1
 fi
 
-# Find the next available container ID
-CONTAINER_ID=$(sudo pct list | awk 'NR>1 {print $1}' | sort -n | tail -n 1)
-CONTAINER_ID=$((CONTAINER_ID + 1))
+# Check if container ID already exists
+if sudo pct list | awk 'NR>1 {print $1}' | grep -q "^$CONTAINER_ID$"; then
+    echo "Container ID $CONTAINER_ID already exists. Please choose another ID."
+    exit 1
+fi
 
 # Create the container
 echo "Creating container with ID $CONTAINER_ID using template $TEMPLATE..."
-sudo pct create $CONTAINER_ID /var/lib/vz/template/cache/$TEMPLATE
+sudo pct create $CONTAINER_ID $TEMPLATE -storage $STORAGE
 
 # Start the container
 echo "Starting container $CONTAINER_ID..."
 sudo pct start $CONTAINER_ID
 
-# Enter the container to modify password
+# Enter the container to modify the password
 echo "Entering the container to disable root password..."
 sudo pct enter $CONTAINER_ID <<EOF
     # Disable root password
@@ -31,10 +38,13 @@ sudo pct enter $CONTAINER_ID <<EOF
     exit
 EOF
 
-# Restart container to apply changes
-echo "Restarting container $CONTAINER_ID to apply changes..."
-sudo pct restart $CONTAINER_ID
+# Reboot the container to apply changes
+echo "Rebooting container $CONTAINER_ID to apply changes..."
+sudo pct reboot $CONTAINER_ID
 
 # Display success message
 echo "Container $CONTAINER_ID created successfully and is now passwordless."
 echo "You can access the container with: sudo pct enter $CONTAINER_ID"
+
+# notes:
+# rename ct: 
