@@ -4,8 +4,8 @@
 # chmod +x /usr/local/bin/reboot-ifdown.sh
 # sed -i 's/\r//' /usr/local/bin/reboot-ifdown.sh
 # via crontab-ui:
-# command: /usr/local/bin/reboot-ifdown.sh
-# schedule: */5 * * * *
+# command: /usr/local/bin/reboot-ifdown.sh >> /var/log/reboot-ifdown.log 2>&1
+# schedule: */5 * * * * 
 # check:
 # journalctl -u cron
 
