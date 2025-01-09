@@ -5,15 +5,15 @@ A collection of scripts designed to simplify the installation, management, and u
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/formatdisk.sh)"
 ```
-```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/listworkloads.sh)"
 ```
-```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/getsysinfo.sh)"
 ```
-```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/zfsbackup.sh)"
 ```
-```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mountdrive.sh)"
 ```
