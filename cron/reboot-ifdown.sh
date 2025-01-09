@@ -5,6 +5,8 @@
 # via crontab-ui:
 # command: /usr/local/bin/reboot-ifdown.sh
 # schedule: /5 * * * *
+# check:
+# journalctl -u cron
 
 # Timeout for commands
 TIMEOUT=10
