@@ -3,7 +3,7 @@
 # via shell:
 # chmod +x /usr/local/bin/reboot-ondowntime.sh
 # via crontab-ui:
-# command: /usr/local/bin/reboot-ondowntime.sh
+# command: /usr/local/bin/reboot-ondowntime.sh >> /var/log/reboot-ondowntime.log 2>&1
 # schedule: /5 * * * *
 
 # Timeout for commands
