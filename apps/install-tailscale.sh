@@ -1,0 +1,99 @@
+#!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Define colors and status symbols
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+RESET="\e[0m"
+
+# Function to output status messages with color symbols
+function status_message() {
+    local status=$1
+    local message=$2
+    if [[ "$status" == "success" ]]; then
+        echo -e "${GREEN} ${message}"
+    else
+        echo -e "${RED} ${message}"
+        exit 1
+    fi
+}
+
+# Function to uninstall Tailscale
+function uninstall_tailscale() {
+    echo "Uninstalling Tailscale..."
+    if sudo apt-get remove --purge -y tailscale && sudo apt-get autoremove -y; then
+        status_message success "Tailscale uninstalled successfully."
+    else
+        status_message failure "Failed to uninstall Tailscale."
+    fi
+}
+
+# Check if Tailscale is installed
+if command -v tailscale &> /dev/null; then
+    echo "Tailscale is already installed."
+    read -p "Do you want to uninstall Tailscale? (y/n): " choice
+    if [[ "$choice" =~ ^[Yy]$ ]]; then
+        uninstall_tailscale
+        exit 0
+    else
+        status_message success "Tailscale remains installed. Exiting script."
+        exit 0
+    fi
+fi
+
+# Start the script for installation
+echo "Starting Tailscale installation script..."
+
+# Add Tailscale's GPG key
+status_message success "Adding Tailscale GPG key..."
+sudo mkdir -p --mode=0755 /usr/share/keyrings
+if curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null; then
+    status_message success "Tailscale GPG key added successfully."
+else
+    status_message failure "Failed to add Tailscale GPG key."
+fi
+
+# Add the Tailscale repository
+status_message success "Adding Tailscale repository..."
+if curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list >/dev/null; then
+    status_message success "Tailscale repository added successfully."
+else
+    status_message failure "Failed to add Tailscale repository."
+fi
+
+# Update package lists
+status_message success "Updating package lists..."
+if sudo apt-get update; then
+    status_message success "Package lists updated successfully."
+else
+    status_message failure "Failed to update package lists."
+fi
+
+# Install Tailscale
+status_message success "Installing Tailscale..."
+if sudo apt-get install -y tailscale; then
+    status_message success "Tailscale installed successfully."
+else
+    status_message failure "Failed to install Tailscale."
+fi
+
+# Enable and start Tailscale
+status_message success "Starting and enabling Tailscale service..."
+if sudo systemctl enable --now tailscaled; then
+    status_message success "Tailscale service started and enabled successfully."
+else
+    status_message failure "Failed to start and enable Tailscale service."
+fi
+
+# Run Tailscale up to configure
+status_message success "Configuring Tailscale (you may need to log in)..."
+if sudo tailscale up; then
+    status_message success "Tailscale configured successfully."
+else
+    status_message failure "Failed to configure Tailscale."
+fi
+
+status_message success "Tailscale installation and setup complete!"
