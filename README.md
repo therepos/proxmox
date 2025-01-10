@@ -17,6 +17,12 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/zfsback
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mountdrive.sh)"
 ```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-docker.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-lxc.sh)"
+```
 
 ## FOSS
 - [usememos](https://github.com/usememos/memos)
