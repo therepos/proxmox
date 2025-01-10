@@ -34,3 +34,4 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstal
 
 ## Explore
 - [GPU in LXC](https://yomis.blog/nvidia-gpu-in-proxmox-lxc/)
+- [GitHub finest](https://github.com/arbal/awesome-stars)
