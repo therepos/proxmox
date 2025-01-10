@@ -18,6 +18,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/zfsback
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mountdrive.sh)"
 ```
 
+## FOSS
+- [usememos](https://github.com/usememos/memos)
+
 ## References
 - [List of self-hosted apps](https://github.com/awesome-selfhosted/awesome-selfhosted)
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
