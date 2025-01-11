@@ -28,7 +28,8 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstal
 - [usememos](https://github.com/usememos/memos)
 
 ## References
-- [List of self-hosted apps](https://github.com/awesome-selfhosted/awesome-selfhosted)
+- [List of self-hosted apps - awesome](https://github.com/awesome-selfhosted/awesome-selfhosted)
+- [List of self-hosted apps - mikeroyal](https://github.com/mikeroyal/Self-Hosting-Guide)
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
 - [Self-managed life](https://wiki.futo.org/index.php/Introduction_to_a_Self_Managed_Life:_a_13_hour_%26_28_minute_presentation_by_FUTO_software)
 
