@@ -25,6 +25,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstal
 ```
 
 ## FOSS
+- [filebrowser](https://tteck.github.io/Proxmox/#file-browser)
 - [usememos](https://github.com/usememos/memos)
 
 ## References
