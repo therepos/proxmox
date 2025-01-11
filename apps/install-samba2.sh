@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/samba2.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m\u2714\e[0m"
@@ -18,7 +19,7 @@ function status_message() {
 }
 
 # Define the directory to be shared
-SHARE_DIR="/mnt/nvme0n1/media"
+SHARE_DIR="/mnt/sec/media"
 SHARE_NAME="mediadb"
 
 # Check if the directory exists
