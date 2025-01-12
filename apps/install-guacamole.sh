@@ -26,8 +26,8 @@ services:
     environment:
       MYSQL_DATABASE: guacamole_db
       MYSQL_HOSTNAME: guacamole-sql
-      MYSQL_PASSWORD: pass
-      MYSQL_USER: guacamole_user
+      MYSQL_PASSWORD: password
+      MYSQL_USER: admin
       GUACD_HOSTNAME: guacd
     depends_on:
       - guacamole-sql
@@ -40,7 +40,7 @@ services:
     image: mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_ROOT_PASSWORD: password
     volumes:
       - dbdata:/var/lib/mysql
     networks:
