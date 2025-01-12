@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
 
 # Set up directories for the project
 mkdir -p /mnt/sec/apps/guacamole
