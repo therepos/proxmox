@@ -1,4 +1,6 @@
 #!/bin/bash
+# # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/cron/reboot-ifdown.sh)"
+
 # reboot proxmox if cloudflared lxc service is down
 # sed -i 's/\r//' /usr/local/bin/reboot-ifdown.sh
 # chmod +x /usr/local/bin/reboot-ifdown.sh
