@@ -18,6 +18,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-nvidiadriver.sh)"
 ```
 ```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-ollama.sh)"
+```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-plex.sh)"
 ```
 ```bash
