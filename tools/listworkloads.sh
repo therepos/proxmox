@@ -40,34 +40,28 @@ echo "-------------------------------------------------------------"
 
 echo " "
 # VMs
+
+# VMs
 printf "%-40s %-15s %-40s %-10s\n" "VM" "IP" "Access Ports" "Status"
 qm list | awk 'NR > 1 {print $1, $3}' | while read VMID STATUS; do
-    # Check if the guest agent is responding
-    if qm guest exec "$VMID" -- echo "Guest Agent OK" >/dev/null 2>&1; then
-        # Extract and clean raw out-data
-        RAW_DATA=$(qm guest exec "$VMID" -- ip -4 -o addr show 2>/dev/null | jq -r '."out-data"' | sed 's/\\//g')
-
-        # Parse for the primary external IP (exclude loopback and internal IPs)
-        IP=$(echo "$RAW_DATA" | awk '!/127\.0\.0\.1/ && /inet / && !/(hassio|docker0)/ {print $4}' | cut -d/ -f1 | head -n 1)
-
-        if [ -z "$IP" ]; then
-            IP="No IP Assigned"
-        fi
-
-        # Detect web-accessible ports dynamically
-        WEB_PORTS=$(qm guest exec "$VMID" -- ss -tuln 2>/dev/null | jq -r '."out-data"' | awk 'NR > 1 {print $5}' | grep -oE '[0-9]+$' | grep -E '^(80|443|8080|8443|8000|8081|3000|9090|[1-9][0-9]{3,4})$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
-
-        if [ -z "$WEB_PORTS" ]; then
-            WEB_PORTS="No Recognized Web Ports"
-        fi
-    else
-        # If the guest agent is not available, set defaults
-        IP="Guest Agent Unavailable"
-        WEB_PORTS="No Recognized Web Ports"
+    if [ "$STATUS" != "running" ]; then
+        printf "%-40s %-15s %-40s %-10s\n" "VM $VMID" "Unreachable" "No Recognized Web Ports" "$STATUS"
+        continue
     fi
 
-    # Output
-    printf "%-40s %-15s %-40s %-10s\n" "VM $VMID" "$IP" "$WEB_PORTS" "$STATUS"
+    MAC=$(qm config "$VMID" | grep -i net | awk -F'=' '/virtio/ {print $2}' | awk -F',' '{print $1}')
+    IP=$(arp -an | grep -i "$MAC" | awk '{print $2}' | tr -d '()' | grep -E '^192\.168\.' | head -n 1)
+    [ -z "$IP" ] && IP="Unreachable"
+
+    # Test common ports
+    OPEN_PORTS=""
+    for port in 22 80 443 3389; do
+        timeout 2 bash -c "</dev/tcp/$IP/$port" 2>/dev/null && OPEN_PORTS+="$port,"
+    done
+    OPEN_PORTS=${OPEN_PORTS%,}  # Remove trailing comma
+    [ -z "$OPEN_PORTS" ] && OPEN_PORTS="No Recognized Web Ports"
+
+    printf "%-40s %-15s %-40s %-10s\n" "VM $VMID" "$IP" "$OPEN_PORTS" "$STATUS"
 done
 echo " "
 echo "-------------------------------------------------------------"
