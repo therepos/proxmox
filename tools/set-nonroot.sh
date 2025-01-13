@@ -1,6 +1,9 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
 # purpose: this script creates and login as nonroot user
+# =====
+# notes:
+# run as non-root user: sudo -u "$USERNAME" bash -c "
 
 # Define variables
 USERNAME="admin"
@@ -49,12 +52,6 @@ echo "Permissions for '$USER_HOME' fixed."
 # Summary of actions
 echo "User '$USERNAME' has been successfully created with sudo privileges and the default password '$DEFAULT_PASSWORD'."
 echo "Setup as non-root user completed."
-
-# Run commands as the non-root user (if needed)
-sudo -u "$USERNAME" bash -c "
-    echo 'Running additional setup tasks as $USERNAME...'
-    # Place any additional commands here
-"
 
 # Exit the script cleanly
 echo "Script execution completed. Exiting."
