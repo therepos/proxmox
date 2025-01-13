@@ -132,3 +132,6 @@ case $CHOICE in
 esac
 
 exit 0
+
+# note:
+# purpose: this script only transfers the vm backup file to a mounted drive. the actual backup should be manually triggered in proxmox.
