@@ -32,3 +32,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
 ```
+
+## References
+- [Main](readme.md)
