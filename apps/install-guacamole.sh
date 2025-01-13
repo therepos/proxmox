@@ -53,3 +53,6 @@ echo "Final setup script executed successfully."
 
 # Completion message
 echo "LXC container setup and configuration completed successfully."
+
+# notes-
+# source: https://github.com/itiligent/Easy-Guacamole-Installer
