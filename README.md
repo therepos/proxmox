@@ -24,6 +24,20 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstal
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-lxc.sh)"
 ```
 
+## Tool Scripts
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-jellyfin.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-metube.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-portainer.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-plex.sh)"
+```
+
 ## FOSS
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
 - [filebrowser](https://tteck.github.io/Proxmox/#file-browser)
