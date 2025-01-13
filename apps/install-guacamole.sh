@@ -1,9 +1,13 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
+# purpose: this script installs guacamole lxc
+# =====
+# notes:
+# source: https://github.com/itiligent/Easy-Guacamole-Installer
 
 # Step 1: Create an empty LXC
 echo "Creating an empty LXC container..."
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-lxc.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/create-lxc.sh)"
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to create the LXC container. Exiting."
@@ -55,5 +59,4 @@ echo "Final setup script executed successfully."
 # Completion message
 echo "LXC container setup and configuration completed successfully."
 
-# notes-
-# source: https://github.com/itiligent/Easy-Guacamole-Installer
+

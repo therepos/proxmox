@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
-# purpose: this script removes unnecessary files and frees up disk space on a proxmox server
+# purpose: this script frees up disk space on a proxmox server
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

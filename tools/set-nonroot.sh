@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+# purpose: this script creates and login as nonroot user
 
 # Define variables
 USERNAME="admin"

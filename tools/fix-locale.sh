@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/fix-locale.sh)"
+# purpose: this script fixes missing en_US.UTF-8 locale
 
 # Define colors for output
 GREEN="\e[32m✔\e[0m"

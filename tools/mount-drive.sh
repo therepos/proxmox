@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
+# purpose: this script mounts a user-specified external drive
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

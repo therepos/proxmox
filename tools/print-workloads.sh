@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/list-workloads.sh)"
+# purpose: this script prints all lxc, vms, dockers and services by their IPs, ports and status
 
 echo "$(date)"
 echo "Listing container and VM IPs with detected access ports and statuses:"

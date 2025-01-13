@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
+# purpose: this script formats disk per user specification
 
 # Define status colors for messaging
 GREEN="\e[32m✔\e[0m"

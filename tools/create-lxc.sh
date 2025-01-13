@@ -1,5 +1,6 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-lxc.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/create-lxc.sh)"
+# purpose: this script creates an empty lxc container
 
 # Variables for customization
 DISK_SIZE="4"                 # Disk size in GB
