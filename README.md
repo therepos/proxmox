@@ -35,7 +35,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu
 
 ## FOSS
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
-- [guacamole](https://github.com/itiligent/Easy-Guacamole-Installer)
 - [usememos](https://github.com/usememos/memos)
 
 ## References
