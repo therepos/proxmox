@@ -1,6 +1,7 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
 
-# Proxmox Cleanup Script
+
 # This script removes unnecessary files and frees up disk space on a Proxmox server
 
 # Function to clean APT cache
