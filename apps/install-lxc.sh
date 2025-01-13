@@ -1,17 +1,19 @@
 #!/bin/bash
 
 # Variables for customization
-DISK_SIZE="4G"                 # Disk size
-CORES="2"                      # Number of cores
-MEMORY="1024"                  # Memory size in MB
-PASSWORD="password"            # Default root password
-BRIDGE="vmbr0"                 # Network bridge
+DISK_SIZE="4"                 # Disk size in GB
+CORES="2"                     # Number of cores
+MEMORY="1024"                 # Memory size in MB
+PASSWORD="password"           # Default root password
+BRIDGE="vmbr0"                # Network bridge
 TEMPLATE_DIR="/var/lib/vz/template/cache"
-DHCP="1"                       # Enable DHCP (1 for true, 0 for false)
+DHCP="1"                      # Enable DHCP (1 for true, 0 for false)
+FIREWALL="0"                  # Disable firewall (1 for true, 0 for false)
+FEATURES="nesting=1"          # Enable nesting for containers
 
 # Function to find the latest Debian template
 get_latest_debian_template() {
-    find "$TEMPLATE_DIR" -type f -name "debian*.tar.gz" | sort -r | head -n 1
+    find "$TEMPLATE_DIR" -type f -name "debian*.tar.*" | sort -r | head -n 1
 }
 
 # Function to dynamically determine storage for LXC containers
@@ -56,9 +58,10 @@ pct create $CTID "$TEMPLATE" \
     -hostname "$HOSTNAME" \
     -cores "$CORES" \
     -memory "$MEMORY" \
-    -net0 name=eth0,bridge="$BRIDGE",ip=dhcp \
+    -net0 name=eth0,bridge="$BRIDGE",ip=dhcp,firewall=$FIREWALL \
     -password "$PASSWORD" \
-    -rootfs "$STORAGE:$DISK_SIZE"
+    -rootfs "$STORAGE:$DISK_SIZE" \
+    --features "$FEATURES"
 
 if [[ $? -eq 0 ]]; then
     echo "LXC container $CTID created successfully."
