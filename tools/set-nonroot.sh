@@ -3,6 +3,7 @@
 
 # Define variables
 USERNAME="admin"
+DEFAULT_PASSWORD="password"
 USER_HOME="/home/$USERNAME"
 
 # Check if the script is run as root
@@ -11,13 +12,21 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Ensure sudo is installed
+if ! command -v sudo &>/dev/null; then
+    echo "sudo is not installed. Installing sudo..."
+    apt update && apt install -y sudo
+    echo "sudo installed successfully."
+fi
+
 # Create the non-root user if it doesn't exist
 if id "$USERNAME" &>/dev/null; then
     echo "User '$USERNAME' already exists."
 else
     echo "Creating user '$USERNAME'..."
-    adduser --home "$USER_HOME" "$USERNAME"
-    echo "User '$USERNAME' created successfully."
+    adduser --home "$USER_HOME" --gecos "" --disabled-password "$USERNAME"
+    echo "$USERNAME:$DEFAULT_PASSWORD" | chpasswd
+    echo "User '$USERNAME' created successfully with default password '$DEFAULT_PASSWORD'."
 fi
 
 # Add the user to the sudo group
@@ -37,7 +46,6 @@ chmod 755 "$USER_HOME"
 echo "Permissions for '$USER_HOME' fixed."
 
 # Summary and switch to the non-root user
-echo "User '$USERNAME' has been successfully created with sudo privileges."
+echo "User '$USERNAME' has been successfully created with sudo privileges and the default password '$DEFAULT_PASSWORD'."
 echo "Switching to the non-root user..."
 su "$USERNAME" --login
-
