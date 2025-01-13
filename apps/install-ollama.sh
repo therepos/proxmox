@@ -1,6 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-ollama.sh)"
-# purpose: this script installs ollama docker
+# purpose: this script installs ollama docker ct
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -21,6 +20,51 @@ function status_message() {
 # Variables
 APP_DIR="/mnt/sec/apps/ollama"
 DOCKER_COMPOSE_FILE="$APP_DIR/docker-compose.yml"
+CONTAINER_NAME="ollama"
+IMAGE_NAME="ollama/ollama:latest"
+
+# Check if Ollama is already installed (i.e., if the container exists)
+if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+    echo "Ollama is already installed."
+    read -p "Do you want to uninstall it? (y/n): " UNINSTALL
+    if [[ "$UNINSTALL" == "y" || "$UNINSTALL" == "Y" ]]; then
+        echo "Stopping and removing existing Ollama container, images, volumes, networks, and associated files..."
+
+        # Stop and remove the container
+        docker stop "$CONTAINER_NAME" &>/dev/null
+        status_message "success" "Stopped existing Ollama container."
+
+        docker rm "$CONTAINER_NAME" &>/dev/null
+        status_message "success" "Removed existing Ollama container."
+
+        # Remove the image
+        docker rmi "$IMAGE_NAME" &>/dev/null
+        status_message "success" "Removed Ollama image."
+
+        # Clean up Docker volumes and networks
+        docker volume prune -f &>/dev/null
+        status_message "success" "Cleaned up Docker volumes."
+        
+        docker network prune -f &>/dev/null
+        status_message "success" "Cleaned up Docker networks."
+
+        # Clean up unused Docker resources (optional)
+        docker system prune -f &>/dev/null
+        status_message "success" "Cleaned up unused Docker resources."
+
+        # Remove the directories related to Ollama
+        rm -rf "$APP_DIR"
+        status_message "success" "Removed the Ollama app directory ($APP_DIR)."
+
+        # Remove the Docker Compose file
+        rm -f "$DOCKER_COMPOSE_FILE"
+        status_message "success" "Removed Docker Compose file."
+    else
+        echo "Ollama installation remains intact."
+    fi
+else
+    echo "Ollama is not installed."
+fi
 
 # Check if Docker is installed
 if ! command -v docker &>/dev/null; then
@@ -104,6 +148,7 @@ if [ $? -eq 0 ]; then
     echo "Access the services at the following ports:"
     echo " - Ollama Server: 11434"
     echo " - Open WebUI: 3014"
+    echo " - Anything-LLM: 3015"
 else
     status_message "error" "Failed to start Ollama services. Check the logs for details."
 fi
