@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backupvm.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-vm.sh)"
 
 # Variables
 BACKUP_SRC_DIR="/var/lib/vz/dump"  # Default location for vzdump backups

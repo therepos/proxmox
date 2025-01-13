@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/getsysinfo.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/get-sysinfo.sh)"
 
 # Define colors for status messages (already include tick and cross)
 GREEN="\e[32m✔\e[0m"

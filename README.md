@@ -3,34 +3,37 @@ A collection of scripts designed to simplify the installation, management, and u
 
 ## Tool Scripts
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backupzfs.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-zfs.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backupvm.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-vm.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/formatdisk.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/fixlocale.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/fix-locale.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/getsysinfo.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/get-sysinfo.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/gpupassthrough.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-lxc.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/listworkloads.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/list-workloads.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mountdrive.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/nonroot.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerc.sh)"
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-lxc.sh)"

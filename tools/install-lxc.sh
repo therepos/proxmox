@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-lxc.sh)"
 
 # Variables for customization
 DISK_SIZE="4"                 # Disk size in GB
