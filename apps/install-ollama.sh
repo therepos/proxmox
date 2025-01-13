@@ -149,7 +149,6 @@ if [ $? -eq 0 ]; then
     echo "Access the services at the following ports:"
     echo " - Ollama Server: 11434"
     echo " - Open WebUI: 3014"
-    echo " - Anything-LLM: 3015"
 else
     status_message "error" "Failed to start Ollama services. Check the logs for details."
 fi
