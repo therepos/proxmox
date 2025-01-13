@@ -41,6 +41,9 @@ if [ ! -d "$APP_DIR" ]; then
     fi
 fi
 
+# Ask the user if they want to use GPU
+read -p "Do you wish to use GPU? (y/n): " use_gpu
+
 # Generate Docker Compose file
 cat > "$DOCKER_COMPOSE_FILE" <<EOL
 services:
@@ -52,14 +55,25 @@ services:
     volumes:
       - ./ollama_data:/root/.ollama
     restart: unless-stopped
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+EOL
 
+# Conditionally add GPU block if user wants to use GPU
+if [[ "$use_gpu" == "y" || "$use_gpu" == "Y" ]]; then
+    cat >> "$DOCKER_COMPOSE_FILE" <<EOL
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+EOL
+    status_message "success" "GPU support enabled."
+else
+    status_message "success" "GPU support disabled."
+fi
+
+cat >> "$DOCKER_COMPOSE_FILE" <<EOL
   ollama-webui:
     image: ghcr.io/ollama-webui/ollama-webui:main
     container_name: ollama-webui
@@ -89,7 +103,6 @@ if [ $? -eq 0 ]; then
     echo "Access the services at the following ports:"
     echo " - Ollama Server: 11434"
     echo " - Open WebUI: 3014"
-    echo " - Anything-LLM: 3015"
 else
     status_message "error" "Failed to start Ollama services. Check the logs for details."
 fi
