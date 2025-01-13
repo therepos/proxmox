@@ -61,7 +61,7 @@ pct create $CTID "$TEMPLATE" \
     -net0 name=eth0,bridge="$BRIDGE",ip=dhcp,firewall=$FIREWALL \
     -password "$PASSWORD" \
     -rootfs "$STORAGE:$DISK_SIZE" \
-    --features "$FEATURES"
+    --features "$FEATURES" \
     --unprivileged 1
 
 if [[ $? -eq 0 ]]; then
