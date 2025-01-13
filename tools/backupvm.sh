@@ -3,7 +3,7 @@
 
 # Variables
 BACKUP_SRC_DIR="/var/lib/vz/dump"  # Default location for vzdump backups
-BACKUP_DEST_DIR="/mnt/sec/apps/backup"  # Destination directory (external storage or custom directory)
+BACKUP_DEST_DIR="/mnt/sec/backup"  # Destination directory (external storage or custom directory)
 
 # Check if the source backup directory exists
 if [ ! -d "$BACKUP_SRC_DIR" ]; then
