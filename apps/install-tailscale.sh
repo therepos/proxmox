@@ -98,5 +98,5 @@ fi
 
 status_message success "Tailscale installation and setup complete!"
 
-# --notes--
+# notes:
 # source: https://pkgs.tailscale.com/stable/#debian-bookworm
