@@ -26,7 +26,7 @@ sleep 10
 if ! pct status "$CTID" | grep -q "status: running"; then
     echo "Starting the LXC container..."
     pct start "$CTID"
-    sleep 10
+    sleep 5
 fi
 
 # Step 4: Execute the second script inside the container
