@@ -59,9 +59,9 @@ services:
               count: all
               capabilities: [gpu]
 
-  open-webui:
+  ollama-webui:
     image: ghcr.io/ollama-webui/ollama-webui:main
-    container_name: open-webui
+    container_name: ollama-webui
     restart: unless-stopped
     environment:
       - 'OLLAMA_BASE_URL=http://ollama:11434'
@@ -79,7 +79,7 @@ services:
       - SYS_ADMIN
     restart: unless-stopped
     environment:
-      - SERVER_PORT=3001
+      - SERVER_PORT=3015
       - UID='1000'
       - GID='1000'
       - STORAGE_DIR=/app/server/storage
@@ -100,7 +100,7 @@ services:
       - ./anythingllm_data/collector/hotdir/:/app/collector/hotdir
       - ./anythingllm_data/collector/outputs/:/app/collector/outputs
     ports:
-      - "3015:3001"
+      - "3015:3015"
     extra_hosts:
       - host.docker.internal:host-gateway
 EOL
