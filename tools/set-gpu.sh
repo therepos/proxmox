@@ -79,9 +79,25 @@ if grep -q "$GPU_IDS" "$VFIO_CONF" && grep -q "$AUDIO_IDS" "$VFIO_CONF"; then
 
     # Rebind GPU to NVIDIA drivers
     echo "Rebinding GPU to NVIDIA drivers."
-    echo "0000:$GPU_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
-    echo "0000:$AUDIO_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
-    echo "nvidia" > /sys/bus/pci/drivers_probe
+    
+    # Check if the GPU is bound to vfio-pci
+    if [[ -e "/sys/bus/pci/devices/0000:$GPU_PCI_ID/driver" && "$(readlink /sys/bus/pci/devices/0000:$GPU_PCI_ID/driver)" == *vfio-pci* ]]; then
+      echo "Unbinding GPU from vfio-pci."
+      echo "0000:$GPU_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
+      echo "0000:$AUDIO_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
+    else
+      echo "GPU is not bound to vfio-pci. Skipping unbind step."
+    fi
+    
+    # Bind GPU to NVIDIA driver
+    if [[ -e "/sys/bus/pci/devices/0000:$GPU_PCI_ID" ]]; then
+      echo "0000:$GPU_PCI_ID" > /sys/bus/pci/drivers_probe
+      echo "0000:$AUDIO_PCI_ID" > /sys/bus/pci/drivers_probe
+      echo "GPU successfully rebound to NVIDIA drivers."
+    else
+      echo "Error: GPU device not found. Unable to rebind to NVIDIA drivers." >&2
+      exit 1
+    fi
 
     # Restart Docker to ensure it detects the GPU
     echo "Restarting Docker to enable GPU usage."
