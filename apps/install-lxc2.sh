@@ -62,6 +62,7 @@ pct create $CTID "$TEMPLATE" \
     -password "$PASSWORD" \
     -rootfs "$STORAGE:$DISK_SIZE" \
     --features "$FEATURES"
+    -unprivileged 1
 
 if [[ $? -eq 0 ]]; then
     echo "LXC container $CTID created successfully."
