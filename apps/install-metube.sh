@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-metube.sh)"
+# purpose: this script installs metube docker
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

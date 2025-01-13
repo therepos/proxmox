@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-debian.sh)"
+# purpose: this script downloads the latest debian ISO
 
 # Variables
 ISO_STORAGE="local"       # Storage where the ISO is stored

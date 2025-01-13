@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-pvenosub.sh)"
+# purpose: this script configures no PVE subscription prompt and repositories
+# source: # https://github.com/tteck/Proxmox/raw/main/LICENSE
 
 header_info() {
   clear
@@ -211,9 +213,3 @@ fi
 
 start_routines
 
-# notes:
-# mods: to default all prompts to yes
-# Copyright (c) 2021-2024 tteck
-# Author: tteck (tteckster)
-# License: MIT
-# https://github.com/tteck/Proxmox/raw/main/LICENSE

@@ -1,5 +1,7 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
+# purpose: this script installs tailscale service
+# source: https://pkgs.tailscale.com/stable/#debian-bookworm
 
 # Exit immediately if a command exits with a non-zero status
 set -e
@@ -98,5 +100,4 @@ fi
 
 status_message success "Tailscale installation and setup complete!"
 
-# notes:
-# source: https://pkgs.tailscale.com/stable/#debian-bookworm
+

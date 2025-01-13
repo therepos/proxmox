@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-nvidiadriver.sh)"
+# purpose: this script installs nvidia driver and container toolkit
+# =====
+# notes:
+# continuous monitoring: watch -n 1 nvidia-smi
+# container specific monitoring: docker exec -it <container_id> /bin/bash
 
 # Function to print status with green or red check marks
 print_status() {
@@ -188,9 +193,7 @@ run_silent rm -f "$STEP_BLACKLIST_NOUVEAU" "$STEP_INITRAMFS_UPDATE" "$STEP_KERNE
 
 print_status "success" "NVIDIA driver installation completed successfully"
 
-# notes:
-# continuous monitoring: watch -n 1 nvidia-smi
-# container specific monitoring: docker exec -it <container_id> /bin/bash
+
 
 
 
