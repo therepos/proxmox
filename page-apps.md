@@ -1,6 +1,3 @@
-# Proxmox Helper Scripts
-A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. These scripts are lightweight, easy to use, and automate common setup tasks for LXC containers.
-
 ## App Scripts
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-debian.sh)"
