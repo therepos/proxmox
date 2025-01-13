@@ -34,4 +34,4 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ```
 
 ## References
-- [Main](readme.md)
+- [Main](README.md)
