@@ -45,7 +45,16 @@ chown -R "$USERNAME:$USERNAME" "$USER_HOME"
 chmod 755 "$USER_HOME"
 echo "Permissions for '$USER_HOME' fixed."
 
-# Summary and switch to the non-root user
+# Summary of actions
 echo "User '$USERNAME' has been successfully created with sudo privileges and the default password '$DEFAULT_PASSWORD'."
-echo "Switching to the non-root user..."
-su "$USERNAME" --login
+echo "Setup as non-root user completed."
+
+# Run commands as the non-root user (if needed)
+sudo -u "$USERNAME" bash -c "
+    echo 'Running additional setup tasks as $USERNAME...'
+    # Place any additional commands here
+"
+
+# Exit the script cleanly
+echo "Script execution completed. Exiting."
+exit 0
