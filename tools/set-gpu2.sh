@@ -1,17 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 
-# Variables
-GPU_PCI_ID="01:00.0"  # GPU PCI ID
-AUDIO_PCI_ID="01:00.1"  # GPU Audio PCI ID
-VFIO_CONF="/etc/modprobe.d/vfio.conf"
-CMDLINE_CONF="/etc/kernel/cmdline"
-VM_CONF="/etc/pve/qemu-server/$VMID.conf"
-MODULES_FILE="/etc/modules"
-
-PROXMOX_REBOOT_REQUIRED=false
-VM_REBOOT_REQUIRED=false
-
 # List available VMs in numbered format
 echo "Available VMs:"
 mapfile -t VM_LIST < <(qm list | awk 'NR>1 {print $1, $2}')
@@ -38,6 +27,17 @@ fi
 VMID=$(echo "${VM_LIST[$((VM_OPTION - 1))]}" | awk '{print $1}')
 echo "Selected VM ID: $VMID"
 # Continue with the rest of the script using the selected VMID
+
+# Variables
+GPU_PCI_ID="01:00.0"  # GPU PCI ID
+AUDIO_PCI_ID="01:00.1"  # GPU Audio PCI ID
+VFIO_CONF="/etc/modprobe.d/vfio.conf"
+CMDLINE_CONF="/etc/kernel/cmdline"
+VM_CONF="/etc/pve/qemu-server/$VMID.conf"
+MODULES_FILE="/etc/modules"
+
+PROXMOX_REBOOT_REQUIRED=false
+VM_REBOOT_REQUIRED=false
 
 # Optional: Automatically detect GPU and Audio PCI IDs
 # Uncomment the following lines if you want the script to dynamically detect your GPU and Audio PCI IDs.
