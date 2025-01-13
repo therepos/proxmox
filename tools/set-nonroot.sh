@@ -39,5 +39,5 @@ echo "Permissions for '$USER_HOME' fixed."
 # Summary and switch to the non-root user
 echo "User '$USERNAME' has been successfully created with sudo privileges."
 echo "Switching to the non-root user..."
-su "$USERNAME"
+su "$USERNAME" --login
 
