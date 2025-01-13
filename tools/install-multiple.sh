@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-postpve.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-multiple.sh)"
 
 STATE_FILE="/var/tmp/proxmox_setup_state"
 TOTAL_STEPS=5
