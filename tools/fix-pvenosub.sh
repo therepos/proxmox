@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-pvenosub.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/fix-pvenosub.sh)"
 # purpose: this script configures no PVE subscription prompt and repositories
 # source: # https://github.com/tteck/Proxmox/raw/main/LICENSE
 

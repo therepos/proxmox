@@ -12,22 +12,25 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/get-sysinfo.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/list-workloads.sh)"
-```
-```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
 ```
 ```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/print-sysinfo.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/print-workloads.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-storage.sh)"
+```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-lxc.sh)"
 ```
 
 ## FOSS
