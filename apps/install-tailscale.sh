@@ -1,6 +1,5 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
-# source: https://pkgs.tailscale.com/stable/#debian-bookworm
 
 # Exit immediately if a command exits with a non-zero status
 set -e
@@ -98,3 +97,6 @@ else
 fi
 
 status_message success "Tailscale installation and setup complete!"
+
+# --notes--
+# source: https://pkgs.tailscale.com/stable/#debian-bookworm
