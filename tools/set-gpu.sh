@@ -10,6 +10,9 @@ CMDLINE_CONF="/etc/kernel/cmdline"
 VM_CONF="/etc/pve/qemu-server/$VMID.conf"
 MODULES_FILE="/etc/modules"
 
+PROXMOX_REBOOT_REQUIRED=false
+VM_REBOOT_REQUIRED=false
+
 # Optional: Automatically detect GPU and Audio PCI IDs
 # Uncomment the following lines if you want the script to dynamically detect your GPU and Audio PCI IDs.
 # Note: Ensure only one GPU is installed for accurate detection.
@@ -45,6 +48,7 @@ if grep -q "$GPU_PCI_ID" "$VFIO_CONF"; then
       echo "Failed to update initramfs. Please check your system." >&2
       exit 1
     fi
+    PROXMOX_REBOOT_REQUIRED=true
 
     # Remove passthrough from VM configuration
     if [[ -f $VM_CONF ]]; then
@@ -65,6 +69,11 @@ if grep -q "$GPU_PCI_ID" "$VFIO_CONF"; then
     systemctl restart docker
 
     echo "GPU is now available for Docker or other workloads on the host."
+    if $PROXMOX_REBOOT_REQUIRED; then
+      echo "System-level changes were made. Please reboot Proxmox for changes to take effect."
+    else
+      echo "No system reboot required. GPU is ready for host use."
+    fi
     exit 0
   else
     echo "No changes made."
@@ -92,9 +101,7 @@ if ! grep -qE "(intel_iommu=on|amd_iommu=on)" "$CMDLINE_CONF"; then
     echo "Failed to refresh Proxmox bootloader." >&2
     exit 1
   fi
-
-  echo "IOMMU enabled. Please reboot the host before rerunning this script."
-  exit 0
+  PROXMOX_REBOOT_REQUIRED=true
 fi
 
 # Step 2: Bind GPU to VFIO
@@ -106,11 +113,13 @@ if [[ -z $GPU_IDS || -z $AUDIO_IDS ]]; then
   exit 1
 fi
 
-echo "options vfio-pci ids=${GPU_IDS},${AUDIO_IDS}" > "$VFIO_CONF"
-
-if ! update-initramfs -u; then
-  echo "Failed to update initramfs. Please check your system." >&2
-  exit 1
+if ! grep -q "$GPU_IDS" "$VFIO_CONF"; then
+  echo "options vfio-pci ids=${GPU_IDS},${AUDIO_IDS}" > "$VFIO_CONF"
+  if ! update-initramfs -u; then
+    echo "Failed to update initramfs. Please check your system." >&2
+    exit 1
+  fi
+  PROXMOX_REBOOT_REQUIRED=true
 fi
 
 # Step 3: Update VM Configuration
@@ -121,9 +130,12 @@ if [[ ! -f $VM_CONF ]]; then
 fi
 
 # Add GPU passthrough to VM config
-sed -i "/^hostpci/d" "$VM_CONF"
-echo "hostpci0: $GPU_PCI_ID,pcie=1" >> "$VM_CONF"
-echo "hostpci1: $AUDIO_PCI_ID,pcie=1" >> "$VM_CONF"
+if ! grep -q "^hostpci0:" "$VM_CONF"; then
+  sed -i "/^hostpci/d" "$VM_CONF"
+  echo "hostpci0: $GPU_PCI_ID,pcie=1" >> "$VM_CONF"
+  echo "hostpci1: $AUDIO_PCI_ID,pcie=1" >> "$VM_CONF"
+  VM_REBOOT_REQUIRED=true
+fi
 
 # Ensure machine type and BIOS are set
 sed -i "s/^bios:.*/bios: ovmf/" "$VM_CONF"
@@ -134,6 +146,7 @@ fi
 # Add CPU args to hide KVM if not already set
 if ! grep -q "^args:" "$VM_CONF"; then
   echo "args: -cpu host,kvm=off" >> "$VM_CONF"
+  VM_REBOOT_REQUIRED=true
 fi
 
 # Step 4: Ensure VFIO modules are loaded at boot
@@ -143,11 +156,19 @@ for MODULE in "${VFIO_MODULES[@]}"; do
   if ! grep -q "^$MODULE" "$MODULES_FILE"; then
     echo "$MODULE" >> "$MODULES_FILE"
     echo "Added $MODULE to $MODULES_FILE."
+    PROXMOX_REBOOT_REQUIRED=true
   else
     echo "$MODULE is already present in $MODULES_FILE."
   fi
 done
 
-# Final message
-echo "GPU passthrough setup completed. Please reboot the system before starting the VM with 'qm start $VMID'."
+# Final Notification
+if $PROXMOX_REBOOT_REQUIRED; then
+  echo "System-level changes were made. Please reboot Proxmox for changes to take effect."
+elif $VM_REBOOT_REQUIRED; then
+  echo "Only the VM configuration was updated. Please reboot VM $VMID for changes to take effect."
+else
+  echo "No reboot required. All changes are effective immediately."
+fi
+
 exit 0
