@@ -16,10 +16,22 @@ echo "LXC container created successfully."
 CTID=$(pvesh get /cluster/nextid)
 CTID=$((CTID - 1))
 
-echo "Entering LXC container with CTID: $CTID..."
+echo "New LXC container has been created with CTID: $CTID"
 
-# Execute the second script inside the container
-pct enter "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+# Wait for the container to fully initialize
+echo "Waiting for the LXC container to start..."
+sleep 10
+
+# Step 3: Start the container if it's not already running
+if ! pct status "$CTID" | grep -q "status: running"; then
+    echo "Starting the LXC container..."
+    pct start "$CTID"
+    sleep 10
+fi
+
+# Step 4: Execute the second script inside the container
+echo "Entering LXC container with CTID: $CTID to execute the second script..."
+pct exec "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to execute the second script inside the LXC container. Exiting."
@@ -28,10 +40,9 @@ fi
 
 echo "Second script executed successfully in the container."
 
-# Step 3: Run the final setup script inside the container
+# Step 5: Run the final setup script inside the container
 echo "Running the final setup script inside the LXC container..."
-
-pct enter "$CTID" -- bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
+pct exec "$CTID" -- bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to execute the final setup script inside the LXC container. Exiting."
