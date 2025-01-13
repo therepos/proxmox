@@ -26,7 +26,7 @@ for i in "${!VM_LIST[@]}"; do
 done
 
 # Prompt the user to select a VM
-read -p "Enter the number corresponding to the VM you want to bind the GPU to: " VM_OPTION
+read -p "Enter the VM selection to bind/unbind the GPU: " VM_OPTION
 
 # Validate selection
 if ! [[ "$VM_OPTION" =~ ^[0-9]+$ ]] || (( VM_OPTION < 1 || VM_OPTION > ${#VM_LIST[@]} )); then
