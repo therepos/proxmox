@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-ollama.sh)"
 # purpose: this script installs ollama docker ct
 
 # Define colors and status symbols
