@@ -47,4 +47,4 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu
 - [GPU in LXC](https://yomis.blog/nvidia-gpu-in-proxmox-lxc/)
 - [GitHub finest](https://github.com/arbal/awesome-stars)
 
-[scripts]: page-apps.md
+[apps scripts]: page-apps.md
