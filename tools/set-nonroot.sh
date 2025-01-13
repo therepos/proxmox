@@ -36,6 +36,8 @@ chown -R "$USERNAME:$USERNAME" "$USER_HOME"
 chmod 755 "$USER_HOME"
 echo "Permissions for '$USER_HOME' fixed."
 
-# Summary
+# Summary and switch to the non-root user
 echo "User '$USERNAME' has been successfully created with sudo privileges."
-echo "Switch to the user with: su $USERNAME"
+echo "Switching to the non-root user..."
+su "$USERNAME"
+
