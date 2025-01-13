@@ -2,7 +2,6 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 
 # Variables
-VMID=201  # Set your VM ID here
 GPU_PCI_ID="01:00.0"  # GPU PCI ID
 AUDIO_PCI_ID="01:00.1"  # GPU Audio PCI ID
 VFIO_CONF="/etc/modprobe.d/vfio.conf"
@@ -12,6 +11,33 @@ MODULES_FILE="/etc/modules"
 
 PROXMOX_REBOOT_REQUIRED=false
 VM_REBOOT_REQUIRED=false
+
+# List available VMs in numbered format
+echo "Available VMs:"
+mapfile -t VM_LIST < <(qm list | awk 'NR>1 {print $1, $2}')
+
+if [[ ${#VM_LIST[@]} -eq 0 ]]; then
+  echo "No VMs found. Exiting."
+  exit 1
+fi
+
+for i in "${!VM_LIST[@]}"; do
+  echo "$((i + 1)). ${VM_LIST[$i]}"
+done
+
+# Prompt the user to select a VM
+read -p "Enter the number corresponding to the VM you want to bind the GPU to: " VM_OPTION
+
+# Validate selection
+if ! [[ "$VM_OPTION" =~ ^[0-9]+$ ]] || (( VM_OPTION < 1 || VM_OPTION > ${#VM_LIST[@]} )); then
+  echo "Invalid selection. Exiting."
+  exit 1
+fi
+
+# Get selected VM ID
+VMID=$(echo "${VM_LIST[$((VM_OPTION - 1))]}" | awk '{print $1}')
+echo "Selected VM ID: $VMID"
+# Continue with the rest of the script using the selected VMID
 
 # Optional: Automatically detect GPU and Audio PCI IDs
 # Uncomment the following lines if you want the script to dynamically detect your GPU and Audio PCI IDs.
