@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-pvenosub.sh)"
 
-# Modified by: therepos
-# Modification: to default all prompts to yes
-# Copyright (c) 2021-2024 tteck
-# Author: tteck (tteckster)
-# License: MIT
-# https://github.com/tteck/Proxmox/raw/main/LICENSE
-
 header_info() {
   clear
   cat <<"EOF"
@@ -217,3 +210,10 @@ if ! pveversion | grep -Eq "pve-manager/8.[0-3]"; then
 fi
 
 start_routines
+
+# notes:
+# mods: to default all prompts to yes
+# Copyright (c) 2021-2024 tteck
+# Author: tteck (tteckster)
+# License: MIT
+# https://github.com/tteck/Proxmox/raw/main/LICENSE

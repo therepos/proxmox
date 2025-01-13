@@ -1,4 +1,6 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
+
 # Define colors and status symbols
 GREEN="\e[32m\u2714\e[0m"
 RED="\e[31m\u2718\e[0m"

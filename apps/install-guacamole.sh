@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
 
 # Step 1: Create an empty LXC
 echo "Creating an empty LXC container..."
@@ -20,7 +21,7 @@ echo "New LXC container has been created with CTID: $CTID"
 
 # Wait for the container to fully initialize
 echo "Waiting for the LXC container to start..."
-sleep 10
+sleep 5
 
 # Step 3: Start the container if it's not already running
 if ! pct status "$CTID" | grep -q "status: running"; then

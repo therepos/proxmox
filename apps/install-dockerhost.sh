@@ -107,5 +107,5 @@ status_message success "Cleanup completed. Docker setup is ready."
 
 echo -e "${GREEN}Docker and NVIDIA integration is now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
 
-# note:
+# notes:
 # source: https://docs.docker.com/engine/install/debian/#install-using-the-repository
