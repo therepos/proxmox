@@ -24,7 +24,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstal
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-lxc.sh)"
 ```
 
-## Tool Scripts
+## App Scripts
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-jellyfin.sh)"
 ```
