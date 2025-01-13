@@ -1,5 +1,5 @@
 # Proxmox Helper Scripts
-A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. These scripts are lightweight, easy to use, and automate common setup tasks for LXC containers.
+A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. These [scripts] are lightweight, easy to use, and automate common setup tasks for LXC containers.
 
 ## Tool Scripts
 ```bash
@@ -50,3 +50,5 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninsta
 ## Explore
 - [GPU in LXC](https://yomis.blog/nvidia-gpu-in-proxmox-lxc/)
 - [GitHub finest](https://github.com/arbal/awesome-stars)
+
+[scripts]: page-apps.md
