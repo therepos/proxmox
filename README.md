@@ -41,7 +41,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninsta
 
 ## FOSS
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
-- [filebrowser](https://tteck.github.io/Proxmox/#file-browser)
 - [guacamole](https://github.com/itiligent/Easy-Guacamole-Installer)
 - [usememos](https://github.com/usememos/memos)
 
