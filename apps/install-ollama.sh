@@ -1,4 +1,5 @@
 #!/bin/bash
+# purpose: this script installs ollama docker ct
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -51,13 +52,13 @@ services:
     volumes:
       - ./ollama_data:/root/.ollama
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   ollama-webui:
     image: ghcr.io/ollama-webui/ollama-webui:main
@@ -69,38 +70,6 @@ services:
       - ./webui:/app/backend/data
     ports:
       - "3014:8080"
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  anything-LLM:
-    image: mintplexlabs/anythingllm:latest
-    container_name: anything-llm
-    cap_add:
-      - SYS_ADMIN
-    restart: unless-stopped
-    environment:
-      - SERVER_PORT=3015
-      - UID='1000'
-      - GID='1000'
-      - STORAGE_DIR=/app/server/storage
-      - LLM_PROVIDER=ollama
-      - OLLAMA_BASE_PATH=http://ollama-server:11434
-      - OLLAMA_MODEL_PREF='phi3'
-      - OLLAMA_MODEL_TOKEN_LIMIT=4096
-      - EMBEDDING_ENGINE=ollama
-      - EMBEDDING_BASE_PATH=http://ollama-server:11434
-      - EMBEDDING_MODEL_PREF=nomic-embed-text:latest
-      - EMBEDDING_MODEL_MAX_CHUNK_LENGTH=8192
-      - VECTOR_DB=lancedb
-      - WHISPER_PROVIDER=local
-      - TTS_PROVIDER=native
-      - PASSWORDMINCHAR=8
-    volumes:
-      - ./anythingllm_data/storage:/app/server/storage
-      - ./anythingllm_data/collector/hotdir/:/app/collector/hotdir
-      - ./anythingllm_data/collector/outputs/:/app/collector/outputs
-    ports:
-      - "3015:3015"
     extra_hosts:
       - host.docker.internal:host-gateway
 EOL
