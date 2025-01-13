@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
 # purpose: this script removes unnecessary files and frees up disk space on a proxmox server
 
 # Define colors and status symbols
