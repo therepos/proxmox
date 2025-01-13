@@ -43,7 +43,7 @@ echo "Second script executed successfully in the container."
 
 # Step 5: Run the final setup script inside the container
 echo "Running the final setup script inside the LXC container..."
-pct exec "$CTID" -- bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
+bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to execute the final setup script inside the LXC container. Exiting."
