@@ -8,6 +8,17 @@ AUDIO_PCI_ID="01:00.1"  # GPU Audio PCI ID
 VFIO_CONF="/etc/modprobe.d/vfio.conf"
 CMDLINE_CONF="/etc/kernel/cmdline"
 VM_CONF="/etc/pve/qemu-server/$VMID.conf"
+MODULES_FILE="/etc/modules"
+
+# Optional: Automatically detect GPU and Audio PCI IDs
+# Uncomment the following lines if you want the script to dynamically detect your GPU and Audio PCI IDs.
+# Note: Ensure only one GPU is installed for accurate detection.
+
+# GPU_PCI_ID=$(lspci | grep -i "VGA" | awk '{print $1}')
+# AUDIO_PCI_ID=$(lspci | grep -i "Audio" | awk '{print $1}')
+# echo "Automatically detected GPU PCI ID: $GPU_PCI_ID"
+# echo "Automatically detected Audio PCI ID: $AUDIO_PCI_ID"
+# Verify the detected IDs before proceeding.
 
 # Ensure script is run as root
 if [[ $EUID -ne 0 ]]; then
@@ -15,25 +26,45 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+# Check if the VM exists
+if ! qm status "$VMID" > /dev/null 2>&1; then
+  echo "VM $VMID does not exist. Please check the VM ID and try again." >&2
+  exit 1
+fi
+
 # Check if GPU is already being passed through
-if grep -q "$GPU_PCI_ID" $VFIO_CONF; then
+if grep -q "$GPU_PCI_ID" "$VFIO_CONF"; then
   echo "GPU is currently configured for passthrough."
   read -p "Do you want to undo the passthrough configuration? [y/N]: " UNDO
   if [[ $UNDO =~ ^[Yy]$ ]]; then
     echo "Removing GPU from VFIO configuration."
-    sed -i "/$GPU_PCI_ID/d" $VFIO_CONF
-    sed -i "/$AUDIO_PCI_ID/d" $VFIO_CONF
-    update-initramfs -u
+    sed -i "/$GPU_PCI_ID/d" "$VFIO_CONF"
+    sed -i "/$AUDIO_PCI_ID/d" "$VFIO_CONF"
+    
+    if ! update-initramfs -u; then
+      echo "Failed to update initramfs. Please check your system." >&2
+      exit 1
+    fi
 
     # Remove passthrough from VM configuration
     if [[ -f $VM_CONF ]]; then
-      sed -i "/^hostpci0:/d" $VM_CONF
-      sed -i "/^hostpci1:/d" $VM_CONF
-      sed -i "/^args:/d" $VM_CONF
+      sed -i "/^hostpci0:/d" "$VM_CONF"
+      sed -i "/^hostpci1:/d" "$VM_CONF"
+      sed -i "/^args:/d" "$VM_CONF"
       echo "Passthrough configuration removed from VM $VMID."
     fi
 
-    echo "Passthrough configuration undone. Please reboot the system for changes to take effect."
+    # Rebind GPU to NVIDIA drivers
+    echo "Rebinding GPU to NVIDIA drivers."
+    echo "0000:$GPU_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
+    echo "0000:$AUDIO_PCI_ID" > /sys/bus/pci/drivers/vfio-pci/unbind
+    echo "nvidia" > /sys/bus/pci/drivers_probe
+
+    # Restart Docker to ensure it detects the GPU
+    echo "Restarting Docker to enable GPU usage."
+    systemctl restart docker
+
+    echo "GPU is now available for Docker or other workloads on the host."
     exit 0
   else
     echo "No changes made."
@@ -49,22 +80,38 @@ else
 fi
 
 # Step 1: Enable IOMMU
-if ! grep -qE "(intel_iommu=on|amd_iommu=on)" $CMDLINE_CONF; then
+if ! grep -qE "(intel_iommu=on|amd_iommu=on)" "$CMDLINE_CONF"; then
   echo "Enabling IOMMU in kernel command line."
   if grep -q "intel" /proc/cpuinfo; then
-    sed -i 's|$| intel_iommu=on iommu=pt|' $CMDLINE_CONF
+    sed -i 's|$| intel_iommu=on iommu=pt|' "$CMDLINE_CONF"
   else
-    sed -i 's|$| amd_iommu=on iommu=pt|' $CMDLINE_CONF
+    sed -i 's|$| amd_iommu=on iommu=pt|' "$CMDLINE_CONF"
   fi
-  proxmox-boot-tool refresh
+
+  if ! proxmox-boot-tool refresh; then
+    echo "Failed to refresh Proxmox bootloader." >&2
+    exit 1
+  fi
+
   echo "IOMMU enabled. Please reboot the host before rerunning this script."
   exit 0
 fi
 
 # Step 2: Bind GPU to VFIO
 echo "Binding GPU to VFIO driver."
-echo "options vfio-pci ids=$(lspci -nn | grep $GPU_PCI_ID | awk -F '[\[\]]' '{print $2}'),$(lspci -nn | grep $AUDIO_PCI_ID | awk -F '[\[\]]' '{print $2}')" > $VFIO_CONF
-update-initramfs -u
+GPU_IDS=$(lspci -nn | grep "$GPU_PCI_ID" | awk -F '[\\[\\]]' '{print $2}')
+AUDIO_IDS=$(lspci -nn | grep "$AUDIO_PCI_ID" | awk -F '[\\[\\]]' '{print $2}')
+if [[ -z $GPU_IDS || -z $AUDIO_IDS ]]; then
+  echo "Failed to retrieve GPU or Audio device IDs. Please verify PCI IDs." >&2
+  exit 1
+fi
+
+echo "options vfio-pci ids=${GPU_IDS},${AUDIO_IDS}" > "$VFIO_CONF"
+
+if ! update-initramfs -u; then
+  echo "Failed to update initramfs. Please check your system." >&2
+  exit 1
+fi
 
 # Step 3: Update VM Configuration
 echo "Configuring VM $VMID for GPU passthrough."
@@ -74,22 +121,33 @@ if [[ ! -f $VM_CONF ]]; then
 fi
 
 # Add GPU passthrough to VM config
-sed -i "/^hostpci/d" $VM_CONF
-echo "hostpci0: $GPU_PCI_ID,pcie=1" >> $VM_CONF
-echo "hostpci1: $AUDIO_PCI_ID,pcie=1" >> $VM_CONF
+sed -i "/^hostpci/d" "$VM_CONF"
+echo "hostpci0: $GPU_PCI_ID,pcie=1" >> "$VM_CONF"
+echo "hostpci1: $AUDIO_PCI_ID,pcie=1" >> "$VM_CONF"
 
 # Ensure machine type and BIOS are set
-sed -i "s/^bios:.*/bios: ovmf/" $VM_CONF
-if ! grep -q "^machine:" $VM_CONF; then
-  echo "machine: pc-q35-9.0" >> $VM_CONF
+sed -i "s/^bios:.*/bios: ovmf/" "$VM_CONF"
+if ! grep -q "^machine:" "$VM_CONF"; then
+  echo "machine: pc-q35-9.0" >> "$VM_CONF"
 fi
 
 # Add CPU args to hide KVM if not already set
-if ! grep -q "^args:" $VM_CONF; then
-  echo "args: -cpu host,kvm=off" >> $VM_CONF
+if ! grep -q "^args:" "$VM_CONF"; then
+  echo "args: -cpu host,kvm=off" >> "$VM_CONF"
 fi
 
-# Step 4: Reboot or Start VM
-echo "GPU passthrough setup completed. You can now start the VM with 'qm start $VMID'."
+# Step 4: Ensure VFIO modules are loaded at boot
+VFIO_MODULES=("vfio" "vfio_iommu_type1" "vfio_pci" "vfio_virqfd")
+echo "Ensuring VFIO modules are loaded at boot."
+for MODULE in "${VFIO_MODULES[@]}"; do
+  if ! grep -q "^$MODULE" "$MODULES_FILE"; then
+    echo "$MODULE" >> "$MODULES_FILE"
+    echo "Added $MODULE to $MODULES_FILE."
+  else
+    echo "$MODULE is already present in $MODULES_FILE."
+  fi
+done
 
+# Final message
+echo "GPU passthrough setup completed. Please reboot the system before starting the VM with 'qm start $VMID'."
 exit 0
