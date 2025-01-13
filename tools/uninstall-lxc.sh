@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-lxc.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-lxc.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

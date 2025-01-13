@@ -1,10 +1,10 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/zfsbackup.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backupzfs.sh)"
 
 # Variables
 ZFS_POOL="rpool"
 SNAPSHOT_NAME="backup_snapshot_$(date +'%Y%m%d_%H%M%S')"  # Date format: year-month-day_hour-minute-second
-BACKUP_DEST="/mnt/nvme0n1"
+BACKUP_DEST="/mnt/sec/backup"
 BACKUP_FILE="${BACKUP_DEST}/zfs_backup_${SNAPSHOT_NAME}.gz"
 LOG_FILE="${BACKUP_DEST}/zfs_backup_log.txt"
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/uninstall-dockerc.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerc.sh)"
 
 # Define colors and status symbols
 GREEN="\e[32m\u2713\e[0m"

@@ -1,6 +1,5 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh)"
-# source: https://docs.docker.com/engine/install/debian/#install-using-the-repository
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -107,3 +106,6 @@ docker image prune -a -f
 status_message success "Cleanup completed. Docker setup is ready."
 
 echo -e "${GREEN}Docker and NVIDIA integration is now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
+
+# note:
+# source: https://docs.docker.com/engine/install/debian/#install-using-the-repository

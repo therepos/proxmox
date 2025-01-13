@@ -1,13 +1,13 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/gpupassthrough.sh)"
 
 # Variables
-VMID=102  # Set your VM ID here
+VMID=201  # Set your VM ID here
 GPU_PCI_ID="01:00.0"  # GPU PCI ID
 AUDIO_PCI_ID="01:00.1"  # GPU Audio PCI ID
 VFIO_CONF="/etc/modprobe.d/vfio.conf"
 CMDLINE_CONF="/etc/kernel/cmdline"
 VM_CONF="/etc/pve/qemu-server/$VMID.conf"
-VBIOS_PATH="/path/to/vbios.rom"  # Optional: Set to your vBIOS file if needed
 
 # Ensure script is run as root
 if [[ $EUID -ne 0 ]]; then
@@ -77,11 +77,6 @@ fi
 sed -i "/^hostpci/d" $VM_CONF
 echo "hostpci0: $GPU_PCI_ID,pcie=1" >> $VM_CONF
 echo "hostpci1: $AUDIO_PCI_ID,pcie=1" >> $VM_CONF
-
-# Add vBIOS if specified
-if [[ -f $VBIOS_PATH ]]; then
-  sed -i "/hostpci0:/s/$/,romfile=$VBIOS_PATH/" $VM_CONF
-fi
 
 # Ensure machine type and BIOS are set
 sed -i "s/^bios:.*/bios: ovmf/" $VM_CONF
