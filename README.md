@@ -12,13 +12,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/fix-locale.sh)"
-```
-```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/get-sysinfo.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-lxc.sh)"
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/list-workloads.sh)"
@@ -28,9 +22,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-d
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
