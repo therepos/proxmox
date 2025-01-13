@@ -45,6 +45,9 @@ fi
 
 echo "Second script executed successfully in the container."
 
+# Run commands as the non-root user
+sudo admin --login
+
 # Step 5: Run the final setup script inside the container
 echo "Running the final setup script inside the LXC container..."
 bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
