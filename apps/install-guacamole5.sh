@@ -45,18 +45,19 @@ fi
 
 echo "Second script executed successfully in the container."
 
-# # Step 5: Run the final setup script inside the container
-# echo "Running the final setup script inside the LXC container..."
-# sudo -u admin bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
+# Step 5: Run the final setup script inside the container
+echo "Running the final setup script inside the LXC container..."
+pct exec "$CTID" -- sudo -u admin -i
+bash -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
 
-# if [[ $? -ne 0 ]]; then
-#     echo "Failed to execute the final setup script inside the LXC container. Exiting."
-#     exit 1
-# fi
+if [[ $? -ne 0 ]]; then
+    echo "Failed to execute the final setup script inside the LXC container. Exiting."
+    exit 1
+fi
 
-# echo "Final setup script executed successfully."
+echo "Final setup script executed successfully."
 
-# # Completion message
-# echo "LXC container setup and configuration completed successfully."
+# Completion message
+echo "LXC container setup and configuration completed successfully."
 
 
