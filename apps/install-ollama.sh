@@ -113,6 +113,7 @@ if [[ "$use_gpu" == "y" || "$use_gpu" == "Y" ]]; then
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    runtime: nvidia
 EOL
     status_message "success" "GPU support enabled."
 else
