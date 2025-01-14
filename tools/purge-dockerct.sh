@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-dockerct.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
 # purpose: this script removes user-specified docker container
 
 # Define colors and status symbols
@@ -23,15 +23,20 @@ if ! command -v docker &>/dev/null; then
     status_message "error" "Docker is not installed. Please install Docker first."
 fi
 
-# List Docker containers
-CONTAINERS=$(docker ps -a --format "{{.Names}}")
+# List Docker containers with ID and Name
+CONTAINERS=$(docker ps -a --format "{{.ID}}:{{.Names}}")
 if [[ -z "$CONTAINERS" ]]; then
     status_message "error" "No Docker containers found."
 fi
 
-echo "Available Docker containers:"
-select CONTAINER_NAME in $CONTAINERS; do
-    if [[ -n "$CONTAINER_NAME" ]]; then
+# Display container list for selection
+echo "Available Docker containers (ID: Name):"
+PS3="#? "
+select CONTAINER_ENTRY in $CONTAINERS; do
+    if [[ -n "$CONTAINER_ENTRY" ]]; then
+        CONTAINER_ID=$(echo "$CONTAINER_ENTRY" | awk -F':' '{print $1}')
+        CONTAINER_NAME=$(echo "$CONTAINER_ENTRY" | awk -F':' '{print $2}')
+        echo "You selected container: $CONTAINER_NAME (ID: $CONTAINER_ID)"
         break
     else
         echo "Invalid selection. Please try again."
@@ -39,7 +44,7 @@ select CONTAINER_NAME in $CONTAINERS; do
 done
 
 # Confirm uninstallation
-read -p "Are you sure you want to uninstall the container '$CONTAINER_NAME'? (y/n): " CONFIRM
+read -p "Are you sure you want to uninstall the container '$CONTAINER_NAME' (ID: $CONTAINER_ID)? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     status_message "error" "Uninstallation aborted."
 fi
