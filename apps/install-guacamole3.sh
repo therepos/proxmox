@@ -36,7 +36,7 @@ fi
 
 # Step 4: Execute the second script inside the container
 echo "Entering LXC container with CTID: $CTID to execute the second script..."
-pct exec "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+pct exec "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/fix-locale.sh)"
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to execute the second script inside the LXC container. Exiting."
@@ -44,6 +44,17 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Second script executed successfully in the container."
+
+# Step 4: Execute the third script inside the container
+echo "Entering LXC container with CTID: $CTID to execute the third script..."
+pct exec "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+
+if [[ $? -ne 0 ]]; then
+    echo "Failed to execute the third script inside the LXC container. Exiting."
+    exit 1
+fi
+
+echo "Third script executed successfully in the container."
 
 # # Step 5: Run the final setup script inside the container
 # echo "Running the final setup script inside the LXC container..."
