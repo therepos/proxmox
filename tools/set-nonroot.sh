@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
-# purpose: this scripts switches from root to non-root user
+# Purpose: This script switches from root to a non-root user and sets a default password.
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -8,7 +8,7 @@ RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
 # Function to display status messages with color
-function status_message() {
+status_message() {
     local status=$1
     local message=$2
     if [[ "$status" == "success" ]]; then
@@ -29,13 +29,14 @@ apt-get install -y sudo && status_message "success" "Sudo installed." || status_
 
 # Step 2: Create a non-root user if it doesn't already exist
 if ! id -u $USERNAME &>/dev/null; then
-  echo "Creating non-root user: $USERNAME..."
-  adduser --disabled-password --gecos '' $USERNAME && status_message "success" "User $USERNAME created." || status_message "failure" "Failed to create user $USERNAME."
-  echo "Adding $USERNAME to the sudo group..."
-  usermod -aG sudo $USERNAME && status_message "success" "User $USERNAME added to sudo group." || status_message "failure" "Failed to add $USERNAME to sudo group."
+    echo "Creating non-root user: $USERNAME..."
+    adduser --gecos '' $USERNAME && status_message "success" "User $USERNAME created." || status_message "failure" "Failed to create user $USERNAME."
+    echo "$USERNAME:password" | chpasswd && status_message "success" "Password for $USERNAME set to 'password'." || status_message "failure" "Failed to set password for $USERNAME."
+    echo "Adding $USERNAME to the sudo group..."
+    usermod -aG sudo $USERNAME && status_message "success" "User $USERNAME added to sudo group." || status_message "failure" "Failed to add $USERNAME to sudo group."
 else
-  echo "User $USERNAME already exists."
-  status_message "success" "User $USERNAME already exists."
+    echo "User $USERNAME already exists."
+    status_message "success" "User $USERNAME already exists."
 fi
 
 # Step 3: Switch to the non-root user
