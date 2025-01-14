@@ -1,6 +1,6 @@
 #!/bin/bash
 # purpose: this script installs guacamole LXC
-# notes: sourced from Easy-Guacamole-Installer
+# notes: https://github.com/itiligent/Easy-Guacamole-Installer
 
 # Step 1: Create an empty LXC
 echo "Creating an empty LXC container..."
@@ -31,9 +31,7 @@ if ! pct status "$CTID" | grep -q "status: running"; then
 fi
 
 # Step 4: Execute the non-root user setup script inside the container
-echo "Entering LXC container with CTID: $CTID to execute the non-root user setup script..."
 pct enter "$CTID" <<EOF
-  # Step 2: Run the setup script inside the container
   echo "Running the non-root user setup script inside the container..."
   bash -c "\$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
 EOF
@@ -43,4 +41,17 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
-echo "Non-root user setup script executed successfully in the container."
+# Step 5: Execute the guacamole setup script inside the container
+pct enter "$CTID" <<EOF
+  echo "Running the guacamole setup script inside the container..."
+  sudo -u admin wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh
+  sudo -u admin chmod +x 1-setup.sh
+  sudo -u admin ./1-setup.sh
+EOF
+
+if [[ $? -ne 0 ]]; then
+    echo "Failed to execute the guacamole setup script inside the LXC container. Exiting."
+    exit 1
+fi
+
+echo "Guacamoole setup script executed successfully in the container."
