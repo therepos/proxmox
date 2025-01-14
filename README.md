@@ -1,6 +1,5 @@
 # Proxmox Helper Scripts
-A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. 
-[Apps scripts] automate setup for applications. Tool scripts automate common setup tasks.
+A collection of scripts designed to simplify the installation, management, and uninstallation of various services on Proxmox VE. Use [apps scripts] to automate setup for applications and tool scripts to automate common setup tasks.
 
 ## Tool Scripts
 ```bash
