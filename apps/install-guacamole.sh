@@ -56,3 +56,15 @@ if [[ $? -ne 0 ]]; then
 else
     status_message "success" "Non-root user setup script executed successfully inside the container."
 fi
+
+# Step 5: 
+pct enter "$CTID" <<EOF
+    echo "Running the Guacamole setup script inside the container..."
+    su - admin -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
+EOF
+
+if [[ $? -ne 0 ]]; then
+    status_message "error" "Failed to execute the non-root user setup script inside the LXC container. Exiting."
+else
+    status_message "success" "Non-root user setup script executed successfully inside the container."
+fi
