@@ -20,21 +20,23 @@ function status_message() {
 }
 
 # Step 1: List all available containers with their IDs and names for user selection
-containers=$(pct list | tail -n +2 | awk '{print $1, "-", $NF}')
+containers=$(pct list | tail -n +2 | awk '!seen[$1]++ {print $1":"$NF}')
 if [ -z "$containers" ]; then
     status_message "failure" "No containers found."
 fi
 
-# Display header and containers for user selection
+# Display menu for user selection
 echo -e "Select container by number:"
-select container_name in $(echo "$containers" | awk -F ' - ' '{print $2}'); do
-    if [ -n "$container_name" ]; then
-        CT_ID=$(echo "$containers" | grep " - $container_name$" | awk -F ' - ' '{print $1}')
-        echo "You selected container: $container_name (ID: $CT_ID)"
-        break
-    else
-        echo "Invalid choice. Please select a valid container."
+PS3="#? "
+select container in $(echo "$containers" | awk -F':' '{print $2}'); do
+    if [ -n "$container" ]; then
+        CT_ID=$(echo "$containers" | grep ":$container$" | awk -F':' '{print $1}')
+        if [ -n "$CT_ID" ]; then
+            echo "You selected container: $container (ID: $CT_ID)"
+            break
+        fi
     fi
+    echo "Invalid choice. Please select a valid container."
 done
 
 # Confirm uninstallation
@@ -48,27 +50,27 @@ CONTAINER_STATUS=$(pct status "$CT_ID" 2>/dev/null)
 
 if [[ "$CONTAINER_STATUS" == "status: running" ]]; then
     pct stop "$CT_ID" &>/dev/null
-    status_message "success" "Container '$container_name' stopped."
+    status_message "success" "Container '$container' stopped."
 else
-    status_message "success" "Container '$container_name' is already stopped."
+    status_message "success" "Container '$container' is already stopped."
 fi
 
 # Step 4: Remove the container
 pct destroy "$CT_ID" &>/dev/null
-status_message "success" "Container '$container_name' removed."
+status_message "success" "Container '$container' removed."
 
 # Step 5: Remove associated data if needed
 DATA_DIR="/var/lib/lxc/$CT_ID"
 if [ -d "$DATA_DIR" ]; then
     rm -rf "$DATA_DIR" &>/dev/null
-    status_message "success" "Data directory for '$container_name' removed."
+    status_message "success" "Data directory for '$container' removed."
 fi
 
 # Step 6: Remove backup files
 BACKUP_DIR="/var/lib/vz/dump"
 if [ -f "$BACKUP_DIR/$CT_ID.tar.gz" ]; then
     rm -f "$BACKUP_DIR/$CT_ID.tar.gz" &>/dev/null
-    status_message "success" "Backup files for '$container_name' removed."
+    status_message "success" "Backup files for '$container' removed."
 fi
 
 # Optional: Clean up additional resources
@@ -82,5 +84,5 @@ fi
 # done
 
 # Final message
-status_message "success" "Container '$container_name' has been cleanly uninstalled."
+status_message "success" "Container '$container' has been cleanly uninstalled."
 exit 0
