@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-storage.sh)"
 # purpose: this script frees up disk space on a proxmox server
 
 # Define colors and status symbols
@@ -30,17 +30,6 @@ clean_apt_cache() {
     fi
 }
 
-# Function to clean old backups
-clean_old_backups() {
-    echo "Cleaning old backups..."
-    find /var/lib/vz/dump/ -type f -name "*.tar.lzo" -mtime +30 -exec rm -f {} \;
-    if [ $? -eq 0 ]; then
-        status_message "success" "Old backups cleaned successfully."
-    else
-        status_message "failure" "Failed to clean old backups."
-    fi
-}
-
 # Function to clear old system logs
 clear_logs() {
     echo "Clearing old system logs..."
@@ -50,25 +39,6 @@ clear_logs() {
         status_message "success" "Old logs cleared successfully."
     else
         status_message "failure" "Failed to clear logs."
-    fi
-}
-
-# Function to remove unused VM and container disk images
-clean_vm_disks() {
-    echo "Cleaning unused VM disk images..."
-    for vm_dir in /var/lib/vz/images/*; do
-        if [ -d "$vm_dir" ]; then
-            vm_id=$(basename "$vm_dir")
-            if ! pvevm status $vm_id >/dev/null 2>&1; then
-                rm -rf "$vm_dir"
-                echo "Removed unused disk images for VM $vm_id"
-            fi
-        fi
-    done
-    if [ $? -eq 0 ]; then
-        status_message "success" "Unused VM disk images cleaned successfully."
-    else
-        status_message "failure" "Failed to clean unused VM disk images."
     fi
 }
 
@@ -83,28 +53,14 @@ clean_isos() {
     fi
 }
 
-# Function to remove orphaned configuration files
-clean_configs() {
-    echo "Cleaning orphaned configuration files..."
-    find /etc/pve -type f -name "*.conf" -exec rm -f {} \;
-    if [ $? -eq 0 ]; then
-        status_message "success" "Orphaned configuration files cleaned successfully."
-    else
-        status_message "failure" "Failed to clean orphaned configuration files."
-    fi
-}
-
 # Main function that calls the cleanup steps
 main() {
     echo "Starting Proxmox disk cleanup..."
 
     # Run each cleanup step
     clean_apt_cache
-    clean_old_backups
     clear_logs
-    clean_vm_disks
     clean_isos
-    clean_configs
 
     echo -e "${GREEN} Proxmox cleanup completed!${RESET}"
 }
