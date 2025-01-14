@@ -24,21 +24,15 @@ if [ -z "$containers" ]; then
     status_message "failure" "No containers found."
 fi
 
-# Ensure unique container names for selection
-echo -e "Select container by number:"
+# Display CT IDs and Names for selection
+echo -e "Select container by number (ID: Name):"
 PS3="#? "
-unique_names=$(echo "$containers" | awk -F':' '{print $2}' | sort | uniq)
-select container_name in $unique_names; do
-    if [ -n "$container_name" ]; then
-        # Find the exact matching ID for the selected container
-        CT_ID=$(echo "$containers" | grep ":$container_name$" | awk -F':' '{print $1}')
-        if [ $(echo "$CT_ID" | wc -l) -eq 1 ]; then
-            echo "You selected container: $container_name (ID: $CT_ID)"
-            break
-        else
-            echo "Multiple containers match the name '$container_name'. Please rename duplicates or specify manually."
-            exit 1
-        fi
+select container_entry in $containers; do
+    if [ -n "$container_entry" ]; then
+        CT_ID=$(echo "$container_entry" | awk -F':' '{print $1}')
+        container_name=$(echo "$container_entry" | awk -F':' '{print $2}')
+        echo "You selected container: $container_name (ID: $CT_ID)"
+        break
     fi
     echo "Invalid choice. Please select a valid container."
 done
