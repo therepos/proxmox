@@ -32,7 +32,11 @@ fi
 
 # Step 4: Execute the non-root user setup script inside the container
 echo "Entering LXC container with CTID: $CTID to execute the non-root user setup script..."
-pct exec "$CTID" -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+pct enter "$CTID" <<EOF
+  # Step 2: Run the setup script inside the container
+  echo "Running the non-root user setup script inside the container..."
+  bash -c "\$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh)"
+EOF
 
 if [[ $? -ne 0 ]]; then
     echo "Failed to execute the non-root user setup script inside the LXC container. Exiting."
@@ -40,17 +44,3 @@ if [[ $? -ne 0 ]]; then
 fi
 
 echo "Non-root user setup script executed successfully in the container."
-
-# Step 5: Run the final setup script inside the container
-echo "Running the final setup script inside the LXC container..."
-pct exec "$CTID" -- sudo -u admin bash -c "cd /home/admin && wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
-
-if [[ $? -ne 0 ]]; then
-    echo "Failed to execute the final setup script inside the LXC container. Exiting."
-    exit 1
-fi
-
-echo "Final setup script executed successfully."
-
-# Completion message
-echo "LXC container setup and configuration completed successfully."
