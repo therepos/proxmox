@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/uninstall-lxc.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
 # purpose: this script removes user-specified lxc container
 
 # Define colors and status symbols
