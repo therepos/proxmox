@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
 # purpose: this script installs guacamole LXC
 # notes: https://github.com/itiligent/Easy-Guacamole-Installer
 
