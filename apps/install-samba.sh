@@ -30,9 +30,7 @@ echo "Starting Samba installation and configuration script..." > "$LOG_FILE"
 # Ensure necessary dependencies are installed
 echo "Checking and installing dependencies..." >> "$LOG_FILE"
 
-# List of required dependencies
 REQUIRED_DEPENDENCIES=("sudo" "samba" "samba-common-bin")
-
 for dep in "${REQUIRED_DEPENDENCIES[@]}"; do
     if ! command -v "$dep" &>/dev/null; then
         echo "Installing missing dependency: $dep..." >> "$LOG_FILE"
@@ -97,12 +95,11 @@ echo "Creating Samba user account for $samba_user..." >> "$LOG_FILE"
 # Add system user and assign to Samba group
 if id "$samba_user" &>/dev/null; then
     echo "User $samba_user already exists." >> "$LOG_FILE"
+    status_message "success" "User $samba_user already exists."
 else
-    adduser "$samba_user" --no-create-home --disabled-password >> "$LOG_FILE" 2>&1
+    adduser "$samba_user" --ingroup sambausers
     [[ $? -eq 0 ]] && status_message "success" "User $samba_user added to the system." || status_message "error" "Failed to create system user $samba_user."
 fi
-
-usermod -a -G sambausers "$samba_user" >> "$LOG_FILE" 2>&1
 
 # Set Samba password for the user
 echo "Setting Samba password for user $samba_user..." >> "$LOG_FILE"
