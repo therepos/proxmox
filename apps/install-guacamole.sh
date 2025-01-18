@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
-# purpose: enhanced script to install Guacamole on Proxmox 
+# purpose: this script to install guacamole
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
