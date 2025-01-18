@@ -27,9 +27,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-d
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-storage.sh)"
-```
-```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 ```
 
