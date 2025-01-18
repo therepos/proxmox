@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/batch-scripts.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/batch-scripts.sh)"
 # purpose: this script batches scripts execution
 
 STATE_FILE="/var/tmp/proxmox_setup_state"
