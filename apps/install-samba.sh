@@ -2,6 +2,9 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
 # purpose: this script installs samba
 
+#!/bin/bash
+# Enhanced Samba installation script with user existence checks
+
 # Define colors and status symbols
 GREEN="\e[32m\u2714\e[0m"
 RED="\e[31m\u2718\e[0m"
@@ -94,14 +97,24 @@ workgroup = WORKGROUP
     [[ $? -eq 0 ]] && status_message "success" "Samba service restarted successfully." || status_message "error" "Failed to restart Samba service."
 }
 
-# Create or recreate Samba user
+# Check if the user already exists
+function check_existing_user() {
+    local samba_user=$1
+    if id "$samba_user" &>/dev/null; then
+        status_message "error" "User '$samba_user' already exists. Please use a different username to avoid overwriting an existing account."
+        exit 1
+    fi
+}
+
+# Create a Samba user
 function setup_samba_user() {
     local samba_user=$1
 
-    if id "$samba_user" &>/dev/null; then
-        smbpasswd -x "$samba_user" >> "$LOG_FILE" 2>&1
-    fi
-    useradd -M -s /sbin/nologin "$samba_user" >> "$LOG_FILE" 2>&1
+    # Check if the user already exists
+    check_existing_user "$samba_user"
+
+    # Add the user
+    useradd -m -s /bin/bash "$samba_user" >> "$LOG_FILE" 2>&1
     usermod -aG sambausers "$samba_user" >> "$LOG_FILE" 2>&1
 
     read -s -p "Enter a password for the Samba user '$samba_user': " samba_password
@@ -131,4 +144,4 @@ setup_samba_user "$samba_user"
 # Final success message
 status_message "success" "Samba share 'mediadb' has been created successfully."
 echo "You can access it from other machines using:"
-echo "\\\\<Proxmox-IP>\mediadb"
+echo "\\\\<Proxmox-IP>\\mediadb"
