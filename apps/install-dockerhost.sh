@@ -52,10 +52,10 @@ apt-get install -y docker-ce docker-ce-cli containerd.io &>/dev/null
 systemctl enable --now docker &>/dev/null
 status_message success "Docker installed and started successfully."
 
-# Step 6: Check for Docker Compose and Install If Missing
+# Step 6: Install Docker Compose
 if ! docker compose version &>/dev/null; then
     curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose &>/dev/null
-    chmod +x /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose &>/dev/null
     if docker compose version &>/dev/null; then
         status_message success "Docker Compose installed successfully."
     else
@@ -113,3 +113,4 @@ docker image prune -a -f &>/dev/null
 status_message success "Cleanup completed successfully."
 
 echo -e "${GREEN}Docker, Docker Compose, and NVIDIA integration are now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
+
