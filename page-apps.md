@@ -33,5 +33,12 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
 ```
 
+## FOSS
+- [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
+- [usememos](https://github.com/usememos/memos)
+
 ## References
+- [List of self-hosted apps - awesome](https://github.com/awesome-selfhosted/awesome-selfhosted)
+- [List of self-hosted apps - mikeroyal](https://github.com/mikeroyal/Self-Hosting-Guide)
+- [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
 - [Main](README.md)
