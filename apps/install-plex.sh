@@ -53,7 +53,7 @@ if [[ -z "$PLEX_CLAIM" ]]; then
     status_message "error" "Plex claim token is required. Exiting."
 fi
 
-# Create directories if they do not exist
+# Verify and create directories if not found
 for dir in "$CONFIG_DIR" "$TRANSCODE_DIR" "$MEDIA_DIR"; do
     if [[ ! -d "$dir" ]]; then
         mkdir -p "$dir" && status_message "success" "Created directory $dir."
