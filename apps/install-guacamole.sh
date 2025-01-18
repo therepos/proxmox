@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-jellyfin.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-guacamole.sh)"
 # purpose: enhanced script to install Guacamole on Proxmox 
 
 # Define colors and status symbols
