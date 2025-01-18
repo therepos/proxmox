@@ -22,8 +22,8 @@ function status_message() {
 # Check if Samba is already installed
 if command -v samba &> /dev/null; then
     echo "Samba is already installed."
-    read -p "Do you wish to uninstall Samba? (yes/no): " uninstall_choice
-    if [[ "$uninstall_choice" == "yes" ]]; then
+    read -p "Do you wish to uninstall Samba? (y/N): " uninstall_choice
+    if [[ "$uninstall_choice" =~ ^[Yy]$ ]]; then
         echo "Uninstalling Samba and cleaning up..."
         sudo systemctl stop smbd nmbd
         sudo apt purge -y samba samba-common samba-common-bin

@@ -1,6 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-filebrowser.sh)"
-# purpose: this script installs filebrowser service
+# Enhanced script to install FileBrowser on Proxmox
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -16,6 +15,17 @@ function status_message() {
         echo -e "${RED} ${message}"
         exit 1
     fi
+}
+
+# Function to uninstall FileBrowser
+uninstall_filebrowser() {
+    echo "Uninstalling FileBrowser..."
+    systemctl stop filebrowser
+    systemctl disable filebrowser
+    rm -f /etc/systemd/system/filebrowser.service
+    rm -f /usr/local/bin/filebrowser
+    systemctl daemon-reload
+    status_message "success" "FileBrowser has been uninstalled."
 }
 
 # Function to change the port of FileBrowser
@@ -46,6 +56,19 @@ change_port() {
         status_message "success" "Port change skipped. FileBrowser will run on the default port (8080)."
     fi
 }
+
+# Check if FileBrowser is already installed
+if command -v filebrowser &> /dev/null; then
+    echo "FileBrowser is already installed."
+    read -p "Do you want to uninstall it? [y/N]: " uninstall_response
+    if [[ "$uninstall_response" =~ ^[Yy]$ ]]; then
+        uninstall_filebrowser
+        exit 0
+    else
+        status_message "success" "Existing FileBrowser installation retained."
+        exit 0
+    fi
+fi
 
 # Step 1: Install FileBrowser
 bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh)"

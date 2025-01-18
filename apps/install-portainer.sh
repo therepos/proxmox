@@ -1,6 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-portainer.sh)"
-# purpose: this script installs portainer docker
+# Enhanced script to install Portainer Docker
 
 # Function to print status with green or red check marks
 print_status() {
@@ -15,6 +14,28 @@ print_status() {
 run_silent() {
     "$@" > /dev/null 2>&1
 }
+
+# Function to uninstall Portainer
+uninstall_portainer() {
+    print_status "success" "Stopping and removing Portainer container"
+    run_silent docker stop portainer
+    run_silent docker rm portainer
+    run_silent docker volume rm portainer_data
+    print_status "success" "Portainer has been successfully uninstalled"
+}
+
+# Check if Portainer is already installed
+if docker ps -a | grep -q "portainer"; then
+    echo "Portainer is already installed."
+    read -p "Do you want to uninstall it? [y/N]: " uninstall_response
+    if [[ "$uninstall_response" =~ ^[Yy]$ ]]; then
+        uninstall_portainer
+        exit 0
+    else
+        print_status "success" "Existing Portainer installation retained."
+        exit 0
+    fi
+fi
 
 # Automatically detect the Docker host IP address
 DOCKER_HOST_IP=$(hostname -I | awk '{print $1}')
