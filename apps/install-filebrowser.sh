@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-filebrowser.sh)"
-# Enhanced script to install FileBrowser on Proxmox
+# purpose: this script installs filebrowser on proxmox
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
