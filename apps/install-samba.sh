@@ -8,14 +8,16 @@ RED="\e[31m\u2718\e[0m"
 RESET="\e[0m"
 LOG_FILE="/var/log/install-samba.log"
 
-# Function to output status messages with color symbols
+# Function to output status messages with color symbols and detailed logging
 function status_message() {
     local status=$1
     local message=$2
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
+        echo "[SUCCESS] ${message}" >> "$LOG_FILE"
     else
         echo -e "${RED} ${message}"
+        echo "[ERROR] ${message}" >> "$LOG_FILE"
         echo "For more details, check the log file at $LOG_FILE."
         exit 1
     fi
@@ -58,9 +60,22 @@ cp /etc/samba/smb.conf /etc/samba/smb.conf.bak >> "$LOG_FILE" 2>&1
 [[ $? -eq 0 ]] && status_message "success" "Samba configuration backed up successfully." || status_message "error" "Failed to back up Samba configuration."
 
 # Create a Samba group for managing access
-echo "Creating Samba group..." >> "$LOG_FILE"
-groupadd sambausers 2>/dev/null
-[[ $? -eq 0 ]] && status_message "success" "Samba group 'sambausers' created or already exists." || status_message "error" "Failed to create Samba group."
+echo "Checking and creating Samba group..." >> "$LOG_FILE"
+if getent group sambausers > /dev/null 2>&1; then
+    echo "Samba group 'sambausers' already exists." >> "$LOG_FILE"
+    status_message "success" "Samba group 'sambausers' already exists."
+else
+    echo "Attempting to create Samba group 'sambausers'..." >> "$LOG_FILE"
+    groupadd sambausers >> "$LOG_FILE" 2>&1
+    if [[ $? -eq 0 ]]; then
+        status_message "success" "Samba group 'sambausers' created successfully."
+    else
+        echo "Error: Failed to create Samba group. Command: groupadd sambausers" >> "$LOG_FILE"
+        echo "Details:" >> "$LOG_FILE"
+        echo "$(groupadd sambausers 2>&1)" >> "$LOG_FILE"
+        status_message "error" "Failed to create Samba group."
+    fi
+fi
 
 # Create the Samba share configuration
 echo "Creating Samba share configuration..." >> "$LOG_FILE"
