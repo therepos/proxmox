@@ -68,6 +68,7 @@ docker run -d \
   --name="$CONTAINER_NAME" \
   --runtime=nvidia \
   --network=host \
+  --restart=unless-stopped \
   -e TZ="$TZ" \
   -e PLEX_CLAIM="$PLEX_CLAIM" \
   -e ADVERTISE_IP="$ADVERTISE_IP" \
