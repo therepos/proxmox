@@ -40,10 +40,7 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
     echo "Plex is already installed."
     read -p "Do you want to uninstall it? (y/n): " UNINSTALL
     if [[ "$UNINSTALL" == "y" || "$UNINSTALL" == "Y" ]]; then
-        echo "Stopping and removing existing Plex container..."
-        docker stop "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Stopped existing Plex container."
-        docker rm "$CONTAINER_NAME" 2>/dev/null && status_message "success" "Removed existing Plex container."
-        exit 0
+        docker stop "$CONTAINER_NAME" >/dev/null 2>&1 && docker rm "$CONTAINER_NAME" >/dev/null 2>&1
     else
         status_message "error" "Installation aborted as Plex is already installed."
     fi
@@ -56,20 +53,17 @@ if [[ -z "$PLEX_CLAIM" ]]; then
     status_message "error" "Plex claim token is required. Exiting."
 fi
 
-# Check if directories exist
+# Create directories if they do not exist
 for dir in "$CONFIG_DIR" "$TRANSCODE_DIR" "$MEDIA_DIR"; do
     if [[ ! -d "$dir" ]]; then
-        status_message "error" "Directory $dir does not exist. Please create it and try again."
+        mkdir -p "$dir" && status_message "success" "Created directory $dir."
     fi
-    status_message "success" "Directory $dir exists."
 done
 
 # Pull the latest Plex Docker image
-echo "Pulling the latest Plex Docker image..."
-docker pull "$IMAGE" && status_message "success" "Pulled the latest Plex image."
+docker pull "$IMAGE" >/dev/null 2>&1 && status_message "success" "Pulled the latest Plex image."
 
 # Run the Plex container with NVIDIA GPU support
-echo "Starting Plex Media Server with NVIDIA GPU support..."
 docker run -d \
   --name="$CONTAINER_NAME" \
   --runtime=nvidia \
@@ -82,11 +76,11 @@ docker run -d \
   -v "$CONFIG_DIR:/config" \
   -v "$TRANSCODE_DIR:/transcode" \
   -v "$MEDIA_DIR:/data/media" \
-  "$IMAGE"
+  "$IMAGE" >/dev/null 2>&1
 
 if [ $? -eq 0 ]; then
     status_message "success" "Plex Media Server with NVIDIA GPU support is up and running!"
     echo "Access it at: $ADVERTISE_IP/web"
 else
-    status_message "error" "Failed to start Plex Media Server with NVIDIA GPU support. Check the logs for details."
+    status_message "error" "Failed to start Plex Media Server with NVIDIA GPU support."
 fi
