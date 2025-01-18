@@ -1,5 +1,6 @@
 #!/bin/bash
-# Enhanced script to install Guacamole on Proxmox
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-jellyfin.sh)"
+# purpose: enhanced script to install Guacamole on Proxmox 
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
