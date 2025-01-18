@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh)"
-# purpose: this script installs docker engine and nvidia container toolkit
+# purpose: this script installs docker engine, docker compose, and nvidia container toolkit
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -52,7 +52,20 @@ apt-get install -y docker-ce docker-ce-cli containerd.io &>/dev/null
 systemctl enable --now docker &>/dev/null
 status_message success "Docker installed and started successfully."
 
-# Step 6: Configure Docker to Use ZFS
+# Step 6: Check for Docker Compose and Install If Missing
+if ! docker compose version &>/dev/null; then
+    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose &>/dev/null
+    chmod +x /usr/local/bin/docker-compose
+    if docker compose version &>/dev/null; then
+        status_message success "Docker Compose installed successfully."
+    else
+        status_message failure "Failed to install Docker Compose."
+    fi
+else
+    status_message success "Docker Compose is already installed."
+fi
+
+# Step 7: Configure Docker to Use ZFS
 DOCKER_CONFIG="/etc/docker/daemon.json"
 if [ ! -f "$DOCKER_CONFIG" ]; then
     tee "$DOCKER_CONFIG" > /dev/null <<EOF
@@ -74,20 +87,20 @@ fi
 systemctl restart docker &>/dev/null
 status_message success "Docker configured with ZFS storage driver and NVIDIA runtime."
 
-# Step 7: Add NVIDIA GPG Key and Repository
+# Step 8: Add NVIDIA GPG Key and Repository
 distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
 curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg &>/dev/null
 curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
 apt-get update &>/dev/null
 status_message success "NVIDIA Container Toolkit repository added successfully."
 
-# Step 8: Install NVIDIA Container Toolkit
+# Step 9: Install NVIDIA Container Toolkit
 apt-get install -y nvidia-container-toolkit &>/dev/null
 nvidia-ctk runtime configure --runtime=docker &>/dev/null
 systemctl restart docker &>/dev/null
 status_message success "NVIDIA Container Toolkit installed and configured successfully."
 
-# Step 9: Verify NVIDIA Docker Integration
+# Step 10: Verify NVIDIA Docker Integration
 docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null
 if [ $? -eq 0 ]; then
     status_message success "NVIDIA Docker integration verified successfully."
@@ -95,8 +108,8 @@ else
     status_message failure "Docker NVIDIA GPU integration failed."
 fi
 
-# Step 10: Clean Up and Finish
+# Step 11: Clean Up and Finish
 docker image prune -a -f &>/dev/null
 status_message success "Cleanup completed successfully."
 
-echo -e "${GREEN}Docker and NVIDIA integration is now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
+echo -e "${GREEN}Docker, Docker Compose, and NVIDIA integration are now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
