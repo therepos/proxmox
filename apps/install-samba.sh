@@ -8,13 +8,12 @@ RED="\e[31m\u2718\e[0m"
 RESET="\e[0m"
 LOG_FILE="/var/log/install-samba.log"
 
-# Function to output status messages with color symbols and detailed logging
+# Function to output status messages and log errors
 function status_message() {
     local status=$1
     local message=$2
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
-        echo "[SUCCESS] ${message}" >> "$LOG_FILE"
     else
         echo -e "${RED} ${message}"
         echo "[ERROR] ${message}" >> "$LOG_FILE"
@@ -23,65 +22,58 @@ function status_message() {
     fi
 }
 
-# Redirect all output to a log file
+# Redirect all output to a log file for debugging
 exec > >(tee -a "$LOG_FILE") 2>&1
 
+# Clear the log file at the start of each run
+: > "$LOG_FILE"
+
 # Start of the installation
-echo "Starting Samba installation and configuration script..." > "$LOG_FILE"
+echo "Starting Samba installation and configuration script..." >> "$LOG_FILE"
 
 # Ensure necessary dependencies are installed
-echo "Checking and installing dependencies..." >> "$LOG_FILE"
+function install_dependencies() {
+    local dependencies=("sudo" "samba" "samba-common-bin")
+    for dep in "${dependencies[@]}"; do
+        if ! command -v "$dep" &>/dev/null; then
+            echo "Installing missing dependency: $dep..." >> "$LOG_FILE"
+            apt update >> "$LOG_FILE" 2>&1 && apt install -y "$dep" >> "$LOG_FILE" 2>&1
+            [[ $? -eq 0 ]] && status_message "success" "$dep installed successfully." || status_message "error" "Failed to install $dep."
+        else
+            status_message "success" "$dep is already installed."
+        fi
+    done
+}
 
-REQUIRED_DEPENDENCIES=("sudo" "samba" "samba-common-bin")
-for dep in "${REQUIRED_DEPENDENCIES[@]}"; do
-    if ! command -v "$dep" &>/dev/null; then
-        echo "Installing missing dependency: $dep..." >> "$LOG_FILE"
-        apt update >> "$LOG_FILE" 2>&1 && apt install -y "$dep" >> "$LOG_FILE" 2>&1
-        [[ $? -eq 0 ]] && status_message "success" "$dep installed successfully." || status_message "error" "Failed to install $dep."
-    else
-        status_message "success" "$dep is already installed."
+# Set up the Samba share configuration
+function setup_samba_share() {
+    local share_name="mediadb"
+    local share_path="/mnt/sec/media"
+
+    # Create the directory if it doesn't exist
+    if [ ! -d "$share_path" ]; then
+        mkdir -p "$share_path" >> "$LOG_FILE" 2>&1
+        [[ $? -eq 0 ]] && status_message "success" "Directory $share_path created successfully." || status_message "error" "Failed to create directory $share_path."
     fi
-done
 
-# Define the directory to be shared
-SHARE_DIR="/mnt/sec/media"
-SHARE_NAME="mediadb"
+    # Backup the Samba configuration
+    cp /etc/samba/smb.conf /etc/samba/smb.conf.bak >> "$LOG_FILE" 2>&1
+    [[ $? -eq 0 ]] && status_message "success" "Samba configuration backed up successfully." || status_message "error" "Failed to back up Samba configuration."
 
-# Create the directory if it does not exist
-if [ ! -d "$SHARE_DIR" ]; then
-    echo "Directory $SHARE_DIR does not exist. Creating it..." >> "$LOG_FILE"
-    mkdir -p "$SHARE_DIR" >> "$LOG_FILE" 2>&1
-    [[ $? -eq 0 ]] && status_message "success" "Directory $SHARE_DIR created successfully." || status_message "error" "Failed to create directory $SHARE_DIR."
-fi
+    # Ensure the workgroup is set
+    sed -i '/^workgroup =/d' /etc/samba/smb.conf
+    echo "[global]
+workgroup = WORKGROUP
+" | tee -a /etc/samba/smb.conf >> "$LOG_FILE"
+    status_message "success" "Samba workgroup set to WORKGROUP."
 
-# Backup the original Samba config
-echo "Backing up existing Samba configuration..." >> "$LOG_FILE"
-cp /etc/samba/smb.conf /etc/samba/smb.conf.bak >> "$LOG_FILE" 2>&1
-[[ $? -eq 0 ]] && status_message "success" "Samba configuration backed up successfully." || status_message "error" "Failed to back up Samba configuration."
-
-# Create a Samba group for managing access
-echo "Checking and creating Samba group..." >> "$LOG_FILE"
-if getent group sambausers > /dev/null 2>&1; then
-    echo "Samba group 'sambausers' already exists." >> "$LOG_FILE"
-    status_message "success" "Samba group 'sambausers' already exists."
-else
-    echo "Attempting to create Samba group 'sambausers'..." >> "$LOG_FILE"
-    groupadd sambausers >> "$LOG_FILE" 2>&1
-    if [[ $? -eq 0 ]]; then
-        status_message "success" "Samba group 'sambausers' created successfully."
-    else
-        echo "Error: Failed to create Samba group. Command: groupadd sambausers" >> "$LOG_FILE"
-        echo "Details:" >> "$LOG_FILE"
-        echo "$(groupadd sambausers 2>&1)" >> "$LOG_FILE"
-        status_message "error" "Failed to create Samba group."
+    # Configure the share in smb.conf
+    if grep -q "^\[$share_name\]" /etc/samba/smb.conf; then
+        sed -i '/^\['"$share_name"'\]/,/^$/d' /etc/samba/smb.conf
     fi
-fi
-
-# Create the Samba share configuration
-echo "Creating Samba share configuration..." >> "$LOG_FILE"
-echo "
-[$SHARE_NAME]
-   path = $SHARE_DIR
+    echo "
+[$share_name]
+   path = $share_path
    browseable = yes
    writable = yes
    guest ok = no
@@ -90,42 +82,53 @@ echo "
    directory mask = 0775
    valid users = @sambausers
 " >> /etc/samba/smb.conf
-[[ $? -eq 0 ]] && status_message "success" "Samba share configuration created for $SHARE_NAME." || status_message "error" "Failed to create Samba share configuration."
+    [[ $? -eq 0 ]] && status_message "success" "Samba share configuration added for '$share_name'." || status_message "error" "Failed to add Samba share configuration for '$share_name'."
 
-# Set appropriate permissions for the shared directory
-echo "Setting permissions for $SHARE_DIR..." >> "$LOG_FILE"
-chmod -R 775 "$SHARE_DIR" >> "$LOG_FILE" 2>&1
-chown -R root:sambausers "$SHARE_DIR" >> "$LOG_FILE" 2>&1
-[[ $? -eq 0 ]] && status_message "success" "Permissions set for $SHARE_DIR." || status_message "error" "Failed to set permissions for $SHARE_DIR."
+    # Set permissions for the directory
+    chown -R root:sambausers "$share_path" >> "$LOG_FILE" 2>&1
+    chmod -R 775 "$share_path" >> "$LOG_FILE" 2>&1
+    [[ $? -eq 0 ]] && status_message "success" "Permissions set for $share_path." || status_message "error" "Failed to set permissions for $share_path."
 
-# Restart Samba service to apply the configuration
-echo "Restarting Samba service..." >> "$LOG_FILE"
-systemctl restart smbd >> "$LOG_FILE" 2>&1
-[[ $? -eq 0 ]] && status_message "success" "Samba service restarted successfully." || status_message "error" "Failed to restart Samba service."
+    # Restart Samba service
+    systemctl restart smbd >> "$LOG_FILE" 2>&1
+    [[ $? -eq 0 ]] && status_message "success" "Samba service restarted successfully." || status_message "error" "Failed to restart Samba service."
+}
 
-# Prompt user to create a Samba user account
+# Create or recreate Samba user
+function setup_samba_user() {
+    local samba_user=$1
+
+    if id "$samba_user" &>/dev/null; then
+        smbpasswd -x "$samba_user" >> "$LOG_FILE" 2>&1
+    fi
+    useradd -M -s /sbin/nologin "$samba_user" >> "$LOG_FILE" 2>&1
+    usermod -aG sambausers "$samba_user" >> "$LOG_FILE" 2>&1
+
+    read -s -p "Enter a password for the Samba user '$samba_user': " samba_password
+    echo
+    read -s -p "Confirm the password for the Samba user '$samba_user': " samba_password_confirm
+    echo
+
+    if [[ "$samba_password" != "$samba_password_confirm" ]]; then
+        status_message "error" "Passwords do not match. Please re-run the script."
+    fi
+
+    {
+        echo "$samba_password"
+        echo "$samba_password"
+    } | smbpasswd -s -a "$samba_user" >> "$LOG_FILE" 2>&1
+
+    smbpasswd -e "$samba_user" >> "$LOG_FILE" 2>&1
+    [[ $? -eq 0 ]] && status_message "success" "Samba user '$samba_user' has been created and enabled." || status_message "error" "Failed to create Samba user '$samba_user'."
+}
+
+# Main execution flow
+install_dependencies
+setup_samba_share
 read -p "Enter the username for the Samba account: " samba_user
-echo "Creating Samba user account for $samba_user..." >> "$LOG_FILE"
+setup_samba_user "$samba_user"
 
-# Add system user and assign to Samba group
-if id "$samba_user" &>/dev/null; then
-    echo "User $samba_user already exists." >> "$LOG_FILE"
-    status_message "success" "User $samba_user already exists."
-else
-    adduser "$samba_user" --ingroup sambausers
-    [[ $? -eq 0 ]] && status_message "success" "User $samba_user added to the system." || status_message "error" "Failed to create system user $samba_user."
-fi
-
-# Set Samba password for the user
-echo "Setting Samba password for user $samba_user..." >> "$LOG_FILE"
-smbpasswd -a "$samba_user" >> "$LOG_FILE" 2>&1
-smbpasswd -e "$samba_user" >> "$LOG_FILE" 2>&1
-[[ $? -eq 0 ]] && status_message "success" "Samba user $samba_user has been created and enabled." || status_message "error" "Failed to set Samba password for $samba_user."
-
-# Output the Samba share information
-status_message "success" "Samba share '$SHARE_NAME' has been created successfully."
+# Final success message
+status_message "success" "Samba share 'mediadb' has been created successfully."
 echo "You can access it from other machines using:"
-echo "\\\\<Proxmox-IP>\\$SHARE_NAME"
-
-# Final reminder
-echo "Ensure your Cloudflared tunnel is set up correctly to expose the Samba service."
+echo "\\\\<Proxmox-IP>\mediadb"
