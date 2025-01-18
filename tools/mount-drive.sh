@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
-# purpose: this script mounts a user-specified external drive
+# purpose: this script mounts a user-specified external drive and optionally updates fstab
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -17,6 +17,13 @@ function status_message() {
         exit 1
     fi
 }
+
+# Verify if sudo is installed, otherwise install it
+if ! command -v sudo &>/dev/null; then
+    echo "sudo is not installed. Installing..."
+    apt-get update && apt-get install -y sudo || status_message "failure" "Failed to install sudo."
+    status_message "success" "sudo installed successfully."
+fi
 
 # Check if /mnt/extdrive exists, if not create it
 if [ ! -d "/mnt/extdrive" ]; then
@@ -70,6 +77,9 @@ else
                 sudo apt-get update && sudo apt-get install -y exfat-fuse || status_message "failure" "Failed to install exfat-fuse."
             fi
             ;;
+        "ext4")
+            echo "EXT4 detected. No additional drivers needed."
+            ;;
         *)
             status_message "failure" "Unsupported filesystem: $DRIVE_FS."
             ;;
@@ -78,4 +88,19 @@ else
     # Mount the drive
     sudo mount "/dev/$SELECTED_DRIVE" /mnt/extdrive || status_message "failure" "Failed to mount the drive."
     status_message "success" "Drive mounted successfully to /mnt/extdrive."
+
+    # Ask if the user wants to update fstab
+    echo "Do you want to update /etc/fstab to auto-mount this drive on reboot? (y/n)"
+    read -r UPDATE_FSTAB
+    if [[ "$UPDATE_FSTAB" =~ ^[Yy]$ ]]; then
+        UUID=$(blkid -s UUID -o value "/dev/$SELECTED_DRIVE")
+        if [ -n "$UUID" ]; then
+            echo "UUID=$UUID /mnt/extdrive $DRIVE_FS defaults 0 0" | sudo tee -a /etc/fstab
+            status_message "success" "/etc/fstab updated successfully. The drive will auto-mount on reboot."
+        else
+            status_message "failure" "Failed to retrieve UUID for /dev/$SELECTED_DRIVE."
+        fi
+    else
+        echo "fstab update skipped."
+    fi
 fi
