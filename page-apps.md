@@ -29,9 +29,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
 ```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
-```
 
 ## FOSS
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
