@@ -32,8 +32,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 
 ## FOSS
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
-- [usememos](https://github.com/usememos/memos)
+- [nextcloud](https://hub.docker.com/_/nextcloud)
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
+- [usememos](https://github.com/usememos/memos)
 
 ## References
 - List of self-hosted apps: [awesome] | [mikeroyal]
