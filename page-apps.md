@@ -36,7 +36,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 
 ## References
-- List of self-hosted apps - [awesome] | [mikeroyal]
+- List of self-hosted apps: [awesome] | [mikeroyal]
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
 - [Main](README.md)
 
