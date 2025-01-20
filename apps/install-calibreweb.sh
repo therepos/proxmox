@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://your-repository-url/install-calibre-web.sh)"
-# Purpose: This script installs Calibre-Web Docker.
+# purpose: this script installs calibre-web docker
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
