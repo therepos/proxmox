@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-calibre-web.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-calibreweb.sh)"
 # purpose: this script installs calibre-web docker
 
 # Define colors and status symbols
