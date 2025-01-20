@@ -31,6 +31,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ```
 
 ## FOSS
+- [actualbudget](https://github.com/actualbudget/actual-server/blob/master/docker-compose.yml)
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
