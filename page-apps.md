@@ -36,6 +36,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
 - [nextcloud](https://hub.docker.com/_/nextcloud)
+- [paperless](https://docs.paperless-ngx.com/setup/#docker)
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 - [usememos](https://github.com/usememos/memos)
 
