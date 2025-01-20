@@ -41,6 +41,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [readeck](https://readeck.org/en/docs/compose)
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 - [usememos](https://github.com/usememos/memos)
+- [zipline](https://zipline.diced.sh/docs/get-started)
 
 ## References
 - List of self-hosted apps: [awesome] | [mikeroyal]
