@@ -34,6 +34,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [actualbudget](https://github.com/actualbudget/actual-server/blob/master/docker-compose.yml)
 - [calibreweb](https://hub.docker.com/r/linuxserver/calibre-web)
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
+- [hoader](https://github.com/hoarder-app/hoarder/blob/main/docker/docker-compose.yml)
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
 - [nextcloud](https://hub.docker.com/_/nextcloud)
@@ -42,6 +43,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 - [syncthing](https://github.com/syncthing/syncthing/blob/main/README-Docker.md)
 - [usememos](https://github.com/usememos/memos)
+- [vikunja](https://vikunja.io/docs/full-docker-example/)
 - [wastebin](https://awesome-docker-compose.com/apps/pastebins/wastebin)
 - [zipline](https://zipline.diced.sh/docs/get-started)
 
