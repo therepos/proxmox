@@ -42,6 +42,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 - [syncthing](https://github.com/syncthing/syncthing/blob/main/README-Docker.md)
 - [usememos](https://github.com/usememos/memos)
+- [wastebin](https://awesome-docker-compose.com/apps/pastebins/wastebin)
 - [zipline](https://zipline.diced.sh/docs/get-started)
 
 ## References
