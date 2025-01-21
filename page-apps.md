@@ -35,6 +35,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [calibreweb](https://hub.docker.com/r/linuxserver/calibre-web)
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
 - [hoader](https://github.com/hoarder-app/hoarder/blob/main/docker/docker-compose.yml)
+- [homarr](https://homarr.dev/docs/getting-started/installation/docker/)
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
 - [nextcloud](https://hub.docker.com/_/nextcloud)
