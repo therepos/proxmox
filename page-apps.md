@@ -36,6 +36,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
 - [hoader](https://github.com/hoarder-app/hoarder/blob/main/docker/docker-compose.yml)
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
+- [mealie](https://docs.techdox.nz/mealie/)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
 - [nextcloud](https://hub.docker.com/_/nextcloud)
 - [paperless](https://docs.paperless-ngx.com/setup/#docker)
