@@ -31,6 +31,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ```
 
 ## FOSS
+- [audiobookshelf](https://github.com/advplyr/audiobookshelf/blob/master/docker-compose.yml)
 - [actualbudget](https://github.com/actualbudget/actual-server/blob/master/docker-compose.yml)
 - [calibreweb](https://hub.docker.com/r/linuxserver/calibre-web)
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
