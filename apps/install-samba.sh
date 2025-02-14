@@ -1,6 +1,10 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
 # purpose: this script installs samba
+# =====
+# notes: to ensure files inside the directory have the right permissions 
+# sudo find /mnt/sec/media -type f -exec chmod 664 {} \;
+# sudo find /mnt/sec/media -type d -exec chmod 775 {} \;
 
 # Define colors and status symbols
 GREEN="\e[32m\u2714\e[0m"
@@ -80,12 +84,12 @@ workgroup = WORKGROUP
    read only = no
    create mask = 0775
    directory mask = 0775
-   valid users = @sambausers
+   valid users = toor
 " >> /etc/samba/smb.conf
     [[ $? -eq 0 ]] && status_message "success" "Samba share configuration added for '$share_name'." || status_message "error" "Failed to add Samba share configuration for '$share_name'."
 
     # Set permissions for the directory
-    chown -R root:sambausers "$share_path" >> "$LOG_FILE" 2>&1
+    chown -R root:toor "$share_path" >> "$LOG_FILE" 2>&1
     chmod -R 775 "$share_path" >> "$LOG_FILE" 2>&1
     [[ $? -eq 0 ]] && status_message "success" "Permissions set for $share_path." || status_message "error" "Failed to set permissions for $share_path."
 
@@ -112,7 +116,7 @@ function setup_samba_user() {
 
     # Add the user
     useradd -m -s /bin/bash "$samba_user" >> "$LOG_FILE" 2>&1
-    usermod -aG sambausers "$samba_user" >> "$LOG_FILE" 2>&1
+    usermod -aG toor "$samba_user" >> "$LOG_FILE" 2>&1
 
     read -s -p "Enter a password for the Samba user '$samba_user': " samba_password
     echo
