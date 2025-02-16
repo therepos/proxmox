@@ -1,0 +1,16 @@
+services:
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    ports:
+      - "3017:4533"
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_SCANINTERVAL: 1140m
+      ND_LOGLEVEL: info
+      ND_PORT: 4533
+      ND_SESSIONTIMEOUT: "168h"
+    volumes:
+      - "/mnt/sec/apps/navidrome/data:/data"
+      - "/mnt/sec/media/music:/music"

@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  metube:
+    image: alexta69/metube:latest
+    container_name: metube
+    network_mode: bridge
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Singapore
+    volumes:
+      - /mnt/sec/apps/metube/downloads:/downloads
+    ports:
+      - "3010:8081"

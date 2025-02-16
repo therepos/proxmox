@@ -1,0 +1,14 @@
+services:
+  guacamole:
+    image: abesnier/guacamole
+    container_name: guacamole
+    volumes:
+      - /config:/config
+    ports:
+      - 4000:8080
+    networks:             # optional:
+      - windows_default   # to use the same network as windows-vm
+
+networks:
+  windows_default:
+    external: true

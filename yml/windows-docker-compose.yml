@@ -1,0 +1,27 @@
+services:
+  windows:
+    image: dockurr/windows
+    container_name: windows
+    environment:
+      VERSION: "11"
+      RAM_SIZE: "16G"
+      CPU_CORES: "8"      
+      DISK_SIZE: "128G"
+      USERNAME: "windows"
+      PASSWORD: "windows"
+      REGION: "en-SG"
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    volumes:
+#     - /mnt/sec/media:/data
+      - /mnt/sec/apps/Win11_24H2_English_x64.iso:/custom.iso
+      - /mnt/sec/apps/windows/storage:/storage
+    ports:
+      - 3023:8006
+      - 3389:3389/tcp
+      - 3389:3389/udp
+    restart: always
+    stop_grace_period: 2m
