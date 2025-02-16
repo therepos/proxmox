@@ -62,6 +62,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 
 ## References
 - List of self-hosted apps: [awesome] | [mikeroyal]
+- [List of video editors](https://gist.github.com/jcamp/24d9d4882d81a83db598dac281056960)
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
 - [Main](README.md)
 
