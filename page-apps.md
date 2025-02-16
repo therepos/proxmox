@@ -63,7 +63,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ## References
 - List of self-hosted apps: [awesome] | [mikeroyal] | [linuxserver]
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
-- [Main](README.md)
 
 [awesome]: https://github.com/awesome-selfhosted/awesome-selfhosted
 [mikeroyal]: https://github.com/mikeroyal/Self-Hosting-Guide
