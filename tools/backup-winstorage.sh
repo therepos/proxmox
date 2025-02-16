@@ -7,12 +7,12 @@ DEST_DIR="/mnt/sec/backup/docker/storage/"
 
 # Check if the destination folder exists
 if [ -d "$DEST_DIR" ]; then
-    # Get the creation time of the destination folder and format it as yyyymmdd-hhmm
-    CREATION_TIME=$(stat -c %y "$DEST_DIR" | cut -d' ' -f1 | sed 's/-//g')"-"$(stat -c %y "$DEST_DIR" | cut -d' ' -f2 | sed 's/://g' | cut -d'.' -f1)
+    # Get the current date and time, formatted as yyyymmdd-hhmm
+    CURRENT_TIME=$(date +"%Y%m%d-%H%M")
 
-    # Rename the existing folder by appending the timestamp
-    mv "$DEST_DIR" "${DEST_DIR%/}-$CREATION_TIME"
-    echo "Renamed existing folder to ${DEST_DIR%/}-$CREATION_TIME"
+    # Rename the existing folder by appending the current timestamp
+    mv "$DEST_DIR" "${DEST_DIR%/}-$CURRENT_TIME"
+    echo "Renamed existing folder to ${DEST_DIR%/}-$CURRENT_TIME"
 fi
 
 # Create the destination directory again (if it doesn't exist)
