@@ -47,4 +47,5 @@ volumes:
   data:
 
 # notes:
-#  get .env file from: https://github.com/hoarder-app/hoarder/blob/main/docker/.env.sample
+# -------------------------------------------
+# get .env file from: https://github.com/hoarder-app/hoarder/blob/main/docker/.env.sample
