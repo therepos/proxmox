@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/expect
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
 # purpose: this script removes user-specified docker container
 
