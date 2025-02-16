@@ -52,6 +52,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [usememos](https://github.com/usememos/memos)
 - [vikunja](https://vikunja.io/docs/full-docker-example/)
 - [wastebin](https://awesome-docker-compose.com/apps/pastebins/wastebin)
+- [webmin](https://webmin.com/download/#debian-and-derivatives)
 - [windows](https://github.com/dockur/windows)
 - [zipline](https://zipline.diced.sh/docs/get-started)
 
