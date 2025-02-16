@@ -1,0 +1,13 @@
+services:
+  audacity:
+    image: lscr.io/linuxserver/audacity:latest
+    container_name: audacity
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Singapore
+    volumes:
+      - /mnt/sec/apps/audacity/config:/config
+    ports:
+      - 3024:3000
+    restart: unless-stopped
