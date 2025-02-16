@@ -33,6 +33,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 ## FOSS
 - [actualbudget](https://github.com/actualbudget/actual-server/blob/master/docker-compose.yml)
 - [anythingllm](https://github.com/Mintplex-Labs/anything-llm/blob/master/docker/HOW_TO_USE_DOCKER.md)
+- [audacity](https://github.com/linuxserver/docker-audacity)
 - [audiobookshelf](https://github.com/advplyr/audiobookshelf/blob/master/docker-compose.yml)
 - [calibreweb](https://hub.docker.com/r/linuxserver/calibre-web)
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
