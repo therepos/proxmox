@@ -1,4 +1,5 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-winstorage.sh)"
 
 # Source and destination directories
 SOURCE_DIR="/mnt/sec/apps/windows/storage/"
