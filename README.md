@@ -3,6 +3,9 @@ A collection of scripts designed to simplify the installation, management, and u
 
 ## Tool Scripts
 ```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-dockerwinstorage.sh)"
+```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-zfs.sh)"
 ```
 ```bash
@@ -25,6 +28,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-d
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
+```
+```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/restore-dockerwinstorage.sh)"
 ```
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
