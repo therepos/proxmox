@@ -32,7 +32,8 @@ apt-get install -y \
     ca-certificates \
     curl \
     software-properties-common \
-    gnupg lsb-release zfsutils-linux &>/dev/null
+    gnupg lsb-release zfsutils-linux \
+    jq &>/dev/null
 status_message success "Prerequisites installed successfully."
 
 # Step 3: Verify ZFS Availability for Docker
