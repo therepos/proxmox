@@ -99,7 +99,7 @@ if [ ! -f "$STEP_DEPENDENCIES" ]; then
 fi
 
 # Step 5: Download NVIDIA Driver
-NVIDIA_VERSION=${1:-"550.135"}
+NVIDIA_VERSION=${1:-"550.144.03"}
 NVIDIA_URL="https://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_VERSION}.run"
 if [ ! -f "$STEP_DRIVER_DOWNLOAD" ]; then
     print_status "success" "Downloading NVIDIA driver"
