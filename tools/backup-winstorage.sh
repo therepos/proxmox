@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-winstorage.sh)"
+# purpose: this script backups storage folder in a docker container called windows
 
 # Source and destination directories
 SOURCE_DIR="/mnt/sec/apps/windows/storage/"
