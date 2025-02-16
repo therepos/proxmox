@@ -77,7 +77,7 @@ if [[ "$REMOVE_RESOURCES" == "y" || "$REMOVE_RESOURCES" == "Y" ]]; then
     status_message "success" "Cleaned up Docker networks."
 
     # Clean up unused Docker resources
-    docker system prune -f &>/dev/null
+    docker system prune -a -f &>/dev/null
     status_message "success" "Cleaned up unused Docker resources."
 fi
 
