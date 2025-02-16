@@ -22,3 +22,7 @@ services:
 # docker exec -it gimp /bin/bash
 # apk add --no-cache fontconfig ttf-freefont
 # fc-cache -f -v
+# -------------------------------------------
+# Update gimp:
+# Edit > Preferences > Folders > Fonts 
+# add folder: /usr/share/fonts/noto
