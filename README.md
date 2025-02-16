@@ -6,12 +6,6 @@ A collection of scripts designed to simplify the installation, management, and u
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-winstorage.sh)"
 ```
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-zfs.sh)"
-```
-```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-vm.sh)"
-```
-```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
 ```
 ```bash
