@@ -17,12 +17,13 @@ services:
       - 3022:3001
     restart: unless-stopped
 
-# Install fontconfig inside the container
+# notes:
 # -------------------------------------------
+# install fontconfig inside the container:
 # docker exec -it gimp /bin/bash
 # apk add --no-cache fontconfig ttf-freefont
 # fc-cache -f -v
 # -------------------------------------------
-# Update gimp:
+# update gimp:
 # Edit > Preferences > Folders > Fonts 
 # add folder: /usr/share/fonts/noto
