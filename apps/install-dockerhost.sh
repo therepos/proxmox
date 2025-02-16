@@ -81,23 +81,8 @@ if [ ! -f "$DOCKER_CONFIG" ]; then
 }
 EOF
 else
-    # Check if jq is available
-    if command -v jq &>/dev/null; then
-        # Use jq if it's available
-        jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
-        mv /tmp/daemon.json "$DOCKER_CONFIG"
-    else
-        # If jq isn't available, manually append the configuration to the file
-        echo '{
-    "storage-driver": "zfs",
-    "runtimes": {
-        "nvidia": {
-            "path": "nvidia-container-runtime",
-            "runtimeArgs": []
-        }
-    }
-}' | sudo tee -a "$DOCKER_CONFIG" > /dev/null
-    fi
+    jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
+    mv /tmp/daemon.json "$DOCKER_CONFIG"
 fi
 
 systemctl restart docker &>/dev/null
