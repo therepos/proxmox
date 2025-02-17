@@ -1,5 +1,5 @@
 services:
-  stirling-pdf:
+  stirlingpdf:
     image: frooodle/s-pdf:latest
     ports:
       - '3013:8080'
