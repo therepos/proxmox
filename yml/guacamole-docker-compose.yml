@@ -3,7 +3,7 @@ services:
     image: abesnier/guacamole
     container_name: guacamole
     volumes:
-      - /config:/config
+      - /mnt/sec/apps/guacamole/config:/config
     ports:
       - 4000:8080
     networks:             # optional:
