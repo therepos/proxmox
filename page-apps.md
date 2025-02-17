@@ -53,7 +53,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [stirling-pdf](https://hub.docker.com/r/frooodle/s-pdf)
 - [syncthing](https://github.com/syncthing/syncthing/blob/main/README-Docker.md)
 - [ultimatevocalremover](https://github.com/Anjok07/ultimatevocalremovergui)
-- [usememos](https://github.com/usememos/memos)
+- [usememos](https://www.usememos.com/docs/install/container-install)
 - [vikunja](https://vikunja.io/docs/full-docker-example/)
 - [wastebin](https://awesome-docker-compose.com/apps/pastebins/wastebin)
 - [webmin](https://webmin.com/download/#debian-and-derivatives)
