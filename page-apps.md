@@ -40,6 +40,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [cloudflared](https://tteck.github.io/Proxmox/#cloudflared-lxc)
 - [guacamole](https://github.com/abesnier/docker-guacamole)
 - [gimp](https://github.com/linuxserver/docker-gimp)
+- [ghostfolio](https://github.com/ghostfolio/ghostfolio/blob/main/docker/docker-compose.yml)
 - [grocy](https://hub.docker.com/r/linuxserver/grocy)
 - [hoader](https://github.com/hoarder-app/hoarder/blob/main/docker/docker-compose.yml)
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
