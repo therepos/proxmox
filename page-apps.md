@@ -30,7 +30,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
 ```
 
-## FOSS
+## FOSS Installs
 - [actualbudget](https://github.com/actualbudget/actual-server/blob/master/docker-compose.yml)
 - [anythingllm](https://github.com/Mintplex-Labs/anything-llm/blob/master/docker/HOW_TO_USE_DOCKER.md)
 - [audacity](https://github.com/linuxserver/docker-audacity)
