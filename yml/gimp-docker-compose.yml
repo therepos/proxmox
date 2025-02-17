@@ -18,7 +18,7 @@ services:
       - PGID=1000
       - TZ=Asia/Singapore
     volumes:
-      - /config:/config
+      - /mnt/sec/apps/gimp/config:/config
       - /mnt/sec/media/images/gimp:/mnt
       - /mnt/sec/media/fonts:/usr/share/fonts/noto
     ports:
