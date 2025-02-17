@@ -1,4 +1,14 @@
 # rename calibreweb-metadata.db to metadata.db to initialise database
+# additional steps required:
+# 1. check the User and Group IDs inside the container: 
+#  docker exec -it <container_name> /bin/sh
+#  id
+#  exit
+#  (e.g. output: uid=0(root) gid=0(root) groups=0(root))
+# 2. check ownership of your books directory:
+#  ls -ld /mnt/sec/media/books
+# 3. match the ownership of the books directory to Docker container UID and GID: 
+#  sudo chown root:root /mnt/sec/media/books
 
 services:
   calibreweb:
@@ -11,8 +21,8 @@ services:
       - DOCKER_MODS=linuxserver/mods:universal-calibre #optional
       - OAUTHLIB_RELAX_TOKEN_SCOPE=1 #optional
     volumes:
-      - /mnt/sec/apps/calibreweb/config:/config
-      - /mnt/sec/media/books:/books
+      - /mnt/sec/apps/calibreweb/config:/config:rw
+      - /mnt/sec/media/books:/books:rw
     ports:
       - 3015:8083
     restart: unless-stopped
