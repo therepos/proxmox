@@ -25,3 +25,9 @@ services:
       - 3389:3389/udp
     restart: always
     stop_grace_period: 2m
+    networks:             # optional:
+      - windows_default   # to use the same network as windows-vm
+
+networks:
+  windows_default:
+    external: true
