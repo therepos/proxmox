@@ -1,5 +1,3 @@
-# notes:
-# -------------------------------------------
 # install fontconfig inside the container:
 #  docker exec -it gimp /bin/bash
 #  apk add --no-cache fontconfig ttf-freefont
