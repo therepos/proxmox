@@ -10,13 +10,15 @@ services:
       USERNAME: "windows"
       PASSWORD: "windows"
       REGION: "en-SG"
+#     GPU: "Y"                  # uncomment for igpu passthrough
     devices:
       - /dev/kvm
       - /dev/net/tun
+#     - /dev/dri                # uncomment for igpu passthrough
     cap_add:
       - NET_ADMIN
     volumes:
-#     - /mnt/sec/media:/data
+#     - /mnt/sec/media:/data    # uncomment for igpu passthrough
       - /mnt/sec/apps/Win11_24H2_English_x64.iso:/custom.iso
       - /mnt/sec/apps/windows/storage:/storage
     ports:
@@ -25,8 +27,8 @@ services:
       - 3389:3389/udp
     restart: always
     stop_grace_period: 2m
-    networks:             # optional:
-      - windows_default   # to use the same network as windows-vm
+    networks:                 
+      - windows_default         # to share the same network
 
 networks:
   windows_default:
