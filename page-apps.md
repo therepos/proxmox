@@ -61,9 +61,10 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [zipline](https://zipline.diced.sh/docs/get-started)
 
 ## References
-- List of self-hosted apps: [awesome] | [mikeroyal] | [linuxserver]
+- List of self-hosted apps: [awesome] | [mikeroyal] | [linuxserver] | [opensourcealternative]
 - [Community helper scripts](https://community-scripts.github.io/ProxmoxVE/scripts)
 
 [awesome]: https://github.com/awesome-selfhosted/awesome-selfhosted
 [mikeroyal]: https://github.com/mikeroyal/Self-Hosting-Guide
 [linuxserver]: https://docs.linuxserver.io/images-by-category/
+[opensourcealternative]: https://opensourcealternative.to/
