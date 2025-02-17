@@ -1,3 +1,6 @@
+# get .env file from: https://github.com/hoarder-app/hoarder/blob/main/docker/.env.sample
+# portainer: rename .env.sample to stack.env
+
 services:
   web:
     image: ghcr.io/hoarder-app/hoarder:${HOARDER_VERSION:-release}
@@ -45,8 +48,3 @@ services:
 volumes:
   meilisearch:
   data:
-
-# notes:
-# -------------------------------------------
-# get .env file from: https://github.com/hoarder-app/hoarder/blob/main/docker/.env.sample
-# rename to stack.env if using portainer
