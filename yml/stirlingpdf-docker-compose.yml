@@ -4,10 +4,10 @@ services:
     ports:
       - '3013:8080'
     volumes:
-      - ./trainingData:/usr/share/tessdata #Required for extra OCR languages
-      - ./extraConfigs:/configs
-#      - ./customFiles:/customFiles/
-#      - ./logs:/logs/
+      - /mnt/sec/apps/stirlingpdf/trainingData:/usr/share/tessdata #Required for extra OCR languages
+      - /mnt/sec/apps/stirlingpdf/extraConfigs:/configs
+#      - /mnt/sec/apps/stirlingpdf/customFiles:/customFiles/
+#      - /mnt/sec/apps/stirlingpdf/logs:/logs/
     environment:
       - DOCKER_ENABLE_SECURITY=false
       - INSTALL_BOOK_AND_ADVANCED_HTML_OPS=false
