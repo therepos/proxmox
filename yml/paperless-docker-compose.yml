@@ -25,6 +25,8 @@
 #
 # For more extensive installation and update instructions, refer to the
 # documentation.
+#
+# portainer: rename paperless-docker-compose.env to stack.env
 
 services:
   broker:
