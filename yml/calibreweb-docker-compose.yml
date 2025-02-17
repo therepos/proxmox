@@ -1,3 +1,5 @@
+# rename calibreweb-metadata.db to metadata.db to initialise database
+
 services:
   calibreweb:
     image: lscr.io/linuxserver/calibre-web:latest
@@ -9,7 +11,7 @@ services:
       - DOCKER_MODS=linuxserver/mods:universal-calibre #optional
       - OAUTHLIB_RELAX_TOKEN_SCOPE=1 #optional
     volumes:
-      - ./config:/config
+      - /mnt/sec/apps/calibreweb/config:/config
       - /mnt/sec/media/books:/books
     ports:
       - 3015:8083
