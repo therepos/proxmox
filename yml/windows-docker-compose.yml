@@ -1,3 +1,5 @@
+# issue: nvidia gpu passthrough only reach container level not windows
+
 services:
   windows:
     image: dockurr/windows
