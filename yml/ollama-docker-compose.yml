@@ -5,7 +5,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ./ollama_data:/root/.ollama
+      - /mnt/sec/apps/ollama/data:/root/.ollama
     restart: unless-stopped
     deploy:
       resources:
@@ -22,7 +22,7 @@ services:
     environment:
       - 'OLLAMA_BASE_URL=http://ollama:11434'
     volumes:
-      - ./webui:/app/backend/data
+      - /mnt/sec/apps/ollama/webui:/app/backend/data
     ports:
       - "3014:8080"
     extra_hosts:
