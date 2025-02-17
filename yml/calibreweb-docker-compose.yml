@@ -1,5 +1,5 @@
 # additional steps required:
-# 1. rename calibreweb-metadata.db to metadata.db to initialise database
+# 1. save metadata.db to /config for database initialisation
 # 2. check the User and Group IDs inside the container: 
 #  docker exec -it <container_name> /bin/sh
 #  id
