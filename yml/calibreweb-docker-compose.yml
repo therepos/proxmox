@@ -1,13 +1,13 @@
-# rename calibreweb-metadata.db to metadata.db to initialise database
 # additional steps required:
-# 1. check the User and Group IDs inside the container: 
+# 1. rename calibreweb-metadata.db to metadata.db to initialise database
+# 2. check the User and Group IDs inside the container: 
 #  docker exec -it <container_name> /bin/sh
 #  id
 #  exit
 #  (e.g. output: uid=0(root) gid=0(root) groups=0(root))
-# 2. check ownership of your books directory:
+# 3. check ownership of your books directory:
 #  ls -ld /mnt/sec/media/books
-# 3. match the ownership of the books directory to Docker container UID and GID: 
+# 4. match the ownership of the books directory to Docker container UID and GID: 
 #  sudo chown root:root /mnt/sec/media/books
 
 services:
