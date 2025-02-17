@@ -49,3 +49,4 @@ volumes:
 # notes:
 # -------------------------------------------
 # get .env file from: https://github.com/hoarder-app/hoarder/blob/main/docker/.env.sample
+# rename to stack.env if using portainer
