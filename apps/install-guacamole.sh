@@ -89,7 +89,7 @@ fi
 # Step 5: Execute the Guacamole setup script inside the container
 pct enter "$CTID" <<EOF
     echo "Running the Guacamole setup script inside the container..."
-    su - admin -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
+    su -l admin -c "wget https://raw.githubusercontent.com/itiligent/Guacamole-Install/main/1-setup.sh && chmod +x 1-setup.sh && ./1-setup.sh"
 EOF
 
 if [[ $? -ne 0 ]]; then
