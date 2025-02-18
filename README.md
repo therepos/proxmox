@@ -3,9 +3,6 @@ A collection of scripts designed to simplify the installation, management, and u
 
 ## Tool Scripts
 ```bash
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-winstorage.sh)"
-```
-```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
 ```
 ```bash
