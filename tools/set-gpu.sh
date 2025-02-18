@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
-# purpose: this script setups/switches nvidia gpu passthrough
+# purpose: this script setups/switches nvidia gpu passthrough between vm and docker
 
 # List available VMs in numbered format
 echo "Available VMs:"
