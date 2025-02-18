@@ -3,15 +3,23 @@
 OUTPUT_DIR="/mnt/sec/apps/ocrmypdf/output"
 PAPERLESS_CONSUME_DIR="/mnt/sec/apps/paperless/consume"
 
-# Wait for a 'close_write' event on PDF files in the output directory
-inotifywait -m -e close_write --format "%f" "$OUTPUT_DIR" | while read filename
-do
-  # Check if the closed file is a PDF
-  if [[ "$filename" == *.pdf ]]; then
-    echo "File $filename is now closed and ready to be moved."
+# Ensure the output directory exists
+if [ ! -d "$OUTPUT_DIR" ]; then
+  echo "Output directory $OUTPUT_DIR does not exist!"
+  exit 1
+fi
 
-    # Move the file to the Paperless consume folder
-    mv "$OUTPUT_DIR/$filename" "$PAPERLESS_CONSUME_DIR/$filename"
-    echo "$filename has been moved to the Paperless consume folder."
+# Process all PDF files in the output folder
+for filename in "$OUTPUT_DIR"/*.pdf; do
+  # Skip if no PDF files exist
+  if [ ! -f "$filename" ]; then
+    echo "No PDF files found in $OUTPUT_DIR."
+    break
   fi
+
+  echo "Moving file to Paperless consume folder: $filename"
+
+  # Move the file to the Paperless consume folder
+  mv "$filename" "$PAPERLESS_CONSUME_DIR/$(basename "$filename")"
+  echo "$filename has been moved to the Paperless consume folder."
 done
