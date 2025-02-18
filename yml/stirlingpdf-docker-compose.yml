@@ -3,6 +3,7 @@ services:
     image: frooodle/s-pdf:latest
     ports:
       - '3013:8080'
+    restart: unless-stopped
     volumes:
       - /mnt/sec/apps/stirlingpdf/trainingData:/usr/share/tessdata #Required for extra OCR languages
       - /mnt/sec/apps/stirlingpdf/extraConfigs:/configs
