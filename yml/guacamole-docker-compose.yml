@@ -6,6 +6,7 @@ services:
       - /mnt/sec/apps/guacamole/config:/config
     ports:
       - 3024:8080
+    restart: unless-stopped
     networks:             # optional:
       - windows_default   # to use the same network as windows-vm
 
