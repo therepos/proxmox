@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Define script URLs (Replace with your actual GitHub repository URLs)
-OCR_SCRIPT_URL="https://github.com/username/repository/raw/main/ocr_process.sh"
-MOVE_SCRIPT_URL="https://github.com/username/repository/raw/main/move_to_paperless.sh"
+OCR_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scanfiles.sh"
+MOVE_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-movefiles.sh"
 
 # Fetch and run the OCR process script
 echo "Starting OCR process..."
