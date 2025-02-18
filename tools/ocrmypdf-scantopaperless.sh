@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scanfiles.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scantopaperless.sh)"
 # purpose: this script ocr scans files from ocrmypdf folder to paperless-ngx consume folder
 
 # Define script URLs (Replace with your actual GitHub repository URLs)
