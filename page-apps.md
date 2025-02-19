@@ -1,9 +1,3 @@
-[Jump to my example](./page-apps.md#anchori)
-### test
-## test
-#### test
-tesddf
-
 ## App Scripts
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh)"
@@ -66,8 +60,6 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [webmin](https://webmin.com/download/#debian-and-derivatives)
 - [windows](https://github.com/dockur/windows)
 - [zipline](https://zipline.diced.sh/docs/get-started)
-
-<a id="anchori"><a> this is an example
 
 ## References
 - List of self-hosted apps: [awesome] | [mikeroyal] | [linuxserver] | [opensourcealternative]
