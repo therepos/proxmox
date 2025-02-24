@@ -1,6 +1,11 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-portainer.sh)"
 # purpose: this script installs portainer docker
+# updating:
+#  docker stop portainer
+#  docker rm portainer
+#  <rerun the script to get the latest version>
+
 
 # Function to print status with green or red check marks
 print_status() {
