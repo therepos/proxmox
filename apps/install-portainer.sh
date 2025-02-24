@@ -6,7 +6,6 @@
 #  docker rm portainer
 #  <rerun the script to get the latest version>
 
-
 # Function to print status with green or red check marks
 print_status() {
     if [ "$1" == "success" ]; then
