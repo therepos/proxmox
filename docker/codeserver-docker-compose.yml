@@ -9,6 +9,9 @@
 #   /workspace/.pyenv/versions/3.x.x/bin/python
 # install python requirements:
 #   pip install -r requirements.txt
+# replace "hashed-password" with actual hashed password.
+#   docker run --rm -it mydockerhubusername/codeserver-pyenv jupyter notebook password
+#   
 
 services:
   codeserver:
@@ -33,8 +36,13 @@ services:
     working_dir: /workspace
     tty: true
     stdin_open: true
+    environment:
+      - JUPYTER_PASSWORD=${JUPYTER_PASSWORD}  # change password
     command: |
       /bin/bash -c "
-      cd ~/.pyenv && git pull && 
-      jupyter notebook --ip=0.0.0.0 --port=3024 --no-browser --allow-root & 
+      cd ~/.pyenv && git pull &&
+      mkdir -p /root/.jupyter &&
+      HASHED_PASS=$(python3 -c 'from notebook.auth import passwd; print(passwd(\"${JUPYTER_PASSWORD}\"))') &&
+      echo \"c.ServerApp.password = '$HASHED_PASS'\" > /root/.jupyter/jupyter_server_config.py &&
+      jupyter notebook --ip=0.0.0.0 --port=3024 --no-browser --allow-root --NotebookApp.token='' &
       exec bash"
