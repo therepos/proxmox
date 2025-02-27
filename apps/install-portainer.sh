@@ -47,7 +47,7 @@ DOCKER_HOST_IP=$(hostname -I | awk '{print $1}')
 
 # Pull the Portainer image
 print_status "success" "Pulling Portainer image"
-run_silent docker pull portainer/portainer-ce
+run_silent docker pull portainer/portainer-ce:latest
 
 # Run Portainer as a container
 print_status "success" "Running Portainer container"
@@ -58,7 +58,7 @@ run_silent docker run -d \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
     -v /mnt/sec/apps:/mnt/sec/apps \  # Grant access to `/mnt/sec/apps/`
-    portainer/portainer-ce
+    portainer/portainer-ce:latest
 
 # Wait for Portainer to start
 sleep 5
