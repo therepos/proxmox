@@ -9,9 +9,8 @@
 #   /workspace/.pyenv/versions/3.x.x/bin/python
 # install python requirements:
 #   pip install -r requirements.txt
-# replace "hashed-password" with actual hashed password.
-#   docker run --rm -it mydockerhubusername/codeserver-pyenv jupyter notebook password
-#   
+# dynamically set password or use env file:
+#   JUPYTER_PASSWORD=mysecurepassword docker-compose up -d
 
 services:
   codeserver:
