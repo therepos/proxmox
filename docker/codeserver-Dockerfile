@@ -7,44 +7,41 @@
 # save locally:
 #  docker save -o codeserver-pyenv.tar codeserver-pyenv
 
+FROM ubuntu:20.04
 
-FROM ubuntu:latest
-
-# Install dependencies for Pyenv and Python builds
+# Install dependencies
 RUN apt update && apt install -y \
-    make build-essential libssl-dev zlib1g-dev \
-    libbz2-dev libreadline-dev libsqlite3-dev \
-    wget curl llvm libncursesw5-dev xz-utils \
-    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
-    git  # Ensure Git is installed before Pyenv
+    git curl make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
+    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
+    libffi-dev liblzma-dev
 
-# Install Pyenv
-RUN curl https://pyenv.run | bash && \
-    echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-
-# **Fix: Ensure Pyenv is available in all Docker RUN commands**
-ENV PATH="/root/.pyenv/bin:$PATH"
-ENV PYENV_ROOT="/root/.pyenv"
-ENV PATH="$PYENV_ROOT/shims:$PATH"
-
-# Install the latest Python dynamically
-RUN cd ~/.pyenv && git pull && \
-    LATEST_PYTHON=$(pyenv install --list | grep -E '^[ ]*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d ' ') && \
-    pyenv install "$LATEST_PYTHON" && \
-    pyenv global "$LATEST_PYTHON"
-
-# Install Python packages
-RUN pip install --upgrade pip && \
-    pip install virtualenv jupyter flask django numpy pandas
-
-# Verify Pyenv, Python, and Jupyter
-RUN echo "✔ Pyenv Version:" && pyenv --version && \
-    echo "✔ Installed Python Version:" && python --version && \
-    echo "✔ Jupyter Version:" && jupyter --version
+# Create coder user
+RUN useradd -m -s /bin/bash coder
 
 # Set working directory
-WORKDIR /workspace
+WORKDIR /home/coder
 
+# Install Pyenv in the correct location
+RUN git clone https://github.com/pyenv/pyenv.git /home/coder/.pyenv
 
+# Set environment variables
+ENV PYENV_ROOT="/home/coder/.pyenv"
+ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+
+# Initialize Pyenv
+RUN echo 'export PYENV_ROOT="/home/coder/.pyenv"' >> /home/coder/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"' >> /home/coder/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> /home/coder/.bashrc
+
+# Change ownership to coder user
+RUN chown -R coder:coder /home/coder/.pyenv
+
+# Switch to coder user
+USER coder
+
+# Install a default Python version using Pyenv
+RUN /home/coder/.pyenv/bin/pyenv install 3.10.9 && \
+    /home/coder/.pyenv/bin/pyenv global 3.10.9
+
+CMD ["/bin/bash"]
