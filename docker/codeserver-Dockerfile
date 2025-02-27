@@ -1,0 +1,41 @@
+# purpose: this dockerfile installs pyenv inside docker container
+# use: docker-compose up --build -d
+
+FROM ubuntu:latest
+
+# Install dependencies for Pyenv
+RUN apt update && apt install -y \
+    make build-essential libssl-dev zlib1g-dev \
+    libbz2-dev libreadline-dev libsqlite3-dev \
+    wget curl llvm libncursesw5-dev xz-utils \
+    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
+
+# Install Pyenv
+RUN curl https://pyenv.run | bash && \
+    echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
+
+# Set shell profile
+SHELL ["/bin/bash", "-c"]
+
+# Install the latest Python dynamically
+RUN source ~/.bashrc && \
+    cd ~/.pyenv && git pull && \
+    LATEST_PYTHON=$(pyenv install --list | grep -E '^[ ]*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d ' ') && \
+    pyenv install "$LATEST_PYTHON" && \
+    pyenv global "$LATEST_PYTHON"
+
+# Install Python packages
+RUN source ~/.bashrc && \
+    pip install --upgrade pip && \
+    pip install virtualenv jupyter flask django numpy pandas matplotlib seaborn scipy scikit-learn
+
+# Verify Pyenv, Python, and Jupyter
+RUN source ~/.bashrc && \
+    echo "✅ Pyenv Version:" && pyenv --version && \
+    echo "✅ Installed Python Version:" && python --version && \
+    echo "✅ Jupyter Version:" && jupyter --version
+
+# Set working directory
+WORKDIR /workspace

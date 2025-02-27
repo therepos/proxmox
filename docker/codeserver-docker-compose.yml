@@ -1,0 +1,34 @@
+# docker exec -it python-env bash
+# cd /workspace/my_project
+# python main.py
+
+# Ctrl + Shift + P → "Python: Select Interpreter"
+# Enter interpreter path > Find
+# /workspace/.pyenv/versions/3.x.x/bin/python
+
+# pip install -r requirements.txt
+
+services:
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    ports:
+      - "3023:8080"
+    volumes:
+      - ./workspace:/home/coder/workspace
+      - /home/coder/.pyenv:/home/coder/.pyenv  # Share Pyenv directory
+    environment:
+      - PASSWORD=toor
+
+  python-env:
+    build: .
+    container_name: python-env
+    ports:
+      - "3024:8888"
+    volumes:
+      - ./workspace:/workspace
+      - /home/coder/.pyenv:/home/coder/.pyenv  # Share Pyenv directory
+    working_dir: /workspace
+    tty: true
+    stdin_open: true
+    command: ["/bin/bash", "-c", "cd ~/.pyenv && git pull && exec bash"]
