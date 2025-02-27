@@ -4,6 +4,8 @@
 #  docker login -u mydockerhubusername
 #  docker tag mydockerimage mydockerhubusername/codeserver-pyenv:latest
 #  docker push mydockerhubusername/codeserver-pyenv:latest
+# save locally:
+#  docker save -o codeserver-pyenv.tar codeserver-pyenv
 
 
 FROM ubuntu:latest
