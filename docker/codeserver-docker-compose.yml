@@ -9,9 +9,9 @@
 # pip install -r requirements.txt
 
 services:
-  code-server:
+  codeserver:
     image: codercom/code-server:latest
-    container_name: code-server
+    container_name: codeserver
     ports:
       - "3023:8080"  # Code-Server access
     volumes:
@@ -20,9 +20,9 @@ services:
     environment:
       - PASSWORD=yourpassword
 
-  python-env:
+  pyenv:
     build: .
-    container_name: python-env
+    container_name: pyenv
     ports:
       - "3024:8888"  # Jupyter Notebook
     volumes:
