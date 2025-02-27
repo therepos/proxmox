@@ -58,7 +58,7 @@ run_silent docker run -d \
     --restart=always \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
-    -v /mnt/sec/apps:/mnt/sec/apps \  # Grant access to directory
+    -v /mnt/sec/apps:/mnt/sec/apps:z \
     portainer/portainer-ce:lts
     
 # Wait for Portainer to start
@@ -66,7 +66,7 @@ sleep 5
 
 # Verify if Portainer is running
 if docker ps | grep -q portainer; then
-    print_status "success" "Portainer is up and running at http://$DOCKER_HOST_IP:9000"
+    print_status "success" "Portainer is up and running at https://$DOCKER_HOST_IP:9443"
 else
     print_status "failure" "Portainer container failed to start"
 fi
