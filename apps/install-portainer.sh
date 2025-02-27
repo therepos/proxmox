@@ -45,21 +45,22 @@ fi
 # Automatically detect the Docker host IP address
 DOCKER_HOST_IP=$(hostname -I | awk '{print $1}')
 
-# Pull the Portainer image
-print_status "success" "Pulling Portainer image"
-run_silent docker pull portainer/portainer-ce:latest
+# Pull the latest LTS Portainer image
+print_status "success" "Pulling Portainer LTS image"
+run_silent docker pull portainer/portainer-ce:lts
 
-# Run Portainer as a container
+# Run Portainer as a container with updated ports
 print_status "success" "Running Portainer container"
 run_silent docker run -d \
-    -p 9000:9000 \
+    -p 8000:8000 \
+    -p 9443:9443 \
     --name portainer \
     --restart=always \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
-    -v /mnt/sec/apps:/mnt/sec/apps \  # Grant access to `/mnt/sec/apps/`
-    portainer/portainer-ce:latest
-
+    -v /mnt/sec/apps:/mnt/sec/apps \  # Grant access to directory
+    portainer/portainer-ce:lts
+    
 # Wait for Portainer to start
 sleep 5
 
