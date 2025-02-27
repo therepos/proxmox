@@ -36,14 +36,16 @@ services:
     tty: true
     stdin_open: true
     environment:
-      - JUPYTER_PASSWORD=password  # User-defined password
+      - JUPYTER_PASSWORD=password  # Ensure password is set correctly
     command: |
       /bin/bash -c '
       cd ~/.pyenv && git pull &&
       mkdir -p /root/.jupyter &&
       jupyter notebook --generate-config -y &&
+      sed -i "/c.ServerApp.password =/d" /root/.jupyter/jupyter_server_config.py
+      sed -i "/c.ServerApp.token =/d" /root/.jupyter/jupyter_server_config.py
       HASHED_PASS=$(python3 -c "from jupyter_server.auth import passwd; print(passwd(\"${JUPYTER_PASSWORD}\"))") &&
       echo "c.ServerApp.password = \"$HASHED_PASS\"" >> /root/.jupyter/jupyter_server_config.py &&
       echo "c.ServerApp.token = \"\"" >> /root/.jupyter/jupyter_server_config.py &&
-      jupyter notebook --config=/root/.jupyter/jupyter_server_config.py --ip=0.0.0.0 --port=3024 --no-browser --allow-root &
+      jupyter notebook --config=/root/.jupyter/jupyter_server_config.py --ip=0.0.0.0 --port=3024 --no-browser --allow-root --notebook-dir=/workspace &
       exec bash'
