@@ -21,7 +21,9 @@ services:
       - PASSWORD=yourpassword
 
   pyenv:
-    build: .
+#   build: .                             # Tell Docker where to find Dockerfile
+    build:
+      context: /mnt/sec/apps/codeserver  # Tell Portainer where to find Dockerfile
     container_name: pyenv
     ports:
       - "3024:8888"  # Jupyter Notebook
