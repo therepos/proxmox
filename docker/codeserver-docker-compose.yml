@@ -13,22 +13,26 @@ services:
     image: codercom/code-server:latest
     container_name: code-server
     ports:
-      - "3023:8080"
+      - "3023:8080"  # Code-Server access
     volumes:
-      - ./workspace:/home/coder/workspace
-      - /home/coder/.pyenv:/home/coder/.pyenv  # Share Pyenv directory
+      - /mnt/sec/apps/codeserver/workspace:/home/coder/workspace  # Persist projects
+      - /mnt/sec/apps/codeserver/pyenv:/home/coder/.pyenv  # Share Python env
     environment:
-      - PASSWORD=toor
+      - PASSWORD=yourpassword
 
   python-env:
     build: .
     container_name: python-env
     ports:
-      - "3024:8888"
+      - "3024:8888"  # Jupyter Notebook
     volumes:
-      - ./workspace:/workspace
-      - /home/coder/.pyenv:/home/coder/.pyenv  # Share Pyenv directory
+      - /mnt/sec/apps/codeserver/workspace:/workspace  # Persist projects
+      - /mnt/sec/apps/codeserver/pyenv:/home/coder/.pyenv  # Shared Python env
     working_dir: /workspace
     tty: true
     stdin_open: true
-    command: ["/bin/bash", "-c", "cd ~/.pyenv && git pull && exec bash"]
+    command: |
+      /bin/bash -c "
+      cd ~/.pyenv && git pull && 
+      jupyter notebook --ip=0.0.0.0 --port=3024 --no-browser --allow-root & 
+      exec bash"
