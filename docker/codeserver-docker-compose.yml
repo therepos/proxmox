@@ -44,4 +44,4 @@ services:
       - PYENV_ROOT=/home/coder/.pyenv
       - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
     command: >
-      bash -c "$(wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/docker/startup.sh)"
+      bash -c "$(wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/docker/codeserver-startup.sh)"
