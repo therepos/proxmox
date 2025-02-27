@@ -1,14 +1,20 @@
 # purpose: this dockerfile installs pyenv inside docker container
-# use: docker-compose up --build -d
+# use:
+#  docker build -t mydockerimage .
+#  docker login -u mydockerhubusername
+#  docker tag mydockerimage mydockerhubusername/codeserver-pyenv:latest
+#  docker push mydockerhubusername/codeserver-pyenv:latest
+
 
 FROM ubuntu:latest
 
-# Install dependencies for Pyenv
+# Install dependencies for Pyenv and Python builds
 RUN apt update && apt install -y \
     make build-essential libssl-dev zlib1g-dev \
     libbz2-dev libreadline-dev libsqlite3-dev \
     wget curl llvm libncursesw5-dev xz-utils \
-    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
+    tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev \
+    git  # ✅ Ensure Git is installed before Pyenv
 
 # Install Pyenv
 RUN curl https://pyenv.run | bash && \
@@ -16,26 +22,27 @@ RUN curl https://pyenv.run | bash && \
     echo 'eval "$(pyenv init --path)"' >> ~/.bashrc && \
     echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 
-# Set shell profile
-SHELL ["/bin/bash", "-c"]
+# **Fix: Ensure Pyenv is available in all Docker RUN commands**
+ENV PATH="/root/.pyenv/bin:$PATH"
+ENV PYENV_ROOT="/root/.pyenv"
+ENV PATH="$PYENV_ROOT/shims:$PATH"
 
 # Install the latest Python dynamically
-RUN source ~/.bashrc && \
-    cd ~/.pyenv && git pull && \
+RUN cd ~/.pyenv && git pull && \
     LATEST_PYTHON=$(pyenv install --list | grep -E '^[ ]*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d ' ') && \
     pyenv install "$LATEST_PYTHON" && \
     pyenv global "$LATEST_PYTHON"
 
 # Install Python packages
-RUN source ~/.bashrc && \
-    pip install --upgrade pip && \
-    pip install virtualenv jupyter flask django numpy pandas matplotlib seaborn scipy scikit-learn
+RUN pip install --upgrade pip && \
+    pip install virtualenv jupyter flask django numpy pandas
 
 # Verify Pyenv, Python, and Jupyter
-RUN source ~/.bashrc && \
-    echo "✅ Pyenv Version:" && pyenv --version && \
+RUN echo "✅ Pyenv Version:" && pyenv --version && \
     echo "✅ Installed Python Version:" && python --version && \
     echo "✅ Jupyter Version:" && jupyter --version
 
 # Set working directory
 WORKDIR /workspace
+
+
