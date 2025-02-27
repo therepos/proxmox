@@ -58,6 +58,7 @@ run_silent docker run -d \
     --restart=always \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
+    -v /mnt/sec/apps:/mnt/sec/apps:z \
     portainer/portainer-ce:lts
     
 # Wait for Portainer to start
