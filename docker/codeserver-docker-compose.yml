@@ -1,12 +1,14 @@
-# docker exec -it python-env bash
-# cd /workspace/my_project
-# python main.py
-# 
-# Ctrl + Shift + P → "Python: Select Interpreter"
-# Enter interpreter path > Find
-# /workspace/.pyenv/versions/3.x.x/bin/python
-#
-# pip install -r requirements.txt
+# purpose: this runs codeserver container with pyenv container support
+# navigate to python project directory:
+#   docker exec -it python-env bash
+#   cd /workspace/my_project
+#   python main.py
+# set python interpreter:
+#   Ctrl + Shift + P → "Python: Select Interpreter"
+#   Enter interpreter path > Find
+#   /workspace/.pyenv/versions/3.x.x/bin/python
+# install python requirements:
+#   pip install -r requirements.txt
 
 services:
   codeserver:
