@@ -1,6 +1,7 @@
 #!/bin/bash
+set -e  # Exit if any command fails
 
-# Install dependencies (if not already installed)
+# Install dependencies
 apt update && apt install -y git curl make build-essential libssl-dev zlib1g-dev \
     libbz2-dev libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev \
     libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
@@ -14,17 +15,22 @@ fi
 
 # Set up Pyenv environment variables
 echo "export PYENV_ROOT=${PYENV_ROOT}" >> /home/coder/.bashrc
-echo "export PATH=${PYENV_PATH}" >> /home/coder/.bashrc
+echo "export PATH=${PYENV_ROOT}/bin:${PYENV_ROOT}/shims:$PATH" >> /home/coder/.bashrc
 echo "eval \"\$(pyenv init --path)\"" >> /home/coder/.bashrc
 source /home/coder/.bashrc
 
-# Install the desired Python version if not already installed
-if [ ! -d "${PYENV_ROOT}/versions/${PYTHON_VERSION}" ]; then
-    pyenv install ${PYTHON_VERSION}
+# Find the latest stable Python version
+LATEST_PYTHON_VERSION=$(pyenv install --list | grep -E "^\s*3\.[0-9]+\.[0-9]+$" | tail -1 | tr -d ' ')
+
+echo "Latest Python version detected: ${LATEST_PYTHON_VERSION}"
+
+# Install the latest Python version if not already installed
+if [ ! -d "${PYENV_ROOT}/versions/${LATEST_PYTHON_VERSION}" ]; then
+    pyenv install "${LATEST_PYTHON_VERSION}"
 fi
 
 # Set the global Python version
-pyenv global ${PYTHON_VERSION}
+pyenv global "${LATEST_PYTHON_VERSION}"
 
 # Set up Jupyter Notebook
 mkdir -p /root/.jupyter
