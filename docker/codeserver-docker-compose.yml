@@ -27,9 +27,7 @@ services:
       - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
 
   pyenv:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ry4nyeo/codeserver-pyenv:latest  # Use the pre-built image
     container_name: pyenv
     ports:
       - "3024:3024"
