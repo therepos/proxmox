@@ -9,16 +9,16 @@
 # pip install -r requirements.txt
 
 services:
-  code-server:
+  codeserver:
     image: codercom/code-server:latest
-    container_name: code-server
+    container_name: codeserver
     ports:
       - "3023:8080"
     volumes:
       - /mnt/sec/apps/codeserver/workspace:/home/coder/workspace
       - /mnt/sec/apps/codeserver/pyenv:/home/coder/.pyenv
     environment:
-      - PASSWORD=yourpassword
+      - PASSWORD=password
 
   pyenv:
     image: ry4nyeo/codeserver-pyenv:latest
