@@ -14,33 +14,17 @@
 
 services:
   codeserver:
-    image: codercom/code-server:latest
+    image: lscr.io/linuxserver/code-server:latest
     container_name: codeserver
-    ports:
-      - "3023:8080"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Singapore
+      - PASSWORD=password #optional
+      - DEFAULT_WORKSPACE=/config/workspace #optional
     volumes:
       - /mnt/sec/apps/codeserver/workspace:/home/coder/workspace
-      - /mnt/sec/apps/codeserver/pyenv:/home/coder/.pyenv
-    environment:
-      - PASSWORD=password
-      - PYENV_ROOT=/home/coder/.pyenv
-      - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
-
-  pyenv:
-    image: codeserver-pyenv:latest  # Use pre-built image instead of build context
-    container_name: pyenv
     ports:
-      - "3024:3024"
-    volumes:
-      - /mnt/sec/apps/codeserver/workspace:/workspace
-      - /mnt/sec/apps/codeserver/pyenv:/home/coder/.pyenv
-    working_dir: /workspace
-    tty: true
-    stdin_open: true
-    environment:
-      - JUPYTER_PASSWORD=password
-      - PYENV_ROOT=/home/coder/.pyenv
-      - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
-    command: >
-      bash -c "source ~/.bashrc && tail -f /dev/null"
+      - 3023:8443
+    restart: unless-stopped
 
