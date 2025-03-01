@@ -12,6 +12,8 @@
 # dynamically set password or use env file:
 #   JUPYTER_PASSWORD=mysecurepassword docker-compose up -d
 
+version: "3.8"
+
 services:
   codeserver:
     image: codercom/code-server:latest
@@ -27,7 +29,10 @@ services:
       - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
 
   pyenv:
-    image: ry4nyeo/codeserver-pyenv:latest  # Use the pre-built image
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: codeserver-pyenv:latest
     container_name: pyenv
     ports:
       - "3024:3024"
@@ -42,4 +47,4 @@ services:
       - PYENV_ROOT=/home/coder/.pyenv
       - PATH=/home/coder/.pyenv/bin:/home/coder/.pyenv/shims:$PATH
     command: >
-      bash -c "$(wget -qO- https://raw.githubusercontent.com/therepos/proxmox/main/docker/codeserver-startup.sh)"
+      bash -c "source ~/.bashrc && tail -f /dev/null"
