@@ -7,41 +7,61 @@
 # save locally:
 #  docker save -o codeserver-pyenv.tar codeserver-pyenv
 
-FROM ubuntu:20.04
+# Use a lightweight Debian-based image
+FROM debian:latest
 
-# Install dependencies
-RUN apt update && apt install -y \
-    git curl make build-essential libssl-dev zlib1g-dev \
-    libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
-    libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
-    libffi-dev liblzma-dev
+# Set non-interactive mode to prevent tzdata prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 
-# Create coder user
+# Install required dependencies for pyenv and code-server
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    bash \
+    build-essential \
+    zlib1g-dev \
+    libssl-dev \
+    libreadline-dev \
+    libbz2-dev \
+    libsqlite3-dev \
+    libncurses5-dev \
+    libffi-dev \
+    liblzma-dev \
+    python3-pip \
+    tzdata && \
+    ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set up user for pyenv and code-server
 RUN useradd -m -s /bin/bash coder
 
-# Set working directory
-WORKDIR /home/coder
+# Install pyenv for the "coder" user
+USER coder
+RUN curl https://pyenv.run | bash
 
-# Install Pyenv in the correct location
-RUN git clone https://github.com/pyenv/pyenv.git /home/coder/.pyenv
-
-# Set environment variables
-ENV PYENV_ROOT="/home/coder/.pyenv"
+# Set up environment variables for pyenv
+ENV HOME=/home/coder
+ENV PYENV_ROOT=$HOME/.pyenv
 ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
 
-# Initialize Pyenv
-RUN echo 'export PYENV_ROOT="/home/coder/.pyenv"' >> /home/coder/.bashrc && \
-    echo 'export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"' >> /home/coder/.bashrc && \
-    echo 'eval "$(pyenv init --path)"' >> /home/coder/.bashrc
+# Ensure pyenv is sourced in every shell session
+RUN echo 'export PYENV_ROOT="$HOME/.pyenv"' >> $HOME/.bashrc && \
+    echo 'export PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"' >> $HOME/.bashrc && \
+    echo 'eval "$(pyenv init --path)"' >> $HOME/.bashrc && \
+    echo 'eval "$(pyenv virtualenv-init -)"' >> $HOME/.bashrc
 
-# Change ownership to coder user
-RUN chown -R coder:coder /home/coder/.pyenv
+# Switch back to root for final setup
+USER root
 
-# Switch to coder user
-USER coder
+# Expose ports
+EXPOSE 3024
 
-# Install a default Python version using Pyenv
-RUN /home/coder/.pyenv/bin/pyenv install 3.10.9 && \
-    /home/coder/.pyenv/bin/pyenv global 3.10.9
+# Set working directory
+WORKDIR /workspace
 
-CMD ["/bin/bash"]
+# Command to keep container running
+CMD ["bash", "-c", "source ~/.bashrc && tail -f /dev/null"]
