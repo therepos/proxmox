@@ -39,7 +39,7 @@ else
 fi
 
 # Add volume mount for `/mnt/sec/media/videos`
-if sed -i '/web:/,/volumes:/ { /volumes:/ a \ \ \ \ \ \ - /mnt/sec/media/videos:/media_files/videos' docker-compose.yaml; then
+if sed -i '/web:/,/volumes:/ {/volumes:/a \ \ \ \ \ \ - /mnt/sec/media/videos:/media_files/videos' docker-compose.yaml; then
     status_message "success" "Mounted /mnt/sec/media/videos to /media_files/videos."
 else
     status_message "error" "Failed to mount media volume."
