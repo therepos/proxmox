@@ -13,6 +13,10 @@ cd /mnt/sec/apps/mediacms || { echo "Failed to enter directory"; exit 1; }
 echo "Changing port from 80 to 3025..."
 sed -i 's/80:80/3025:80/g' docker-compose.yaml
 
+# Step 2.1: Add volume mount for /mnt/sec/media/videos under the "web" service
+echo "Adding volume mount for /mnt/sec/media/videos to the 'web' service..."
+sed -i '/web:/,/volumes:/ { /volumes:/ a \ \ \ \ \ \ - /mnt/sec/media/videos:/media_files/videos' docker-compose.yaml
+
 # Step 3: Start MediaCMS Containers
 echo "Starting MediaCMS using Docker Compose..."
 docker-compose up -d
