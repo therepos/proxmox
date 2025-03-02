@@ -6,7 +6,7 @@
 GITHUB_REPO="https://github.com/therepos/proxmox/raw/main/tools"
 CONTAINER_NAME="mediacms-web-1"  # Replace with your actual container name
 MEDIA_FOLDER="/mnt/sec/media/temp"  # Change this if needed
-SCRIPT_NAME="mediacms-uploadmedia.py"
+SCRIPT_NAME="mediacms-uploadfiles.py"
 WATCHER_SCRIPT="watch-media-folder.sh"
 SCRIPT_PATH="/opt/$SCRIPT_NAME"
 WATCHER_PATH="/opt/$WATCHER_SCRIPT"
