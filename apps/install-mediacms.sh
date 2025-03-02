@@ -38,7 +38,7 @@ else
     status_message "error" "Failed to change port."
 fi
 
-# Add volume mount for `/mnt/sec/media/videos`
+# Add volume mount for `/mnt/sec/media/temp`
 if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/temp:/mnt/sec/media/temp|' docker-compose.yaml; then
     status_message "success" "Mounted /mnt/sec/media/videos to /media_files/videos."
 else
