@@ -4,6 +4,11 @@
 # note:
 # api access: https://mediacms.threeminuteslab.com/swagger/
 
+# Define colors and status symbols
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+RESET="\e[0m"
+
 # Step 1: Clone MediaCMS Repository
 echo "Cloning MediaCMS repository..."
 git clone https://github.com/mediacms-io/mediacms /mnt/sec/apps/mediacms
