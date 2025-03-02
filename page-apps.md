@@ -15,6 +15,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-metube.sh)"
 ```
 ```bash
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-mediacms.sh)"
+```
+```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-nvidiadriver.sh)"
 ```
 ```bash
@@ -46,6 +49,7 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-
 - [homebox](https://wiki.opensourceisawesome.com/books/home-and-small-business-inventory/page/install-and-configure-homebox)
 - [kavitareader](https://wiki.kavitareader.com/installation/docker/)
 - [mealie](https://docs.techdox.nz/mealie/)
+- [mediacms](https://github.com/mediacms-io/mediacms)
 - [monicahq](https://thehomelab.wiki/books/docker/page/monica-hq)
 - [nextcloud](https://hub.docker.com/_/nextcloud)
 - [paperless](https://docs.paperless-ngx.com/setup/#docker)
