@@ -1,27 +1,38 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-scanfiles.sh)"
-# purpose: this script 
+# purpose: this script runs mediacms-uploadfiles.py inside the mediacms docker container.
 
 # Define variables
 GITHUB_REPO="https://github.com/therepos/proxmox/raw/main/tools"
 CONTAINER_NAME="mediacms-web-1"  # Replace with your actual container name
-MEDIA_FOLDER="/mnt/sec/media/temp"  # Change this if needed
 SCRIPT_NAME="mediacms-uploadfiles.py"
 SCRIPT_PATH="/opt/$SCRIPT_NAME"
 
-echo "Setting up MediaCMS auto-upload inside Docker container..."
+echo "Checking for MediaCMS upload script inside Docker container..."
 
-# Step 1: Install Python and dependencies inside the container
-echo "Installing Python and requests inside the container..."
-docker exec -it $CONTAINER_NAME apt update
-docker exec -it $CONTAINER_NAME apt install -y python3 python3-pip inotify-tools
-docker exec -it $CONTAINER_NAME pip3 install requests
+# Step 1: Check if the script already exists inside the container
+if docker exec -it $CONTAINER_NAME test -f $SCRIPT_PATH; then
+    echo "Script already exists. Running it now..."
+else
+    echo "Script not found. Installing it..."
 
-# Step 2: Download the Python upload script from GitHub and copy it into the container
-echo "Downloading upload script from GitHub..."
-wget -O $SCRIPT_NAME "$GITHUB_REPO/$SCRIPT_NAME"
+    # Install Python and dependencies if missing
+    echo "Installing Python and requests inside the container..."
+    docker exec -it $CONTAINER_NAME apt update
+    docker exec -it $CONTAINER_NAME apt install -y python3 python3-pip
+    docker exec -it $CONTAINER_NAME pip3 install requests
 
-echo "Copying upload script to container..."
-docker cp $SCRIPT_NAME $CONTAINER_NAME:$SCRIPT_PATH
+    # Download the script from GitHub
+    echo "Downloading upload script from GitHub..."
+    wget -O $SCRIPT_NAME "$GITHUB_REPO/$SCRIPT_NAME"
 
-echo "Setup complete. New media files in $MEDIA_FOLDER will be uploaded automatically!"
+    # Copy it into the container
+    echo "Copying upload script to container..."
+    docker cp $SCRIPT_NAME $CONTAINER_NAME:$SCRIPT_PATH
+fi
+
+# Step 2: Run the script inside the container
+echo "Executing upload script inside the container..."
+docker exec -it $CONTAINER_NAME python3 $SCRIPT_PATH
+
+echo "Process complete."
