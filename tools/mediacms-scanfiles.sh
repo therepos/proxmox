@@ -1,11 +1,13 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-scanfiles.sh)"
+# purpose: this script scans files from media temp folder for uploads to mediacms
 
 # Define variables
-GITHUB_REPO="https://raw.githubusercontent.com/yourusername/yourrepo/main"
-CONTAINER_NAME="mediacms"  # Replace with your actual container name
+GITHUB_REPO="https://github.com/therepos/proxmox/raw/main/tools"
+CONTAINER_NAME="mediacms-web-1"  # Replace with your actual container name
 MEDIA_FOLDER="/mnt/sec/media/temp"  # Change this if needed
 SCRIPT_NAME="mediacms-uploadmedia.py"
-WATCHER_SCRIPT="watch_media_folder.sh"
+WATCHER_SCRIPT="watch-media-folder.sh"
 SCRIPT_PATH="/opt/$SCRIPT_NAME"
 WATCHER_PATH="/opt/$WATCHER_SCRIPT"
 
