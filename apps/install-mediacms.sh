@@ -17,6 +17,10 @@ sed -i 's/80:80/3025:80/g' docker-compose.yaml
 echo "Adding volume mount for /mnt/sec/media/videos to the 'web' service..."
 sed -i '/web:/,/volumes:/ { /volumes:/ a \ \ \ \ \ \ - /mnt/sec/media/videos:/media_files/videos' docker-compose.yaml
 
+# Step 2.2: Change timezone (TZ) for the database service
+echo "Changing database timezone to Asia/Singapore..."
+sed -i 's/TZ: Europe\/London/TZ: Asia\/Singapore/g' docker-compose.yaml
+
 # Step 3: Start MediaCMS Containers
 echo "Starting MediaCMS using Docker Compose..."
 docker-compose up -d
