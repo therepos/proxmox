@@ -1,3 +1,7 @@
+# dependent: mediacms-uploadfiles.sh
+# purpose: this script executes the uploading of media files (mov, mp4, mkv) to mediacms
+# note: authorise access to api at http://yourip:3025/swagger
+
 import os
 import re
 import requests
