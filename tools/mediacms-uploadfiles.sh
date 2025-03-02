@@ -1,6 +1,7 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-uploadfiles.sh)"
 # purpose: this script runs mediacms-uploadfiles.py inside the mediacms docker container
+# note: authorise access to api at http://yourip:3025/swagger
 
 # Define variables
 GITHUB_REPO="https://github.com/therepos/proxmox/raw/main/tools"
