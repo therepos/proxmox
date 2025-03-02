@@ -1,4 +1,6 @@
 #!/bin/bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-mediacms.sh)"
+# purpose: this script installs mediacms docker container
 
 # Step 1: Clone MediaCMS Repository
 echo "Cloning MediaCMS repository..."
