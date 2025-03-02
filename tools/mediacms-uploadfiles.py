@@ -1,9 +1,3 @@
-# apt update && apt install -y python3 python3-pip
-# pip3 install requests
-# cd /opt
-# nano mediacms-uploadmedia.py
-# python3 /opt/mediacms-uploadmedia.py
-
 import os
 import re
 import requests
