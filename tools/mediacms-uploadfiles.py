@@ -6,7 +6,7 @@ import base64
 # Configuration
 MEDIA_FOLDER = "/mnt/sec/media/temp"  # Folder to scan for new media files
 API_URL = "https://mediacms.threeminuteslab.com/api/v1/media"
-CSRF_URL = "https://mediacms.threeminuteslab.com/api/v1/user/token"
+CSRF_URL = "https://mediacms.threeminuteslab.com/api/v1/user/token?format=json"
 USERNAME = "admin"  # Replace with actual username
 PASSWORD = "password"  # Replace with actual password
 
@@ -23,7 +23,7 @@ def get_csrf_token():
     """Fetches a new CSRF token from the API"""
     response = requests.get(CSRF_URL, headers=headers)
     if response.status_code == 200:
-        return response.json().get("csrfToken")
+        return response.json().get("token")
     print(f"Failed to get CSRF Token: {response.text}")
     return None
 
