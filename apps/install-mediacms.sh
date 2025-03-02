@@ -79,7 +79,7 @@ if docker exec -i "$CONTAINER_ID" bash <<EOF
 python manage.py shell <<PYTHON_SCRIPT
 from users.models import User
 user = User.objects.get(username='admin')
-user.set_password('Keywords@cmS01')
+user.set_password('password')
 user.save()
 exit()
 PYTHON_SCRIPT
