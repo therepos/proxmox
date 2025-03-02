@@ -38,12 +38,12 @@ else
     status_message "error" "Failed to change port."
 fi
 
-# Add volume mount for `/mnt/sec/media/videos`
-if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/videos:/media_files/videos|' docker-compose.yaml; then
-    status_message "success" "Mounted /mnt/sec/media/videos to /media_files/videos."
-else
-    status_message "error" "Failed to mount media volume."
-fi
+# # Add volume mount for `/mnt/sec/media/videos`
+# if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/videos:/media_files/videos|' docker-compose.yaml; then
+#     status_message "success" "Mounted /mnt/sec/media/videos to /media_files/videos."
+# else
+#     status_message "error" "Failed to mount media volume."
+# fi
 
 # Change database timezone to Asia/Singapore
 if sed -i 's/TZ: Europe\/London/TZ: Asia\/Singapore/g' docker-compose.yaml; then
