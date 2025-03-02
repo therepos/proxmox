@@ -9,6 +9,17 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
+function status_message() {
+    local status=$1
+    local message=$2
+    if [[ "$status" == "success" ]]; then
+        echo -e "${GREEN} ${message}"
+    else
+        echo -e "${RED} ${message}"
+        exit 1
+    fi
+}
+
 # Step 1: Clone MediaCMS Repository
 echo "Cloning MediaCMS repository..."
 git clone https://github.com/mediacms-io/mediacms /mnt/sec/apps/mediacms
