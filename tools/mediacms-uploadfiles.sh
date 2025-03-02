@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-scanfiles.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-uploadfiles.sh)"
 # purpose: this script runs mediacms-uploadfiles.py inside the mediacms docker container
 
 # Define variables

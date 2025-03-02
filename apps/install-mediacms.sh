@@ -45,6 +45,13 @@ else
     status_message "error" "Failed to mount media volume."
 fi
 
+# Add volume mount for `/mnt/sec/apps/mediacsm/opt`
+if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/apps/mediacsm/opt:/opt|' docker-compose.yaml; then
+    status_message "success" "Mounted /mnt/sec/apps/mediacsm/opt."
+else
+    status_message "error" "Failed to mount opt volume."
+fi
+
 # Change database timezone to Asia/Singapore
 if sed -i 's/TZ: Europe\/London/TZ: Asia\/Singapore/g' docker-compose.yaml; then
     status_message "success" "Database timezone changed to Asia/Singapore."
