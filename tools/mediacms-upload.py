@@ -64,6 +64,9 @@ def process_directory():
             playlist_name = folder
             print(f"Processing folder '{playlist_name}'...")
 
+            # ✅ Ensure the playlist exists before uploading videos
+            ensure_playlist_exists(playlist_name)
+
             video_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.mp4', '.mov', '.mkv'))]
             for video in video_files:
                 video_path = os.path.join(folder_path, video)
