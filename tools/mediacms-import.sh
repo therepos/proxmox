@@ -1,4 +1,5 @@
 #!/bin/sh
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-import.sh)"
 
 WEB_CONTAINER="mediacms-web-1"
 DB_CONTAINER="mediacms-db-1"
