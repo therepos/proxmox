@@ -2,47 +2,68 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-combinefiles.sh)"
 # purpose: this script combines video files and set chapter markers inside docker container
 
-BASE_DIR="/config"
+# Define the Docker container name
+CONTAINER_NAME="ffmpeg"
 
-# Loop through each subfolder
-for folder in "$BASE_DIR"/*; do
-    if [ -d "$folder" ]; then
-        folder_name=$(basename "$folder")
-        output_video="$BASE_DIR/${folder_name}_combined.mp4"
-        metadata_file="$BASE_DIR/${folder_name}_metadata.txt"
+# Check if the FFmpeg container is running
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo "Error: FFmpeg container is not running. Starting it..."
+    docker-compose up -d ffmpeg  # Start the container if it's not running
+    sleep 3  # Give some time for the container to initialize
+fi
 
-        # Generate file list for concatenation
-        file_list="$folder/file_list.txt"
-        rm -f "$file_list" "$metadata_file"
-        
-        echo ";FFMETADATA1" > "$metadata_file"
-        start_time=0
-        timebase=1000  # 1 second = 1000 ms
+# Run the processing script inside the Docker container
+docker exec -it ${CONTAINER_NAME} /bin/sh -c '
+    BASE_DIR="/config"
 
-        for video in "$folder"/*.mp4 "$folder"/*.mkv; do
-            [ -f "$video" ] || continue  # Skip if no matching files
-            echo "file '$video'" >> "$file_list"
+    # Loop through each subfolder
+    for folder in "$BASE_DIR"/*; do
+        if [ -d "$folder" ]; then
+            folder_name=$(basename "$folder")
+            output_video="$BASE_DIR/${folder_name}_combined.mp4"
+            metadata_file="$BASE_DIR/${folder_name}_metadata.txt"
+            final_output="$BASE_DIR/${folder_name}_combined_with_chapters.mp4"
+            file_list="$folder/file_list.txt"
 
-            duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration -of csv=p=0 "$video")
-            duration_ms=$(awk "BEGIN {print int($duration * $timebase)}")
-            end_time=$((start_time + duration_ms))
+            # Cleanup old files if they exist
+            rm -f "$file_list" "$metadata_file" "$output_video" "$final_output"
 
-            # Add chapter entry
-            echo "[CHAPTER]" >> "$metadata_file"
-            echo "TIMEBASE=1/$timebase" >> "$metadata_file"
-            echo "START=$start_time" >> "$metadata_file"
-            echo "END=$end_time" >> "$metadata_file"
-            echo "title=$(basename "$video")" >> "$metadata_file"
+            echo ";FFMETADATA1" > "$metadata_file"
+            start_time=0
+            timebase=1000  # 1 second = 1000 ms
 
-            start_time=$end_time
-        done
+            # Generate file list and chapter metadata
+            for video in "$folder"/*.mp4 "$folder"/*.mkv; do
+                [ -f "$video" ] || continue  # Skip if no matching files
+                echo "file '\''$video'\''" >> "$file_list"
 
-        # Run FFmpeg to combine videos
-        ffmpeg -f concat -safe 0 -i "$file_list" -c copy "$output_video"
+                duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration -of csv=p=0 "$video")
+                duration_ms=$(awk "BEGIN {print int($duration * $timebase)}")
+                end_time=$((start_time + duration_ms))
 
-        # Embed chapters
-        ffmpeg -i "$output_video" -i "$metadata_file" -map_metadata 1 -codec copy "${output_video%.mp4}_with_chapters.mp4"
+                # Add chapter entry
+                echo "[CHAPTER]" >> "$metadata_file"
+                echo "TIMEBASE=1/$timebase" >> "$metadata_file"
+                echo "START=$start_time" >> "$metadata_file"
+                echo "END=$end_time" >> "$metadata_file"
+                echo "title=$(basename "$video")" >> "$metadata_file"
 
-        echo "Finished processing $folder_name"
-    fi
-done
+                start_time=$end_time
+            done
+
+            # Combine videos
+            ffmpeg -f concat -safe 0 -i "$file_list" -c copy "$output_video"
+
+            # Embed chapters
+            ffmpeg -i "$output_video" -i "$metadata_file" -map_metadata 1 -codec copy "$final_output"
+
+            # Cleanup unnecessary files
+            rm -f "$file_list" "$metadata_file" "$output_video"
+
+            echo "Finished processing: $folder_name → Saved as $final_output"
+        fi
+    done
+'
+
+echo "All videos processed successfully!"
+
