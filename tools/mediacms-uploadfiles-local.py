@@ -9,8 +9,8 @@ import base64
 
 # Configuration
 MEDIA_FOLDER = "/mnt/sec/media/temp"  # Folder to scan for new media files
-API_URL = "https://192.168.1.111:3025/api/v1/media"
-CSRF_URL = "https://192.168.1.111:3025/api/v1/user/token?format=json"
+API_URL = "http://192.168.1.111:3025/api/v1/media"
+CSRF_URL = "http://192.168.1.111:3025/api/v1/user/token?format=json"
 USERNAME = "admin"  # Replace with actual username
 PASSWORD = "password"  # Replace with actual password
 
@@ -63,7 +63,7 @@ def upload_file(file_path, csrf_token):
             "description": description
         }
         headers["X-CSRFTOKEN"] = csrf_token
-        response = requests.post(API_URL, headers=headers, files=files, data=data)
+        response = requests.post(API_URL, headers=headers, files=files, data=data, verify=False)
 
     if response.status_code == 201:
         print(f"Success: {file_name} uploaded as '{title}'.")
