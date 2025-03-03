@@ -1,4 +1,6 @@
 #!/bin/sh
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-combinefiles.sh)"
+# purpose: this script combines video files and set chapter markers inside docker container
 
 BASE_DIR="/config"
 
