@@ -7,8 +7,34 @@ UPLOAD_SCRIPT="/opt/mediacms-upload.py"
 LINK_SCRIPT="/opt/mediacms-playlist.sh"
 UPLOAD_FILE="/mnt/sec/media/temp/uploaded_videos.txt"
 MEDIA_FOLDER="/mnt/sec/media/temp"
+REPO_URL="https://github.com/therepos/proxmox/raw/main/tools"
 
 echo "Starting MediaCMS Import Process..."
+
+# Ensure scripts exist, download if missing
+download_if_missing() {
+    CONTAINER=$1
+    FILE_PATH=$2
+    FILE_NAME=$(basename "$FILE_PATH")
+
+    if docker exec "$CONTAINER" test -f "$FILE_PATH"; then
+        echo "$FILE_NAME exists in $CONTAINER."
+    else
+        echo "$FILE_NAME is missing in $CONTAINER. Downloading..."
+        docker exec "$CONTAINER" sh -c "wget -qO $FILE_PATH $REPO_URL/$FILE_NAME && chmod +x $FILE_PATH"
+
+        if docker exec "$CONTAINER" test -f "$FILE_PATH"; then
+            echo "$FILE_NAME successfully downloaded in $CONTAINER."
+        else
+            echo "Error: Failed to download $FILE_NAME in $CONTAINER."
+            exit 1
+        fi
+    fi
+}
+
+# Check and download required scripts
+download_if_missing "$WEB_CONTAINER" "$UPLOAD_SCRIPT"
+download_if_missing "$DB_CONTAINER" "$LINK_SCRIPT"
 
 # Step 1: Run the Upload Script in Web Container
 echo "Uploading videos in $WEB_CONTAINER..."
