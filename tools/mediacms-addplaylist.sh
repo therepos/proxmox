@@ -6,9 +6,14 @@ DB_NAME="mediacms"
 DB_USER="mediacms"
 UPLOAD_FILE="/mnt/sec/media/temp/uploaded_videos.txt"
 
-if [ ! -f "$UPLOAD_FILE" ]; then
-    echo "Error: File $UPLOAD_FILE not found!"
-    exit 1
+if [ -z "$PLAYLIST_ID" ]; then
+    echo "Playlist '$PLAYLIST_NAME' not found! Creating it now..."
+    PLAYLIST_ID=$(psql -U $DB_USER -d $DB_NAME -t -c "
+    INSERT INTO files_playlist (title, add_date, description, friendly_token, uid, user_id)
+    VALUES ('$PLAYLIST_NAME', NOW(), 'Auto-created playlist for $PLAYLIST_NAME', 
+    LEFT(MD5(RANDOM()::TEXT), 12), gen_random_uuid(), 1) RETURNING id;" | xargs)
+
+    echo "Created playlist '$PLAYLIST_NAME' with ID $PLAYLIST_ID."
 fi
 
 echo "Processing uploaded videos..."
