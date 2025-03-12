@@ -4,38 +4,52 @@
 
 WEB_CONTAINER="mediacms-web-1"
 DB_CONTAINER="mediacms-db-1"
-UPLOAD_SCRIPT="/opt/mediacms-upload.py"     # dependent
-LINK_SCRIPT="/opt/mediacms-addplaylist.sh"  # dependent
+REPO_URL="https://github.com/therepos/proxmox/raw/main/tools"
+UPLOAD_SCRIPT="/opt/mediacms-upload.py"
+PLAYLIST_SCRIPT="/opt/mediacms-addplaylist.sh"
 UPLOAD_FILE="/mnt/sec/media/temp/uploaded_videos.txt"
 MEDIA_FOLDER="/mnt/sec/media/temp"
-REPO_URL="https://github.com/therepos/proxmox/raw/main/tools"
 
 echo "Starting MediaCMS Import Process..."
 
-# Ensure scripts exist, download if missing
-download_if_missing() {
+# Function to check and update scripts if needed
+update_script() {
     CONTAINER=$1
     FILE_PATH=$2
     FILE_NAME=$(basename "$FILE_PATH")
+    TEMP_FILE="/tmp/$FILE_NAME"
 
-    if docker exec "$CONTAINER" test -f "$FILE_PATH"; then
-        echo "$FILE_NAME exists in $CONTAINER."
-    else
-        echo "$FILE_NAME is missing in $CONTAINER. Downloading..."
-        docker exec "$CONTAINER" sh -c "wget -qO $FILE_PATH $REPO_URL/$FILE_NAME && chmod +x $FILE_PATH"
+    echo "Checking $FILE_NAME in $CONTAINER..."
 
-        if docker exec "$CONTAINER" test -f "$FILE_PATH"; then
-            echo "$FILE_NAME successfully downloaded in $CONTAINER."
-        else
-            echo "Error: Failed to download $FILE_NAME in $CONTAINER."
-            exit 1
-        fi
+    # Download the latest version from GitHub to a temp file
+    wget -qO "$TEMP_FILE" "$REPO_URL/$FILE_NAME"
+
+    # If the file doesn't exist locally, install it
+    if ! docker exec "$CONTAINER" test -f "$FILE_PATH"; then
+        echo "$FILE_NAME not found in $CONTAINER. Installing..."
+        docker cp "$TEMP_FILE" "$CONTAINER:$FILE_PATH"
+        docker exec "$CONTAINER" chmod +x "$FILE_PATH"
+        return
     fi
+
+    # Compare the downloaded file with the existing file inside the container
+    DIFF_OUTPUT=$(docker exec "$CONTAINER" sh -c "diff -q $FILE_PATH -" < "$TEMP_FILE")
+
+    if [ -z "$DIFF_OUTPUT" ]; then
+        echo "✅ $FILE_NAME is up to date in $CONTAINER."
+    else
+        echo "🔄 Updating $FILE_NAME in $CONTAINER..."
+        docker cp "$TEMP_FILE" "$CONTAINER:$FILE_PATH"
+        docker exec "$CONTAINER" chmod +x "$FILE_PATH"
+        echo "✅ Updated $FILE_NAME in $CONTAINER."
+    fi
+
+    rm "$TEMP_FILE"  # Cleanup temporary file
 }
 
-# Check and download required scripts
-download_if_missing "$WEB_CONTAINER" "$UPLOAD_SCRIPT"
-download_if_missing "$DB_CONTAINER" "$LINK_SCRIPT"
+# Check and update required scripts in their respective containers
+update_script "$WEB_CONTAINER" "$UPLOAD_SCRIPT"
+update_script "$DB_CONTAINER" "$PLAYLIST_SCRIPT"
 
 # Step 1: Run the Upload Script in Web Container
 echo "Uploading videos in $WEB_CONTAINER..."
@@ -51,7 +65,7 @@ fi
 
 # Step 3: Run the Database Linking Script in DB Container
 echo "Linking videos to playlists in $DB_CONTAINER..."
-docker exec "$DB_CONTAINER" sh "$LINK_SCRIPT"
+docker exec "$DB_CONTAINER" sh "$PLAYLIST_SCRIPT"
 
 # Step 4: Remove processed folders
 echo "Removing processed folders..."
