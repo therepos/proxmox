@@ -13,7 +13,8 @@ fi
 
 echo "Processing uploaded videos..."
 
-while IFS=',' read -r PLAYLIST_NAME MEDIA_TOKEN; do
+# Read the uploaded videos file, sorting by playlist name and media token
+sort "$UPLOAD_FILE" | while IFS=',' read -r PLAYLIST_NAME MEDIA_TOKEN; do
     echo "Processing video with token: $MEDIA_TOKEN for playlist: $PLAYLIST_NAME"
 
     # Check if the playlist exists
@@ -44,14 +45,14 @@ while IFS=',' read -r PLAYLIST_NAME MEDIA_TOKEN; do
         continue
     fi
 
-    # Insert into files_playlistmedia
+    # Insert into files_playlistmedia with sorted ordering
     psql -U $DB_USER -d $DB_NAME -c "
     INSERT INTO files_playlistmedia (action_date, ordering, media_id, playlist_id)
-    VALUES (NOW(), (SELECT COUNT(*) FROM files_playlistmedia WHERE playlist_id = $PLAYLIST_ID) + 1, $MEDIA_ID, $PLAYLIST_ID);
+    VALUES (NOW(), (SELECT COALESCE(MAX(ordering), 0) + 1 FROM files_playlistmedia WHERE playlist_id = $PLAYLIST_ID), $MEDIA_ID, $PLAYLIST_ID);
     "
 
     echo "✅ Added video ID $MEDIA_ID to playlist ID $PLAYLIST_ID."
 
-done < "$UPLOAD_FILE"
+done
 
 echo "✅ All videos have been linked to their playlists."
