@@ -45,11 +45,22 @@ def ensure_playlist_exists(playlist_name):
     response = requests.get(playlist_api_url, headers=headers, verify=False)
 
     if response.status_code == 200:
-        existing_playlists = response.json()
-        for playlist in existing_playlists:
-            if playlist["title"].strip() == playlist_name.strip():
-                print(f"✅ Playlist '{playlist_name}' already exists.")
-                return playlist["api_url"]  # Return API URL of the playlist
+        try:
+            existing_playlists = response.json()
+            if isinstance(existing_playlists, dict) and "results" in existing_playlists:
+                existing_playlists = existing_playlists["results"]  # Handle paginated responses
+            elif not isinstance(existing_playlists, list):
+                print(f"❌ Unexpected API response format: {existing_playlists}")
+                return None
+
+            for playlist in existing_playlists:
+                if isinstance(playlist, dict) and "title" in playlist:
+                    if playlist["title"].strip() == playlist_name.strip():
+                        print(f"✅ Playlist '{playlist_name}' already exists.")
+                        return playlist["api_url"]  # Return API URL of the playlist
+        except json.JSONDecodeError:
+            print(f"❌ Failed to parse JSON response: {response.text}")
+            return None
 
     print(f"Creating new playlist: {playlist_name}...")
     data = {
@@ -59,7 +70,7 @@ def ensure_playlist_exists(playlist_name):
     response = requests.post(playlist_api_url, headers=headers, json=data, verify=False)
 
     if response.status_code == 201:
-        playlist_api_url = response.json()["api_url"]
+        playlist_api_url = response.json().get("api_url")
         print(f"✅ Playlist '{playlist_name}' created successfully.")
         return playlist_api_url
     else:
