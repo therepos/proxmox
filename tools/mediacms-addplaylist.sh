@@ -13,7 +13,7 @@ fi
 
 echo "Processing uploaded videos..."
 
-# Read the uploaded videos file, sorting by playlist name and media token
+# Read the uploaded videos file and process them
 sort "$UPLOAD_FILE" | while IFS=',' read -r PLAYLIST_NAME MEDIA_TOKEN; do
     echo "Processing video with token: $MEDIA_TOKEN for playlist: $PLAYLIST_NAME"
 
@@ -45,14 +45,33 @@ sort "$UPLOAD_FILE" | while IFS=',' read -r PLAYLIST_NAME MEDIA_TOKEN; do
         continue
     fi
 
-    # Insert into files_playlistmedia with sorted ordering
+    # Insert into files_playlistmedia
     psql -U $DB_USER -d $DB_NAME -c "
     INSERT INTO files_playlistmedia (action_date, ordering, media_id, playlist_id)
-    VALUES (NOW(), (SELECT COALESCE(MAX(ordering), 0) + 1 FROM files_playlistmedia WHERE playlist_id = $PLAYLIST_ID), $MEDIA_ID, $PLAYLIST_ID);
-    "
-
+    VALUES (NOW(), 999, $MEDIA_ID, $PLAYLIST_ID);"
+    
     echo "✅ Added video ID $MEDIA_ID to playlist ID $PLAYLIST_ID."
 
 done
 
-echo "✅ All videos have been linked to their playlists."
+echo "✅ Sorting videos in playlists..."
+
+# Force sorting of videos in the playlist
+psql -U $DB_USER -d $DB_NAME -c "
+DO \$\$
+DECLARE 
+    video RECORD;
+    counter INTEGER := 1;
+BEGIN
+    FOR video IN 
+        SELECT id FROM files_playlistmedia 
+        WHERE playlist_id IN (SELECT id FROM files_playlist) 
+        ORDER BY (SELECT title FROM files_media WHERE id = media_id) ASC
+    LOOP
+        UPDATE files_playlistmedia SET ordering = counter WHERE id = video.id;
+        counter := counter + 1;
+    END LOOP;
+END \$\$;
+"
+
+echo "✅ All videos have been sorted alphabetically in their playlists."
