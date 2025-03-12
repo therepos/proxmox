@@ -1,9 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-zfs.sh)"
-
-#!/bin/bash
-# Enhanced ZFS Backup Script
-# Adds functionality to choose between backup and restore.
+# purpose: this script backups or restores zfs drive
 
 # Variables
 ZFS_POOL="rpool"

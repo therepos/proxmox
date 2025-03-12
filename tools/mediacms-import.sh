@@ -1,10 +1,11 @@
 #!/bin/sh
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mediacms-import.sh)"
+# purpose: this controller scripts that uploads all videos in a folder to a new playlist
 
 WEB_CONTAINER="mediacms-web-1"
 DB_CONTAINER="mediacms-db-1"
-UPLOAD_SCRIPT="/opt/mediacms-upload.py"
-LINK_SCRIPT="/opt/mediacms-playlist.sh"
+UPLOAD_SCRIPT="/opt/mediacms-upload.py"     # dependent
+LINK_SCRIPT="/opt/mediacms-addplaylist.sh"  # dependent
 UPLOAD_FILE="/mnt/sec/media/temp/uploaded_videos.txt"
 MEDIA_FOLDER="/mnt/sec/media/temp"
 REPO_URL="https://github.com/therepos/proxmox/raw/main/tools"
