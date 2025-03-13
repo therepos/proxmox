@@ -1,6 +1,6 @@
 #!/bin/sh
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-convertmkv.sh)"
-# purpose: this script converts mkv files to mp4 files inside docker container
+# Purpose: Convert MKV files to MP4 inside Docker container
 
 # Set working directory
 WORKDIR="/config"
@@ -32,4 +32,3 @@ for file in "$WORKDIR"/*.mkv; do
 done
 
 echo "Conversion process completed - $(date)" >> "$LOGFILE"
-
