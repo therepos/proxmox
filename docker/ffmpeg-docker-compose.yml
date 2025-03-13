@@ -3,7 +3,7 @@ services:
     image: jrottenberg/ffmpeg  # Lightweight FFmpeg image
     container_name: ffmpeg
     volumes:
-      - /mnt/sec/media/temp:/config  # Mount video directory
+      - /mnt/sec/media/videos/convert:/config  # Mount video directory
     working_dir: /config
     entrypoint: [ "/bin/sh", "-c" ]
     command: [ "sleep infinity" ]  # Keeps the container running

@@ -17,12 +17,12 @@ import base64
 import shutil  # For removing folders
 
 # Configuration
-MEDIA_FOLDER = "/mnt/sec/media/temp/uploads"
+MEDIA_FOLDER = "/mnt/sec/media/videos/uploads"
 API_BASE_URL = "http://192.168.1.111:3025/api/v1/"
 API_MEDIA_URL = API_BASE_URL + "media"
 USERNAME = "admin"
 PASSWORD = "password"
-OUTPUT_FILE = "/mnt/sec/media/temp/uploads/uploaded_videos.txt"
+OUTPUT_FILE = "/mnt/sec/media/videos/uploads/uploaded_videos.txt"
 
 # Generate Auth Header
 auth_string = f"{USERNAME}:{PASSWORD}"
