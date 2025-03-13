@@ -39,7 +39,7 @@ else
 fi
 
 # Add volume mount for `/mnt/sec/media/temp`
-if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/temp:/mnt/sec/media/temp|' docker-compose.yaml; then
+if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/temp:/mnt/sec/media/temp/uploads|' docker-compose.yaml; then
     status_message "success" "Mounted /mnt/sec/media/temp."
 else
     status_message "error" "Failed to mount media volume."
