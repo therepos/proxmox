@@ -1,13 +1,13 @@
 # purpose: this worker script executes the uploading of media files (mov, mp4, mkv) to mediacms
 # notes: 
 # =====
+# update configuration section before use
 # authorise access to api at http://yourip:3025/swagger
 # customise for local upload:
 #   API_URL = "http://yourup:3025/api/v1/media"
 #   CSRF_URL = "http://yourup:3025/api/v1/user/token?format=json"
 #   response = requests.get(CSRF_URL, headers=headers, verify=False)
 #   response = requests.post(API_URL, headers=headers, files=files, data=data, verify=False)
-# update mediacms login passwords
 
 import os
 import re
