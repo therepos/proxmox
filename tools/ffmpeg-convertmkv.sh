@@ -20,15 +20,16 @@ for file in "$WORKDIR"/*.mkv; do
     echo "Processing: $file" >> "$LOGFILE"
 
     # Convert MKV to MP4 (lossless video, convert audio to AAC for compatibility)
-    docker exec -it ffmpeg ffmpeg -i "$file" -c:v copy -c:a aac -b:a 192k "$output" >> "$LOGFILE" 2>&1
+    docker exec -i ffmpeg ffmpeg -i "$file" -c:v copy -c:a aac -b:a 192k "$output" >> "$LOGFILE" 2>&1
 
     # Check if conversion was successful
     if [ $? -eq 0 ]; then
         echo "Successfully converted: $file" >> "$LOGFILE"
-        rm "$file"  # Delete the original MKV file
+        rm -f "$file"  # Delete the original MKV file
     else
         echo "Error converting: $file" >> "$LOGFILE"
     fi
 done
 
 echo "Conversion process completed - $(date)" >> "$LOGFILE"
+
