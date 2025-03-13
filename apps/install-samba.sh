@@ -82,18 +82,19 @@ workgroup = WORKGROUP
    writable = yes
    guest ok = no
    read only = no
-   create mask = 0777
-   directory mask = 0777
-   force create mode = 0777
-   force directory mode = 0777
-   force user = root
+   create mask = 0775
+   directory mask = 2775
+   force create mode = 0775
+   force directory mode = 2775
+   force group = sambauser
    valid users = toor
 " >> /etc/samba/smb.conf
     [[ $? -eq 0 ]] && status_message "success" "Samba share configuration added for '$share_name'." || status_message "error" "Failed to add Samba share configuration for '$share_name'."
 
     # Set permissions for the directory
-    chown -R root:toor "$share_path" >> "$LOG_FILE" 2>&1
-    chmod -R 777 "$share_path" >> "$LOG_FILE" 2>&1
+    chown -R root:sambauser "$share_path" >> "$LOG_FILE" 2>&1
+    chmod -R 2775 "$share_path" >> "$LOG_FILE" 2>&1
+    usermod -aG sambauser toor >> "$LOG_FILE" 2>&1
     [[ $? -eq 0 ]] && status_message "success" "Permissions set for $share_path." || status_message "error" "Failed to set permissions for $share_path."
 
     # Restart Samba service
