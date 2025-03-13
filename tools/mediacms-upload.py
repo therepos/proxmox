@@ -7,6 +7,7 @@
 #   CSRF_URL = "http://yourup:3025/api/v1/user/token?format=json"
 #   response = requests.get(CSRF_URL, headers=headers, verify=False)
 #   response = requests.post(API_URL, headers=headers, files=files, data=data, verify=False)
+# update mediacms login passwords
 
 import os
 import re
@@ -19,8 +20,8 @@ import shutil  # For removing folders
 MEDIA_FOLDER = "/mnt/sec/media/temp/uploads"
 API_BASE_URL = "http://192.168.1.111:3025/api/v1/"
 API_MEDIA_URL = API_BASE_URL + "media"
-USERNAME = "toor"
-PASSWORD = "Keywords@cmS01"
+USERNAME = "admin"
+PASSWORD = "password"
 OUTPUT_FILE = "/mnt/sec/media/temp/uploads/uploaded_videos.txt"
 
 # Generate Auth Header
