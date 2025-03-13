@@ -5,11 +5,11 @@
 # User-configurable variables
 WORKDIR="/config"
 LOGFILE="$WORKDIR/conversion.log"
-FILE_FORMATS="mkv webm"
+FILE_FORMATS="mkv"
 TIMESTAMP=$(date)  # Expand date before passing it to docker exec
 
 # Start logging
-echo "Starting video conversion..."
+echo "Starting video conversion..." 
 docker exec -i ffmpeg sh -c "
     mkdir -p \"$WORKDIR\"
     echo 'Starting video conversion - $TIMESTAMP' > \"$LOGFILE\"
@@ -20,36 +20,26 @@ docker exec -i ffmpeg sh -c "
     # Track if any files were found
     files_found=0
 
-    # Process each format
-    for format in $FILE_FORMATS; do
-        for file in \"$WORKDIR\"/*.\$format; do
-            [ -e \"\$file\" ] || continue
+    # Process MKV files
+    for file in \"$WORKDIR\"/*.mkv; do
+        [ -e \"\$file\" ] || continue
 
-            files_found=1  # Mark that we found at least one file
+        files_found=1  # Mark that we found at least one file
 
-            output=\"\${file%.*}.mp4\"
+        output=\"\${file%.*}.mp4\"
 
-            echo 'Processing: \"'\$file'\"' >> \"$LOGFILE\"
-            echo 'Converting: \"'\$file'\"'...
+        echo 'Processing: \"'\$file'\"' >> \"$LOGFILE\"
+        echo 'Converting: \"'\$file'\"'...
 
-            # Detect video codec
-            VIDEO_CODEC=\$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 \"\$file\")
+        # Lossless MKV to MP4 conversion (copy video and audio streams)
+        ffmpeg -y -i \"\$file\" -c:v copy -c:a aac -b:a 192k \"\$output\" >> \"$LOGFILE\" 2>&1
 
-            if [ \"\$VIDEO_CODEC\" = \"vp8\" ] || [ \"\$VIDEO_CODEC\" = \"vp9\" ]; then
-                echo '⚠️ VP8/VP9 detected. Re-encoding to H.264...' >> \"$LOGFILE\"
-                ffmpeg -y -i \"\$file\" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 192k \"\$output\" >> \"$LOGFILE\" 2>&1
-            else
-                echo '✅ H.264 detected. Copying without re-encoding...' >> \"$LOGFILE\"
-                ffmpeg -y -i \"\$file\" -c:v copy -c:a aac -b:a 192k \"\$output\" >> \"$LOGFILE\" 2>&1
-            fi
-
-            if [ \$? -eq 0 ]; then
-                echo '✅ Successfully converted: \"'\$file'\"' >> \"$LOGFILE\"
-                rm -f \"\$file\"  # Delete original file only if conversion succeeds
-            else
-                echo '❌ Error converting: \"'\$file'\"' >> \"$LOGFILE\"
-            fi
-        done
+        if [ \$? -eq 0 ]; then
+            echo '✅ Successfully converted: \"'\$file'\"' >> \"$LOGFILE\"
+            rm -f \"\$file\"  # Delete original file only if conversion succeeds
+        else
+            echo '❌ Error converting: \"'\$file'\"' >> \"$LOGFILE\"
+        fi
     done
 
     # If no files were found, log it correctly
@@ -61,3 +51,4 @@ docker exec -i ffmpeg sh -c "
     echo 'Conversion process completed - \$(date)' >> \"$LOGFILE\"
     echo '✅ All conversions completed!'
 "
+
