@@ -1,4 +1,6 @@
 #!/bin/sh
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-convertmkv.sh)"
+# purpose: this script converts mkv video files inside docker container
 
 # Set working directory inside Docker (mapped from Proxmox)
 WORKDIR="/config"
