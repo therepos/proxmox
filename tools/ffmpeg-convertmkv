@@ -2,7 +2,7 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-convertmkv.sh)"
 # purpose: this script converts mkv files to mp4 files inside docker container
 
-# Set the working directory
+# Set working directory
 WORKDIR="/config"
 LOGFILE="$WORKDIR/conversion.log"
 
@@ -17,8 +17,10 @@ for file in "$WORKDIR"/*.mkv; do
     # Define output file name
     output="${file%.mkv}.mp4"
 
-    # Convert MKV to MP4
-    docker exec -it ffmpeg ffmpeg -i "$file" -c copy "$output" >> "$LOGFILE" 2>&1
+    echo "Processing: $file" >> "$LOGFILE"
+
+    # Convert MKV to MP4 (lossless video, convert audio to AAC for compatibility)
+    docker exec -it ffmpeg ffmpeg -i "$file" -c:v copy -c:a aac -b:a 192k "$output" >> "$LOGFILE" 2>&1
 
     # Check if conversion was successful
     if [ $? -eq 0 ]; then
