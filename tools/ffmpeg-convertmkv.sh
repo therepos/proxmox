@@ -1,5 +1,5 @@
 #!/bin/sh
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-mp4convert.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-convertmkv.sh)"
 # purpose: this script converts other video format to mp4 inside docker container
 
 # User-configurable variables
