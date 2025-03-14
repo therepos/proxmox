@@ -30,7 +30,7 @@ docker exec -i ffmpeg sh -c "
         echo 'Converting: \"'\$file'\"'...
 
         # Lossless WebM to MP4 conversion (copy video and audio streams)
-        ffmpeg -y -i \"\$file\" -c:v copy -c:a aac -b:a 192k \"\$output\" >> \"$LOGFILE\" 2>&1
+        ffmpeg -y -i \"\$file\" -c:v copy -c:a copy \"\$output\" >> \"$LOGFILE\" 2>&1
 
         if [ \$? -eq 0 ]; then
             echo '✅ Successfully converted: \"'\$file'\"' >> \"$LOGFILE\"
