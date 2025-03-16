@@ -1,11 +1,11 @@
-#!/usr/bin
+#!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
-# purpose: this script removes user-specified docker container
+# purpose: this script removes user-specified docker container(s) cleanly
 # interactive: yes
 
 # Define colors and status symbols
-GREEN="\e[32m\u2713\e[0m"
-RED="\e[31m\u2717\e[0m"
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
 function status_message() {
@@ -24,20 +24,28 @@ if ! command -v docker &>/dev/null; then
     status_message "error" "Docker is not installed. Please install Docker first."
 fi
 
-# List Docker containers with ID and Name
-CONTAINERS=$(docker ps -a --format "{{.ID}}:{{.Names}}")
-if [[ -z "$CONTAINERS" ]]; then
+# Get all running container names
+CONTAINER_NAMES=$(docker ps -a --format "{{.Names}}")
+
+if [[ -z "$CONTAINER_NAMES" ]]; then
     status_message "error" "No Docker containers found."
 fi
 
-# Display container list for selection
-echo "Available Docker containers (ID: Name):"
+# Group containers by base name (before first hyphen)
+declare -A CONTAINER_GROUPS
+for NAME in $CONTAINER_NAMES; do
+    BASE_NAME=$(echo "$NAME" | cut -d'-' -f1)
+    CONTAINER_GROUPS["$BASE_NAME"]+="$NAME "
+done
+
+# Display grouped container options
+echo "Available container groups for removal:"
+OPTIONS=("${!CONTAINER_GROUPS[@]}")
 PS3="#? "
-select CONTAINER_ENTRY in $CONTAINERS; do
-    if [[ -n "$CONTAINER_ENTRY" ]]; then
-        CONTAINER_ID=$(echo "$CONTAINER_ENTRY" | awk -F':' '{print $1}')
-        CONTAINER_NAME=$(echo "$CONTAINER_ENTRY" | awk -F':' '{print $2}')
-        echo "You selected container: $CONTAINER_NAME (ID: $CONTAINER_ID)"
+select SELECTED_GROUP in "${OPTIONS[@]}"; do
+    if [[ -n "$SELECTED_GROUP" ]]; then
+        SELECTED_CONTAINERS=${CONTAINER_GROUPS["$SELECTED_GROUP"]}
+        echo "You selected: $SELECTED_GROUP (Removing: $SELECTED_CONTAINERS)"
         break
     else
         echo "Invalid selection. Please try again."
@@ -45,52 +53,61 @@ select CONTAINER_ENTRY in $CONTAINERS; do
 done
 
 # Confirm uninstallation
-read -p "Are you sure you want to uninstall the container '$CONTAINER_NAME' (ID: $CONTAINER_ID)? (y/n): " CONFIRM
+read -p "Are you sure you want to uninstall '$SELECTED_GROUP' (Containers: $SELECTED_CONTAINERS)? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     status_message "error" "Uninstallation aborted."
 fi
 
+# Stop and remove all containers in the selected group
+for CONTAINER in $SELECTED_CONTAINERS; do
+    docker stop "$CONTAINER" &>/dev/null
+    status_message "success" "Stopped container '$CONTAINER'."
+
+    docker rm "$CONTAINER" &>/dev/null
+    status_message "success" "Removed container '$CONTAINER'."
+done
+
 # Ask if related resources should be removed
 read -p "Do you want to remove associated volumes, images, networks, and other resources? (y/n): " REMOVE_RESOURCES
 
-# Stop and remove the container
-docker stop "$CONTAINER_NAME" &>/dev/null 
-status_message "success" "Stopped container '$CONTAINER_NAME'."
-
-docker rm "$CONTAINER_NAME" &>/dev/null 
-status_message "success" "Removed container '$CONTAINER_NAME'."
-
-# Remove related resources if confirmed
 if [[ "$REMOVE_RESOURCES" == "y" || "$REMOVE_RESOURCES" == "Y" ]]; then
-    # Get associated image
-    IMAGE=$(docker inspect --format='{{.Config.Image}}' "$CONTAINER_NAME" 2>/dev/null)
-    if [[ -n "$IMAGE" ]]; then
-        docker rmi "$IMAGE" &>/dev/null
-        status_message "success" "Removed image '$IMAGE'."
-    fi
+    # Identify and remove only unused images
+    IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
+    for IMAGE in $IMAGES; do
+        if [[ -n "$(docker ps -a --filter "ancestor=$IMAGE" --format "{{.ID}}")" ]]; then
+            status_message "info" "Skipping image '$IMAGE' as it is still in use."
+        else
+            docker rmi "$IMAGE" &>/dev/null
+            status_message "success" "Removed image '$IMAGE'."
+        fi
+    done
 
-    # Remove dangling volumes and networks
+    # Remove only networks related to the selected containers
+    NETWORKS=$(docker network ls --format "{{.Name}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
+    for NETWORK in $NETWORKS; do
+        docker network rm "$NETWORK" &>/dev/null
+        status_message "success" "Removed network '$NETWORK'."
+    done
+
+    # Remove only orphaned volumes
     docker volume prune -f &>/dev/null
-    status_message "success" "Cleaned up Docker volumes."
-
-    docker network prune -f &>/dev/null
-    status_message "success" "Cleaned up Docker networks."
+    status_message "success" "Removed unused Docker volumes."
 
     # Clean up unused Docker resources
     docker system prune -a -f &>/dev/null
     status_message "success" "Cleaned up unused Docker resources."
 fi
 
-# Check and remove Docker's container storage directory (specific to the container)
-DOCKER_CONTAINER_DIR="/mnt/sec/apps/$CONTAINER_NAME"
+# Check and remove Docker's container storage directory (specific to the container group)
+DOCKER_CONTAINER_DIR="/mnt/sec/apps/$SELECTED_GROUP"
 if [[ -d "$DOCKER_CONTAINER_DIR" ]]; then
-    read -p "The storage directory for container '$CONTAINER_NAME' exists at '$DOCKER_CONTAINER_DIR'. Do you want to remove it? (y/n): " REMOVE_DOCKER_FILES
+    read -p "The storage directory for '$SELECTED_GROUP' exists at '$DOCKER_CONTAINER_DIR'. Do you want to remove it? (y/n): " REMOVE_DOCKER_FILES
     if [[ "$REMOVE_DOCKER_FILES" == "y" || "$REMOVE_DOCKER_FILES" == "Y" ]]; then
         rm -rf "$DOCKER_CONTAINER_DIR"
-        status_message "success" "Removed Docker container storage directory '$DOCKER_CONTAINER_DIR'."
+        status_message "success" "Removed storage directory '$DOCKER_CONTAINER_DIR'."
     fi
 else
     status_message "info" "Directory '$DOCKER_CONTAINER_DIR' does not exist, skipping removal."
 fi
 
-status_message "success" "Uninstallation of container '$CONTAINER_NAME' completed successfully."
+status_message "success" "Uninstallation of '$SELECTED_GROUP' (Containers: $SELECTED_CONTAINERS) completed successfully."
