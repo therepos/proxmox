@@ -41,11 +41,15 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - /mnt/sec/media:/mnt/sec/media:z  # Mount the same directory for Samba
-      - /mnt/sec/apps/tailscale/samba:/etc/samba  # Mount the custom smb.conf
-    entrypoint: >
-      bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/tools/set-sambausers.sh)"
+      - /mnt/sec/media:/mnt/sec/media:z
+      - /mnt/sec/apps/tailscale/samba:/etc/samba
     command: >
-      -s "media;/mnt/sec/media;yes;no;no;toor" 
+      -s "mediadb;/mnt/sec/media;yes;no;no;toor;toor;toor"
       -u "toor;toor"
-    network_mode: service:tailscale  # Use Tailscale's network stack
+      -g "force user = toor"
+      -g "force group = toor"
+      -g "create mask = 0664"
+      -g "directory mask = 2775"
+      -g "force create mode = 0664"
+      -g "force directory mode = 2775"
+    network_mode: service:tailscale
