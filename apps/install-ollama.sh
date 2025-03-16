@@ -32,11 +32,12 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
         echo "Stopping and removing existing Ollama container, images, volumes, networks, and associated files..."
 
         # Stop and remove the container
-        docker stop "$CONTAINER_NAME" &>/dev/null
+        docker stop ollama ollama-webui &>/dev/null
         status_message "success" "Stopped existing Ollama container."
 
-        docker rm "$CONTAINER_NAME" &>/dev/null
-        status_message "success" "Removed existing Ollama container."
+        docker rm ollama ollama-webui &>/dev/null
+        docker rmi ollama/ollama:latest ghcr.io/ollama-webui/ollama-webui:main &>/dev/null
+        status_message "success" "Removed Ollama and WebUI images."
 
         # Remove the image
         docker rmi "$IMAGE_NAME" &>/dev/null
