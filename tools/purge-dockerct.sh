@@ -81,7 +81,7 @@ for CONTAINER in $SELECTED_CONTAINERS; do
     status_message "success" "Removed container '$CONTAINER'."
 done
 
-# Auto-remove related resources (no prompt)
+# Automatically remove related resources (no prompt)
 status_message "info" "Removing related resources..."
 
 # Identify and remove only images linked to the selected containers
@@ -115,7 +115,7 @@ done
 docker system prune -a --volumes --force --filter "label=$SELECTED_GROUP" &>/dev/null
 status_message "success" "Removed dangling images, volumes, and cache related to '$SELECTED_GROUP'."
 
-# Check and remove Docker's container storage directory (specific to the container group)
+# Ensure storage check happens at the end
 DOCKER_CONTAINER_DIR="/mnt/sec/apps/$SELECTED_GROUP"
 if [[ -d "$DOCKER_CONTAINER_DIR" ]]; then
     read -p "The storage directory for '$SELECTED_GROUP' exists at '$DOCKER_CONTAINER_DIR'. Do you want to remove it? (y/n): " REMOVE_DOCKER_FILES
