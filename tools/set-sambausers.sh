@@ -1,6 +1,10 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
 # purpose: this script sets up the user group permission and smb.conf in docker container
+# notes: 
+# =====
+# verify group permission: docker exec -it samba smbclient //localhost/mediadb -U toor
+
 
 LOG_FILE="/var/log/install-samba.log"
 SHARE_NAME="mediadb"

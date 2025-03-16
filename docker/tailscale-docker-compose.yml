@@ -1,6 +1,5 @@
 # https://tailscale.com/kb/1282/docker
 # runs the applications at https://tailscale-ip:port
-# verify group permission: docker exec -it samba smbclient //localhost/mediadb -U toor
 
 services:
   tailscale:
