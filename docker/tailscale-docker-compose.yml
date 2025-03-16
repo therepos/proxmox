@@ -1,0 +1,50 @@
+# https://tailscale.com/kb/1282/docker
+# runs the applications at https://tailscale-ip:port
+# docker exec -it samba bash
+# getent group sambausers
+# groupadd sambausers  # Create sambausers group
+# usermod -aG sambausers toor  # Add the 'toor' user to the sambausers group
+# docker restart samba
+# docker exec -it samba smbclient //localhost/mediadb -U toor
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: tailscale
+    environment:
+      - TS_AUTHKEY=<get key from tailscale admin console>
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - /mnt/sec/apps/tailscale/state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+      - /mnt/sec/media:/mnt/sec/media:z  # Mount the media directory for Samba access
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    volumes:
+      - /mnt/sec:/srv
+    network_mode: service:tailscale  # Filebrowser will share Tailscale's network
+    restart: unless-stopped
+
+  samba:
+    image: dperson/samba
+    container_name: samba
+    environment:
+      TZ: 'Asia/Singapore'
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    volumes:
+      - /mnt/sec/media:/mnt/sec/media:z  # Mount the same directory for Samba
+      - /mnt/sec/apps/tailscale/samba:/etc/samba  # Mount the custom smb.conf
+    command: >
+      -s "media;/mnt/sec/media;yes;no;no;toor" 
+      -u "toor;toor"
+    network_mode: service:tailscale  # Use Tailscale's network stack
