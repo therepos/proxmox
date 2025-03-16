@@ -1,5 +1,6 @@
 # https://tailscale.com/kb/1282/docker
-# runs the applications at https://tailscale-ip:port
+# filebrowser runs at https://tailscale-ip:80
+# samba maps at \\tailscale-up\mediadb
 
 services:
   tailscale:
