@@ -44,5 +44,8 @@ services:
       - /mnt/sec/media:/mnt/sec/media:z  # Mount the same directory for Samba
       - /mnt/sec/apps/tailscale/samba:/etc/samba  # Mount the custom smb.conf
     entrypoint: >
-      bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-sambausers.sh)"
+      bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/tools/set-sambausers.sh)"
+    command: >
+      -s "media;/mnt/sec/media;yes;no;no;toor" 
+      -u "toor;toor"
     network_mode: service:tailscale  # Use Tailscale's network stack
