@@ -62,7 +62,12 @@ if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
         status_message "success" "Removed Docker Compose file."
     else
         echo "Ollama installation remains intact."
+        exit 0
     fi
+    
+    # Exit after uninstall to prevent reinstallation
+    exit 0
+
 else
     echo "Ollama is not installed."
 fi
