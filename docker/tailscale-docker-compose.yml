@@ -1,6 +1,8 @@
 # https://tailscale.com/kb/1282/docker
 # filebrowser runs at https://tailscale-ip:80
+# filebrowser default user:password login = admin:admin
 # samba maps at \\tailscale-up\mediadb
+# samba default user:password login = toor:toor
 
 services:
   tailscale:
