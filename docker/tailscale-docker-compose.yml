@@ -28,6 +28,7 @@ services:
     container_name: filebrowser
     volumes:
       - /mnt/sec:/srv
+#     - /:/srv  # Mount the entire root filesystem
     network_mode: service:tailscale  # Filebrowser will share Tailscale's network
     restart: unless-stopped
 
