@@ -15,13 +15,13 @@ function status_message() {
         echo -e "${GREEN} ${message}"
     else
         echo -e "${RED} ${message}"
-        exit 1
     fi
 }
 
 # Check if Docker is installed
 if ! command -v docker &>/dev/null; then
     status_message "error" "Docker is not installed. Please install Docker first."
+    exit 1
 fi
 
 # Get all running container names
@@ -29,6 +29,7 @@ CONTAINER_NAMES=$(docker ps -a --format "{{.Names}}")
 
 if [[ -z "$CONTAINER_NAMES" ]]; then
     status_message "error" "No Docker containers found."
+    exit 1
 fi
 
 # Group containers based on their base name
@@ -70,6 +71,7 @@ done
 read -p "Are you sure you want to uninstall '$SELECTED_GROUP' (Containers: $SELECTED_CONTAINERS)? (y/n): " CONFIRM
 if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     status_message "error" "Uninstallation aborted."
+    exit 1
 fi
 
 # Stop and remove all containers in the selected group
@@ -86,30 +88,45 @@ status_message "info" "Removing related resources..."
 
 # Identify and remove only images linked to the selected containers
 IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
-for IMAGE in $IMAGES; do
-    if [[ -z "$(docker ps -a --filter "ancestor=$IMAGE" --format "{{.ID}}")" ]]; then
-        docker rmi "$IMAGE" &>/dev/null
-        status_message "success" "Removed image '$IMAGE'."
-    else
-        status_message "info" "Skipping image '$IMAGE' as it is still in use."
-    fi
-done
+if [[ -n "$IMAGES" ]]; then
+    for IMAGE in $IMAGES; do
+        if [[ -z "$(docker ps -a --filter "ancestor=$IMAGE" --format "{{.ID}}")" ]]; then
+            docker rmi "$IMAGE" &>/dev/null
+            status_message "success" "Removed image '$IMAGE'."
+        else
+            status_message "info" "Skipping image '$IMAGE' as it is still in use."
+        fi
+    done
+else
+    status_message "info" "No related images found."
+fi
 
 # Remove only networks related to the selected containers
 NETWORKS=$(docker network ls --format "{{.Name}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
-for NETWORK in $NETWORKS; do
-    docker network rm "$NETWORK" &>/dev/null
-    status_message "success" "Removed network '$NETWORK'."
-done
+if [[ -n "$NETWORKS" ]]; then
+    for NETWORK in $NETWORKS; do
+        docker network rm "$NETWORK" &>/dev/null
+        status_message "success" "Removed network '$NETWORK'."
+    done
+else
+    status_message "info" "No related networks found."
+fi
 
 # Remove only volumes linked to the selected containers
+VOLUME_FOUND=false
 for CONTAINER in $SELECTED_CONTAINERS; do
     VOLUMES=$(docker inspect -f '{{ range .Mounts }}{{ .Name }} {{ end }}' "$CONTAINER" 2>/dev/null)
-    for VOLUME in $VOLUMES; do
-        docker volume rm "$VOLUME" &>/dev/null
-        status_message "success" "Removed volume '$VOLUME'."
-    done
+    if [[ -n "$VOLUMES" ]]; then
+        VOLUME_FOUND=true
+        for VOLUME in $VOLUMES; do
+            docker volume rm "$VOLUME" &>/dev/null
+            status_message "success" "Removed volume '$VOLUME'."
+        done
+    fi
 done
+if [[ "$VOLUME_FOUND" == false ]]; then
+    status_message "info" "No related volumes found."
+fi
 
 # Remove dangling images, volumes, and build cache related only to removed containers
 docker system prune -a --volumes --force --filter "label=$SELECTED_GROUP" &>/dev/null
