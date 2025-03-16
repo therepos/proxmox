@@ -5,12 +5,12 @@
 # =====
 # verify group permission: docker exec -it samba smbclient //localhost/mediadb -U toor
 
-
 LOG_FILE="/var/log/install-samba.log"
 SHARE_NAME="mediadb"
 SHARE_PATH="/mnt/sec/media"
 SAMBA_GROUP="sambausers"
 SAMBA_USER="toor"
+SAMBA_PASS="toor"  # Set Samba password here
 
 # Function to log status messages
 function status_message() {
@@ -73,8 +73,12 @@ cat <<EOF > /etc/samba/smb.conf
    write list = $SAMBA_USER
 EOF
 
-# Restart Samba service
-systemctl restart smbd
-status_message "success" "Samba service restarted."
+# Set Samba user password (ensure user exists)
+(echo "$SAMBA_PASS"; echo "$SAMBA_PASS") | smbpasswd -s -a "$SAMBA_USER"
+
+# Reload Samba configuration instead of restarting
+smbcontrol all reload-config
+
+status_message "success" "Samba configuration updated and reloaded."
 
 status_message "success" "Samba share '$SHARE_NAME' has been configured successfully."
