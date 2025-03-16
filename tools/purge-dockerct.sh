@@ -46,10 +46,8 @@ declare -A FINAL_GROUPS
 for BASE_NAME in "${!CONTAINER_GROUPS[@]}"; do
     CONTAINERS=(${CONTAINER_GROUPS["$BASE_NAME"]})  # Convert to array
     if [[ ${#CONTAINERS[@]} -eq 1 ]]; then
-        # Only one container with this base name, use full name
         FINAL_GROUPS["${CONTAINERS[0]}"]="${CONTAINERS[0]}"
     else
-        # Multiple containers share this base name, keep them grouped
         FINAL_GROUPS["$BASE_NAME"]="${CONTAINER_GROUPS["$BASE_NAME"]}"
     fi
 done
@@ -83,41 +81,39 @@ for CONTAINER in $SELECTED_CONTAINERS; do
     status_message "success" "Removed container '$CONTAINER'."
 done
 
-# Ask if related resources should be removed
-read -p "Do you want to remove associated volumes, images, networks, and other resources? (y/n): " REMOVE_RESOURCES
+# Auto-remove related resources (no prompt)
+status_message "info" "Removing related resources..."
 
-if [[ "$REMOVE_RESOURCES" == "y" || "$REMOVE_RESOURCES" == "Y" ]]; then
-    # Identify and remove only images linked to the selected containers
-    IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
-    for IMAGE in $IMAGES; do
-        if [[ -z "$(docker ps -a --filter "ancestor=$IMAGE" --format "{{.ID}}")" ]]; then
-            docker rmi "$IMAGE" &>/dev/null
-            status_message "success" "Removed image '$IMAGE'."
-        else
-            status_message "info" "Skipping image '$IMAGE' as it is still in use."
-        fi
+# Identify and remove only images linked to the selected containers
+IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
+for IMAGE in $IMAGES; do
+    if [[ -z "$(docker ps -a --filter "ancestor=$IMAGE" --format "{{.ID}}")" ]]; then
+        docker rmi "$IMAGE" &>/dev/null
+        status_message "success" "Removed image '$IMAGE'."
+    else
+        status_message "info" "Skipping image '$IMAGE' as it is still in use."
+    fi
+done
+
+# Remove only networks related to the selected containers
+NETWORKS=$(docker network ls --format "{{.Name}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
+for NETWORK in $NETWORKS; do
+    docker network rm "$NETWORK" &>/dev/null
+    status_message "success" "Removed network '$NETWORK'."
+done
+
+# Remove only volumes linked to the selected containers
+for CONTAINER in $SELECTED_CONTAINERS; do
+    VOLUMES=$(docker inspect -f '{{ range .Mounts }}{{ .Name }} {{ end }}' "$CONTAINER" 2>/dev/null)
+    for VOLUME in $VOLUMES; do
+        docker volume rm "$VOLUME" &>/dev/null
+        status_message "success" "Removed volume '$VOLUME'."
     done
+done
 
-    # Remove only networks related to the selected containers
-    NETWORKS=$(docker network ls --format "{{.Name}}" | grep -E "$(echo "$SELECTED_GROUP" | sed 's/-/|/g')")
-    for NETWORK in $NETWORKS; do
-        docker network rm "$NETWORK" &>/dev/null
-        status_message "success" "Removed network '$NETWORK'."
-    done
-
-    # Remove only volumes linked to the selected containers
-    for CONTAINER in $SELECTED_CONTAINERS; do
-        VOLUMES=$(docker inspect -f '{{ range .Mounts }}{{ .Name }} {{ end }}' "$CONTAINER" 2>/dev/null)
-        for VOLUME in $VOLUMES; do
-            docker volume rm "$VOLUME" &>/dev/null
-            status_message "success" "Removed volume '$VOLUME'."
-        done
-    done
-
-    # Remove dangling images, volumes, and build cache related only to removed containers
-    docker system prune -a --volumes --force --filter "label=$SELECTED_GROUP" &>/dev/null
-    status_message "success" "Removed dangling images, volumes, and cache related to '$SELECTED_GROUP'."
-fi
+# Remove dangling images, volumes, and build cache related only to removed containers
+docker system prune -a --volumes --force --filter "label=$SELECTED_GROUP" &>/dev/null
+status_message "success" "Removed dangling images, volumes, and cache related to '$SELECTED_GROUP'."
 
 # Check and remove Docker's container storage directory (specific to the container group)
 DOCKER_CONTAINER_DIR="/mnt/sec/apps/$SELECTED_GROUP"
