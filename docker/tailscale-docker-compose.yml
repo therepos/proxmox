@@ -1,11 +1,6 @@
 # https://tailscale.com/kb/1282/docker
 # runs the applications at https://tailscale-ip:port
-# docker exec -it samba bash
-# getent group sambausers
-# groupadd sambausers  # Create sambausers group
-# usermod -aG sambausers toor  # Add the 'toor' user to the sambausers group
-# docker restart samba
-# docker exec -it samba smbclient //localhost/mediadb -U toor
+# verify group permission: docker exec -it samba smbclient //localhost/mediadb -U toor
 
 services:
   tailscale:
