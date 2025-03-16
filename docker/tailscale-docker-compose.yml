@@ -3,6 +3,7 @@
 # filebrowser default user:password login = admin:admin
 # samba maps at \\tailscale-up\mediadb
 # samba default user:password login = toor:toor
+# samba password change: smbpasswd toor
 
 services:
   tailscale:
