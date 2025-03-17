@@ -6,7 +6,7 @@
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
-RESET="\e[0m"
+BLUE="\e[34mℹ\e[0m"  # New info symbol
 
 function status_message() { 
     local status=$1
@@ -14,7 +14,7 @@ function status_message() {
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
     elif [[ "$status" == "info" ]]; then
-        echo -e "${RESET} ${message}"  # Use blue ℹ for info
+        echo -e "${BLUE} ${message}"  # Use blue ℹ for info
     else
         echo -e "${RED} ${message}"
     fi
