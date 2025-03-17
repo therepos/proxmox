@@ -8,11 +8,13 @@ GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
 
-function status_message() {
+function status_message() { 
     local status=$1
     local message=$2
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
+    elif [[ "$status" == "info" ]]; then
+        echo -e "${RESET} ${message}"  # Use blue ℹ for info
     else
         echo -e "${RED} ${message}"
     fi
