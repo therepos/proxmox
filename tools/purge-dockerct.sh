@@ -128,9 +128,49 @@ if [[ "$VOLUME_FOUND" == false ]]; then
     status_message "info" "No related volumes found."
 fi
 
-# Remove dangling images, volumes, and build cache related only to removed containers
-docker system prune -a --volumes --force --filter "label=$SELECTED_GROUP" &>/dev/null
-status_message "success" "Removed dangling images, volumes, and cache related to '$SELECTED_GROUP'."
+# Ensure all images related to the selected group are removed
+IMAGES=$(docker ps -a --filter "name=$SELECTED_GROUP" --format "{{.Image}}")
+if [[ -n "$IMAGES" ]]; then
+    echo "$IMAGES" | xargs -r docker rmi -f &>/dev/null
+    status_message "success" "Removed all images related to '$SELECTED_GROUP'."
+else
+    status_message "info" "No images found for '$SELECTED_GROUP'."
+fi
+
+# Remove untagged (dangling) images
+DANGLING_IMAGES=$(docker images -f "dangling=true" -q)
+if [[ -n "$DANGLING_IMAGES" ]]; then
+    echo "$DANGLING_IMAGES" | xargs -r docker rmi -f &>/dev/null
+    status_message "success" "Removed all dangling images."
+else
+    status_message "info" "No dangling images found."
+fi
+
+# Force remove all networks related to the selected group
+NETWORKS=$(docker network ls --format "{{.ID}} {{.Name}}" | grep "$SELECTED_GROUP" | awk '{print $1}')
+if [[ -n "$NETWORKS" ]]; then
+    echo "$NETWORKS" | xargs -r docker network rm &>/dev/null
+    status_message "success" "Removed all networks related to '$SELECTED_GROUP'."
+else
+    status_message "info" "No networks found for '$SELECTED_GROUP'."
+fi
+
+# Ensure orphaned volumes are removed
+VOLUMES=$(docker volume ls --quiet)
+if [[ -n "$VOLUMES" ]]; then
+    echo "$VOLUMES" | xargs -r docker volume rm &>/dev/null
+    status_message "success" "Removed all orphaned volumes."
+else
+    status_message "info" "No orphaned volumes found."
+fi
+
+# Clean up unused build cache
+docker builder prune --all --force &>/dev/null
+status_message "success" "Removed all unused build cache."
+
+# Perform a final forced prune to remove anything leftover
+docker system prune -a --volumes --force &>/dev/null
+status_message "success" "Final system prune completed. No related resources should remain."
 
 # Ensure storage check happens at the end
 DOCKER_CONTAINER_DIR="/mnt/sec/apps/$SELECTED_GROUP"
