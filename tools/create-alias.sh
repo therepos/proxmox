@@ -27,7 +27,6 @@ status_message "info" "Backup created at $ALIAS_FILE.bak"
 {
   echo ""
   echo "# Custom Aliases"
-  echo "alias ollama='cd /mnt/sec/apps/ollama'"
   echo "alias purgedockerct='bash -c \"\$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)\"'"
   # Add more aliases below as needed
 } >> "$ALIAS_FILE"
