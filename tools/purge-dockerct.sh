@@ -59,7 +59,7 @@ echo "Available container groups for removal:"
 OPTIONS=("Exit" "${!FINAL_GROUPS[@]}")
 PS3="#? (0 to exit): "
 select SELECTED_GROUP in "${OPTIONS[@]}"; do
-    if [[ "$REPLY" == "0" || "$SELECTED_GROUP" == "Exit" ]]; then
+    if [[ "$REPLY" == "0" ]]; then
         status_message "info" "Exiting script as requested."
         exit 0
     elif [[ -n "$SELECTED_GROUP" ]]; then
