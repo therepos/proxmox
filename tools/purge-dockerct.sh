@@ -56,7 +56,7 @@ done
 
 # Display grouped container options with Exit option
 echo "Available container groups for removal:"
-OPTIONS=("Exit" "${!FINAL_GROUPS[@]}")
+OPTIONS=("${!FINAL_GROUPS[@]}")
 PS3="#? (0 to exit): "
 select SELECTED_GROUP in "${OPTIONS[@]}"; do
     if [[ "$REPLY" == "0" ]]; then
