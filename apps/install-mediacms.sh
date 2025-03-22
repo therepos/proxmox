@@ -46,18 +46,17 @@ else
 fi
 
 # Ensure volumes section exists and add the named volume definition for postgres_data
-if grep -q "volumes:" docker-compose.yaml; then
-    # If volumes section exists, add postgres_data volume if not already there
+if ! grep -q "volumes:" docker-compose.yaml; then
+    echo -e "\nvolumes:\n  postgres_data:" >> docker-compose.yaml
+    status_message "success" "Created volumes section and added named volume definition for postgres_data."
+else
+    # Check if postgres_data is already defined in the volumes section
     if ! grep -q "postgres_data:" docker-compose.yaml; then
         echo -e "\n  postgres_data:" >> docker-compose.yaml
         status_message "success" "Added named volume definition for postgres_data."
     else
         status_message "info" "Named volume postgres_data already defined."
     fi
-else
-    # If volumes section does not exist, create it and define postgres_data
-    echo -e "\nvolumes:\n  postgres_data:" >> docker-compose.yaml
-    status_message "success" "Created volumes section and added named volume definition for postgres_data."
 fi
 
 # Add volume mount for `/mnt/sec/media/temp`
