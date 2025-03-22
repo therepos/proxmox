@@ -39,20 +39,19 @@ else
 fi
 
 # Modify db service to use named volume for postgres data
-if sed -i '/db:/,/volumes:/s|\(volumes:\)[^#]*|\1\n      - postgres_data:/var/lib/postgresql/data|' docker-compose.yaml; then
+if sed -i 's|../postgres_data:/var/lib/postgresql/data/|postgres_data:/var/lib/postgresql/data|' docker-compose.yaml; then
     status_message "success" "Updated db service to use named volume for postgres data."
 else
     status_message "error" "Failed to update db service for named volume."
 fi
 
 # Ensure volumes section exists and add the named volume definition for postgres_data
-if ! grep -q "volumes:" docker-compose.yaml; then
+if ! grep -q "^volumes:" docker-compose.yaml; then
     echo -e "\nvolumes:\n  postgres_data:" >> docker-compose.yaml
     status_message "success" "Created volumes section and added named volume definition for postgres_data."
 else
-    # Check only within the volumes block
-    if ! awk '/volumes:/ {found=1; next} /^[^[:space:]]/ {found=0} found && /postgres_data:/ {exit 1}' docker-compose.yaml; then
-        echo -e "\n  postgres_data:" >> docker-compose.yaml
+    if ! awk '/^volumes:/ {found=1; next} /^[^[:space:]]/ {found=0} found && /postgres_data:/ {exit 1}' docker-compose.yaml; then
+        sed -i '/^volumes:/a\  postgres_data:' docker-compose.yaml
         status_message "success" "Added named volume definition for postgres_data."
     else
         status_message "info" "Named volume postgres_data already defined."
