@@ -3,8 +3,8 @@
 # purpose: this script ocr scans files from ocrmypdf folder to paperless-ngx consume folder
 
 # Define script URLs (Replace with your actual GitHub repository URLs)
-OCR_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scanfiles.sh"
-MOVE_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-movefiles.sh"
+OCR_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-paperless-scanfiles.sh"
+MOVE_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-paperless-movefiles.sh"
 
 # Fetch and run the OCR process script
 echo "Starting OCR process..."
