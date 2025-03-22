@@ -10,7 +10,7 @@ LOG_FILE="/var/log/install-samba.log"
 SHARE_NAME="mediadb"
 SHARE_PATH="/mnt/sec/media"
 SAMBA_GROUP="sambausers"
-SAMBA_USER="toor"
+SAMBA_USER="admin"
 
 # Function to log status messages
 function status_message() {
@@ -44,7 +44,7 @@ function setup_samba_share() {
     # Ensure Samba group exists
     getent group "$SAMBA_GROUP" || groupadd "$SAMBA_GROUP"
 
-    # Ensure `toor` is in the Samba group
+    # Ensure `admin` is in the Samba group
     usermod -aG "$SAMBA_GROUP" "$SAMBA_USER"
 
     # Set directory ownership and permissions

@@ -3,8 +3,8 @@
 # filebrowser runs at https://tailscale-ip:80
 # filebrowser default user:password login = admin:admin
 # samba maps at \\tailscale-up\mediadb
-# samba default user:password login = toor:toor
-# samba password change: smbpasswd toor
+# samba default user:password login = admin:admin
+# samba password change: smbpasswd admin
 
 services:
   tailscale:
@@ -45,10 +45,10 @@ services:
       - /mnt/sec/media:/mnt/sec/media:z
       - /mnt/sec/apps/tailscale/samba:/etc/samba
     command: >
-      -s "mediadb;/mnt/sec/media;yes;no;no;toor;toor;toor"
-      -u "toor;toor"
-      -g "force user = toor"
-      -g "force group = toor"
+      -s "mediadb;/mnt/sec/media;yes;no;no;admin;admin;admin"
+      -u "admin;admin"
+      -g "force user = admin"
+      -g "force group = admin"
       -g "create mask = 0664"
       -g "directory mask = 2775"
       -g "force create mode = 0664"
