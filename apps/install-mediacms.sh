@@ -50,7 +50,7 @@ if ! grep -q "volumes:" docker-compose.yaml; then
     echo -e "\nvolumes:\n  postgres_data:" >> docker-compose.yaml
     status_message "success" "Created volumes section and added named volume definition for postgres_data."
 else
-    # Check if postgres_data is already defined in the volumes section
+    # Check if postgres_data is defined within the volumes section specifically
     if ! grep -q "postgres_data:" docker-compose.yaml; then
         echo -e "\n  postgres_data:" >> docker-compose.yaml
         status_message "success" "Added named volume definition for postgres_data."
