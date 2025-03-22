@@ -38,6 +38,28 @@ else
     status_message "error" "Failed to change port."
 fi
 
+# Modify db service to use named volume for postgres data
+if sed -i '/db:/,/volumes:/s|\(volumes:\)[^#]*|\1\n      - postgres_data:/var/lib/postgresql/data|' docker-compose.yaml; then
+    status_message "success" "Updated db service to use named volume for postgres data."
+else
+    status_message "error" "Failed to update db service for named volume."
+fi
+
+# Ensure volumes section exists and add the named volume definition for postgres_data
+if grep -q "volumes:" docker-compose.yaml; then
+    # If volumes section exists, add postgres_data volume if not already there
+    if ! grep -q "postgres_data:" docker-compose.yaml; then
+        echo -e "\n  postgres_data:" >> docker-compose.yaml
+        status_message "success" "Added named volume definition for postgres_data."
+    else
+        status_message "info" "Named volume postgres_data already defined."
+    fi
+else
+    # If volumes section does not exist, create it and define postgres_data
+    echo -e "\nvolumes:\n  postgres_data:" >> docker-compose.yaml
+    status_message "success" "Created volumes section and added named volume definition for postgres_data."
+fi
+
 # Add volume mount for `/mnt/sec/media/temp`
 if sed -i '/web:/,/volumes:/s|\(volumes:\)|\1\n      - /mnt/sec/media/videos/uploads:/mnt/sec/media/videos/uploads|' docker-compose.yaml; then
     status_message "success" "Mounted /mnt/sec/media/temp."
