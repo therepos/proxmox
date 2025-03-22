@@ -81,42 +81,42 @@ else
 fi
 
 # Add container_name for migrations service
-if sed -i '/migrations:/a \ \ \ \ container_name: mediacms-migrations' docker-compose.yaml; then
+if sed -i '/migrations:/a\    container_name: mediacms-migrations' docker-compose.yaml; then
     status_message "success" "Added container_name for migrations service."
 else
     status_message "error" "Failed to add container_name for migrations service."
 fi
 
 # Add container_name for web service
-if sed -i '/web:/a \ \ \ \ container_name: mediacms-web' docker-compose.yaml; then
+if sed -i '/web:/a\    container_name: mediacms-web' docker-compose.yaml; then
     status_message "success" "Added container_name for web service."
 else
     status_message "error" "Failed to add container_name for web service."
 fi
 
 # Add container_name for celery_beat service
-if sed -i '/celery_beat:/a \ \ \ \ container_name: mediacms-cb' docker-compose.yaml; then
+if sed -i '/celery_beat:/a\    container_name: mediacms-cb' docker-compose.yaml; then
     status_message "success" "Added container_name for celery_beat service."
 else
     status_message "error" "Failed to add container_name for celery_beat service."
 fi
 
 # Add container_name for celery_worker service
-if sed -i '/celery_worker:/a \ \ \ \ container_name: mediacms-cw' docker-compose.yaml; then
+if sed -i '/celery_worker:/a\    container_name: mediacms-cw' docker-compose.yaml; then
     status_message "success" "Added container_name for celery_worker service."
 else
     status_message "error" "Failed to add container_name for celery_worker service."
 fi
 
 # Add container_name for db service
-if sed -i '/db:/a \ \ \ \ container_name: mediacms-db' docker-compose.yaml; then
+if sed -i '/db:/a\    container_name: mediacms-db' docker-compose.yaml; then
     status_message "success" "Added container_name for db service."
 else
     status_message "error" "Failed to add container_name for db service."
 fi
 
 # Add container_name for redis service
-if sed -i '/redis:/a \ \ \ \ container_name: mediacms-redis' docker-compose.yaml; then
+if sed -i '/redis:/a\    container_name: mediacms-redis' docker-compose.yaml; then
     status_message "success" "Added container_name for redis service."
 else
     status_message "error" "Failed to add container_name for redis service."
