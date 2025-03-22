@@ -21,7 +21,7 @@ services:
       - NET_ADMIN
     volumes:
 #     - /mnt/sec/media:/data    # uncomment for igpu passthrough
-      - /mnt/sec/apps/Win11_24H2_English_x64.iso:/custom.iso
+      - /mnt/sec/apps/.installers/Win11_24H2_English_x64.iso:/custom.iso
       - /mnt/sec/apps/windows/storage:/storage
     ports:
       - 3023:8006
