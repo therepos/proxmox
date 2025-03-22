@@ -1,6 +1,7 @@
 services:
   migrations:
     image: ghcr.io/therepos/mediacms:latest
+    container_name: mediacms-migrations
     volumes:
       - ./:/home/mediacms.io/mediacms/
     environment:
@@ -21,6 +22,7 @@ services:
         condition: service_healthy
   web:
     image: ghcr.io/therepos/mediacms:latest
+    container_name: mediacms-web
     deploy:
       replicas: 1
     ports:
@@ -38,6 +40,7 @@ services:
       - migrations
   celery_beat:
     image: ghcr.io/therepos/mediacms:latest
+    container_name: mediacms-cb
     volumes:
       - ./:/home/mediacms.io/mediacms/
     environment:
@@ -50,6 +53,7 @@ services:
       - redis
   celery_worker:
     image: ghcr.io/therepos/mediacms:latest
+    container_name: mediacms-cw
     deploy:
       replicas: 1
     volumes:
@@ -63,6 +67,7 @@ services:
       - migrations
   db:
     image: postgres:17.2-alpine
+    container_name: mediacms-db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
@@ -78,6 +83,7 @@ services:
       retries: 5
   redis:
     image: "redis:alpine"
+    container_name: mediacms-redis
     restart: always
     healthcheck:
       test: ["CMD", "redis-cli","ping"]
