@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-debian.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/install-debian.sh?$(date +%s))"
 # purpose: this script downloads the latest debian ISO
 
 # Variables

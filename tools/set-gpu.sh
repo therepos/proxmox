@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh?$(date +%s))"
 # purpose: this script setups/switches nvidia gpu passthrough between vm and docker
 
 # List available VMs in numbered format
