@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh?$(date +%s))"
 # purpose: this script removes user-specified docker container(s) cleanly
 
 # Define colors and status symbols
