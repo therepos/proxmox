@@ -7,7 +7,7 @@ DB_CONTAINER="mediacms-db"
 REPO_URL="https://github.com/therepos/proxmox/raw/main/tools"
 UPLOAD_SCRIPT="/opt/mediacms-import-upload.py"
 PLAYLIST_SCRIPT="/opt/mediacms-import-addplaylist.sh"
-UPLOAD_FILE="/mnt/sec/media/videos/uploads/uploaded_videos.txt"
+UPLOAD_FILE="/mnt/sec/media/videos/uploaded_videos.txt"
 MEDIA_FOLDER="/mnt/sec/media/videos/uploads"
 
 echo "Starting MediaCMS Import Process..."
