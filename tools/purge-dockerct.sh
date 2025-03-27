@@ -13,7 +13,7 @@ function status_message() {
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
     elif [[ "$status" == "info" ]]; then
-        echo -e "${BLUE} ${message}"
+        echo -e "${BLACK} ${message}"
     else
         echo -e "${RED} ${message}"
     fi
