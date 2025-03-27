@@ -4,7 +4,7 @@
 
 DB_NAME="mediacms"
 DB_USER="mediacms"
-UPLOAD_FILE="/mnt/sec/media/videos/uploads/uploaded_videos.txt"
+UPLOAD_FILE="/mnt/sec/media/videos/uploaded_videos.txt"
 
 if [ ! -f "$UPLOAD_FILE" ]; then
     echo "Error: File $UPLOAD_FILE not found!"
