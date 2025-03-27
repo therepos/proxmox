@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-plex.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-plex.sh?$(date +%s))"
 # purpose: this script installs plex docker
 
 # Define colors and status symbols

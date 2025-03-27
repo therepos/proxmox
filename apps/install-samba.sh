@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh?$(date +%s))"
 # purpose: this script installs and configures Samba with correct permissions
 # =====
 # notes: to ensure files inside the directory have the right permissions 

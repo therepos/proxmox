@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh?$(date +%s))"
 # purpose: this script installs docker engine, docker compose, and nvidia container toolkit
 
 # Define colors and status symbols
