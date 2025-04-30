@@ -1,0 +1,11 @@
+services:
+   vaultwarden:
+      container_name: vaultwarden
+      image: vaultwarden/server:latest
+      volumes:
+         - /mnt/sec/apps/vaultwarden/data/:/data/
+      ports:
+         - 3027:80
+      restart: unless-stopped
+      environment:
+         - ADMIN_TOKEN=45645ierd09hlkasdf9dsjfglkdhfo9gj3okjf9fdslkjfhgdf8kjjkjhkk # Change this 128 hex codes
