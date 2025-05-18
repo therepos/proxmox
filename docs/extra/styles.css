@@ -1,0 +1,116 @@
+/* ======================================== 
+   Body
+=========================================*/ 
+
+:root {
+  --md-primary-fg-color: #ffffff;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #0052cc;
+}
+
+body, .md-typeset {
+  font-size: 0.9em;
+  font-feature-settings: "kern", "liga";
+  hyphens: auto;
+  text-align: justify;
+  text-justify: inter-word;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ======================================== 
+   Theme
+=========================================*/ 
+/* Light mode */
+[data-md-color-scheme="default"] {
+  --custom-heading-color: #000000;
+}
+
+/* Dark mode */
+[data-md-color-scheme="slate"] {
+  --custom-heading-color: #ffffff;
+}
+
+/* ======================================== 
+   TOC
+=========================================*/ 
+
+
+/* ======================================== 
+   Navigation Bar
+=========================================*/ 
+
+/* Left and right nav: base link style */
+.md-nav__item .md-nav__link {
+  color: #c0c0c0;              /* Light gray like GitBook */
+  font-weight: 400;
+}
+
+/* Active link (blue and bolder) */
+.md-nav__item .md-nav__link--active {
+  color: #1a73e8;              /* GitBook-style blue */
+  font-weight: 600;
+}
+
+/* Hover effect: slightly darker */
+.md-nav__item .md-nav__link:hover {
+  color: #333333;
+}
+
+/* ======================================== 
+   Headings
+=========================================*/ 
+
+/* Headings */
+.md-typeset h1 {
+  font-size: 2em;
+  font-weight: 300;
+}
+
+.md-typeset h2 {
+  font-size: 1.5em;
+  font-weight: 300;
+  margin-top: 1.6em;
+  margin-bottom: 0.8em;
+}
+
+.md-typeset h3 {
+  font-weight: 500;
+  margin-top: 1.6em;
+  margin-bottom: 0.8em;
+}
+
+/* Unified heading style */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  color: var(--custom-heading-color);
+  letter-spacing: 0.01em;
+}
+
+/* Ensure fixed header doesn't overlap anchor targets */
+.md-typeset h1:target,
+.md-typeset h2:target,
+.md-typeset h3:target,
+.md-typeset h4:target,
+.md-typeset h5:target,
+.md-typeset h6:target {
+  scroll-margin-top: 100px;
+}
+
+
+/* ======================================== 
+   Custom Text
+=========================================*/ 
+
+h7 {
+  color: #1a73e8;         
+  font-size: inherit;         
+  font-weight: normal;    
+  display: inline;        /* Inline, not block */
+  margin: 0;              /* Prevent spacing issues */
+}

@@ -1,0 +1,57 @@
+name: Deploy MkDocs to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
+
+      - name: Install MkDocs and dependencies
+        run: |
+          pip install \
+            mkdocs \
+            mkdocs-material \
+            mkdocs-git-revision-date-localized-plugin
+
+      - name: Compute hash and rename styles.css
+        run: |
+          # Define both source files
+          CSS_FILE="docs/extra/styles.css"
+
+          # Compute a combined hash based on both files' content
+          HASH=$(cat "$CSS_FILE" | sha1sum | cut -c1-8)
+
+          # Define new hashed filenames
+          HASHED_CSS="docs/extra/styles.$HASH.css"
+
+          # Rename files
+          mv "$CSS_FILE" "$HASHED_CSS"
+
+          # Update mkdocs.yml
+          sed -i "s|extra/styles.css|extra/styles.$HASH.css|g" mkdocs.yml
+
+      - name: Build the MkDocs site
+        run: mkdocs build --strict
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
