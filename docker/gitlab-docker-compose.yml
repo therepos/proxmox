@@ -1,3 +1,4 @@
+# https://docs.gitlab.com/user/get_started/
 # post deploying compose, wait a good 3-5 minutes for database setup
 # then login with username (root) and password (initial_root_password)
 #   docker exec gitlab cat /etc/gitlab/initial_root_password
