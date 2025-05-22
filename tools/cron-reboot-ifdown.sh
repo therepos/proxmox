@@ -3,13 +3,13 @@
 # purpose: this script reboots proxmox if cloudflared lxc service is down
 # =====
 # notes:
-# sed -i 's/\r//' /usr/local/bin/reboot-ifdown.sh
-# chmod +x /usr/local/bin/reboot-ifdown.sh
-# crontab -e
-# */5 * * * * /usr/local/bin/reboot-ifdown.sh >> /var/log/reboot-ifdown.log 2>&1
+#   sed -i 's/\r//' /usr/local/bin/reboot-ifdown.sh
+#   chmod +x /usr/local/bin/reboot-ifdown.sh
+#   crontab -e
+#   */5 * * * * /usr/local/bin/reboot-ifdown.sh >> /var/log/reboot-ifdown.log 2>&1
 # =====
 # check:
-# systemctl status cron
+#   systemctl status cron
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

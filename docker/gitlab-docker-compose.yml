@@ -1,6 +1,6 @@
-# 1. post deploying compose, wait a good 3-5 minutes for database setup
-# 2. then login with username (root) and password (initial_root_password)
-#  docker exec gitlab cat /etc/gitlab/initial_root_password
+# post deploying compose, wait a good 3-5 minutes for database setup
+# then login with username (root) and password (initial_root_password)
+#   docker exec gitlab cat /etc/gitlab/initial_root_password
 
 services:
   gitlab:
@@ -16,7 +16,7 @@ services:
       - '8080:80'
       - '2224:22'
     volumes:
-      - ./gitlab/config:/etc/gitlab
-      - ./gitlab/logs:/var/log/gitlab
-      - ./gitlab/data:/var/opt/gitlab
+      - /mnt/sec/apps/gitlab/config:/etc/gitlab
+      - /mnt/sec/apps/gitlab/logs:/var/log/gitlab
+      - /mnt/sec/apps/gitlab/data:/var/opt/gitlab
     shm_size: '256m'

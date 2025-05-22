@@ -1,18 +1,12 @@
 # https://tailscale.com/kb/1282/docker
-# https://github.com/dperson/samba
-# filebrowser runs at https://tailscale-ip:80
-# filebrowser default user:password login = admin:admin
-# samba maps at \\tailscale-up\mediadb
-# samba default user:password login = admin:admin
-# samba password change: smbpasswd admin
-# ===== Updating Tailscale =====
-# docker stop tailscale
-# docker rm tailscale
-# docker rmi tailscale/tailscale:latest
-# docker pull tailscale/tailscale:latest
-# --- Tailscale Admin Console > Regenerate Hash Key ---
-# docker compose up -d
-# docker exec tailscale tailscale version
+# update tailscale:
+#   docker stop tailscale
+#   docker rm tailscale
+#   docker rmi tailscale/tailscale:latest
+#   docker pull tailscale/tailscale:latest
+#   Tailscale Admin Console > Regenerate Hash Key
+#   docker compose up -d
+#   docker exec tailscale tailscale version
 
 services:
   tailscale:

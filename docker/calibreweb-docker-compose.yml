@@ -1,14 +1,13 @@
-# additional steps required:
-# 1. save metadata.db to /config for database initialisation
-# 2. check the User and Group IDs inside the container: 
-#  docker exec -it <container_name> /bin/sh
-#  id
-#  exit
-#  (e.g. output: uid=0(root) gid=0(root) groups=0(root))
-# 3. check ownership of your books directory:
-#  ls -ld /mnt/sec/media/books
-# 4. match the ownership of the books directory to Docker container UID and GID: 
-#  sudo chown root:root /mnt/sec/media/books
+# save metadata.db to /config for database initialisation
+# check the User and Group IDs inside the container: 
+#   docker exec -it <container_name> /bin/sh
+#   id
+#   exit
+#   (e.g. output: uid=0(root) gid=0(root) groups=0(root))
+# check ownership of your books directory:
+#   ls -ld /mnt/sec/media/books
+# match the ownership of the books directory to Docker container UID and GID: 
+#   sudo chown root:root /mnt/sec/media/books
 
 services:
   calibreweb:
