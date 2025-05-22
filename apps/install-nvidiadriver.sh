@@ -3,12 +3,12 @@
 # purpose: this script installs nvidia driver and container toolkit
 # =====
 # notes:
-# continuous monitoring: watch -n 1 nvidia-smi
-# container specific monitoring: docker exec -it <container_id> /bin/bash
-# update nvidia-driver:
-#  sudo apt-get purge nvidia-*
-#  sudo update-initramfs -u
-#  sudo reboot
+# - continuous monitoring: watch -n 1 nvidia-smi
+# - container specific monitoring: docker exec -it <container_id> /bin/bash
+# - update nvidia-driver:
+#   sudo apt-get purge nvidia-*
+#   sudo update-initramfs -u
+#   sudo reboot
 
 # Function to print status with green or red check marks
 print_status() {
