@@ -1,4 +1,19 @@
 # https://github.com/jlesage/docker-czkawka
+# Algorithm
+#   Nearest: Fast but low quality. Use for speed over accuracy.
+#   Triangle: Balanced speed and quality. Good general choice.
+#   CatmullRom: Sharp results. Use for cartoon or crisp images.
+#   Gaussian: Softens images. Good for noisy or blurry sources.
+#   Lanczos3: Best for detail. Ideal for high-res or photographic images.
+# Hash Size
+#   8: Fast, less precise. Use for rough similarity.
+#   16: Balanced. Default for general use.
+#   32: Slower, very precise. Use for high accuracy needs.
+# Hash Type
+#   Mean: Simple and fast. Best for identical/similar images.
+#   Gradient: Handles light/shadow changes. Good for photos.
+#   BlockMean: Focuses on sections. Useful for partially similar images.
+#   VertGradient / DoubleGradient: Sensitive to orientation and finer changes. Use when other methods miss matches.
 
 services:
   czkawka:
