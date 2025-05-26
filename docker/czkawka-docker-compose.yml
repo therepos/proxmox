@@ -1,0 +1,12 @@
+# https://github.com/jlesage/docker-czkawka
+
+services:
+  czkawka:
+    image: jlesage/czkawka
+    container_name: czkawka
+    ports:
+      - "3029:5800"
+    volumes:
+      - "/mnt/apps/sec/czkawka:/config:rw"
+      - "//mnt/sec/media/photos:/storage:rw"
+    restart: always
