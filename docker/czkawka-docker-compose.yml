@@ -10,10 +10,10 @@
 #   16: Balanced. Default for general use.
 #   32: Slower, very precise. Use for high accuracy needs.
 # Hash Type
-#   Mean: Simple and fast. Best for identical/similar images.
-#   Gradient: Handles light/shadow changes. Good for photos.
-#   BlockMean: Focuses on sections. Useful for partially similar images.
-#   VertGradient / DoubleGradient: Sensitive to orientation and finer changes. Use when other methods miss matches.
+#   Mean: Identical/similar images.
+#   Gradient: Light/shadow changes.
+#   BlockMean: Partially similar images.
+#   VertGradient / DoubleGradient: Orientation and finer changes.
 
 services:
   czkawka:

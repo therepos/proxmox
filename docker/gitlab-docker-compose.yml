@@ -1,23 +1,43 @@
 # https://docs.gitlab.com/user/get_started/
-# post deploying compose, wait a good 3-5 minutes for database setup
-# then login with username (root) and password (initial_root_password)
+# post deploying compose, wait 3-5 minutes for database setup (important)
+# login with username (root) and password (initial_root_password)
 #   docker exec gitlab cat /etc/gitlab/initial_root_password
+# =====
+# Settings > CI/CD > Runners > Create Project Runner
+# enter a tag > Create Runner
+#   docker exec -it gitlab-runner gitlab-runner register \
+#    --url http://gitlab:80 \
+#    --token glrt <token>
+# http://gitlab:80
+# gitlab-runner
+# docker
+# alpine
 
 services:
   gitlab:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.yourdomain.com'
+    hostname: 'gitlab.threeminuteslab.com'
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.yourdomain.com:8080'
+        external_url 'http://gitlab.threeminuteslab.com'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
     ports:
-      - '8080:80'
+      - '3028:80'
       - '2224:22'
     volumes:
       - /mnt/sec/apps/gitlab/config:/etc/gitlab
       - /mnt/sec/apps/gitlab/logs:/var/log/gitlab
       - /mnt/sec/apps/gitlab/data:/var/opt/gitlab
     shm_size: '256m'
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: always
+    depends_on:
+      - gitlab
+    volumes:
+      - ./gitlab-runner/config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
