@@ -11,6 +11,8 @@
 # description:  gitlab-runner
 # executor:     docker
 # image:        alpine
+# =====
+# config files: /etc/gitlab-runner/config.toml
 
 services:
   gitlab:
