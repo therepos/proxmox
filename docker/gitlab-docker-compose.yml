@@ -18,10 +18,10 @@ services:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.threeminuteslab.com'
+    hostname: 'gitlab.domain.com'
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.threeminuteslab.com'
+        external_url 'http://gitlab.domain.com'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
     ports:
       - '3028:80'
