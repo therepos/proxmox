@@ -3,15 +3,14 @@
 # login with username (root) and password (initial_root_password)
 #   docker exec gitlab cat /etc/gitlab/initial_root_password
 # =====
-# Settings > CI/CD > Runners > Create Project Runner
-# enter a tag > Create Runner
-#   docker exec -it gitlab-runner gitlab-runner register \
-#    --url http://gitlab:80 \
-#    --token glrt <token>
-# http://gitlab:80
-# gitlab-runner
-# docker
-# alpine
+# GitLab > Admin > CI/CD > Create Instance Runner
+# Create a tag > Create Runner
+#   docker exec -it gitlab-runner bash
+#   gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
+# url:          http://gitlab:80
+# description:  gitlab-runner
+# executor:     docker
+# image:        alpine
 
 services:
   gitlab:
