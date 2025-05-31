@@ -2,6 +2,24 @@
 
 Please refer to the [repository](https://github.com/therepos/proxmox).
 
+## Shortcut
+
+```sh
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
+```
+```sh
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
+```
+```sh
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/print-sysinfo.sh)"
+```
+```sh
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
+```
+```sh
+bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
+```
+
 ## Structure
 
 The repository structure is as follows:
@@ -13,3 +31,8 @@ The repository structure is as follows:
 ## License
 
 This work is licensed under MIT. 
+
+## Resources
+
+- [Self-managed life](https://wiki.futo.org/index.php/Introduction_to_a_Self_Managed_Life:_a_13_hour_%26_28_minute_presentation_by_FUTO_software)
+- [GitHub finest](https://github.com/arbal/awesome-stars)
