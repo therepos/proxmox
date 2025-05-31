@@ -3,7 +3,7 @@ sidebar_position: 1
 ---
 # About
 
-This site chronicles my journey into self-hosting, during which I explored technologies such as [Proxmox], [Docker], [Git], [Markdown], [Docusaurus], and [MkDocs]. The [Proxmox repository](https://github.com/therepos/proxmox) stores a collection of scripts created in the learning process to simplify the setup and maintenance.
+This site chronicles my journey into self-hosting, during which I explored technologies such as [Proxmox], [Docker], [Git], [Markdown], [Docusaurus], and [MkDocs]. The Proxmox [repository](https://github.com/therepos/proxmox) stores a collection of scripts created in the learning process to simplify the setup and maintenance.
 
 ```
 proxmox/
