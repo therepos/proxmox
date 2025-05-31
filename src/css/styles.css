@@ -186,11 +186,13 @@ code, pre {
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
   backdrop-filter: blur(2px);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }
 
 html.dark .theme-code-block .codeBlockTitle_OeMC {
   background-color: rgba(255, 255, 255, 0.05);
   color: #ccc;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* ========================================
