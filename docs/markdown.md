@@ -14,7 +14,7 @@
 [Google]: https://www.google.com
 ```
 
-### Anchoring
+## Anchoring
 
 - Manual anchoring.
 

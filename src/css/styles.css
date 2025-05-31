@@ -168,21 +168,10 @@ body,
   padding-left: 0.5em;
 }
 
-/* code, pre {
-  white-space: pre-wrap;
-  word-break: break-word;
-} */
-
-pre {
-  white-space: pre; /* Restore Prism default */
-  overflow: auto;   /* Enables horizontal scrolling if needed */
-}
-
-code {
+code, pre {
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 
 /* ========================================
    Table of Contents

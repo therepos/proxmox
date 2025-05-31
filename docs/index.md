@@ -13,6 +13,9 @@ proxmox/
 ├── old/        # Superceded scripts.
 ├── tools/      # One-click tool scripts for specific task.
 ```
+```bash title="Test Bash Highlighting"
+echo hello
+```
 
 ## License
 
