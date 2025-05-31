@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 ---
-# Proxmox
+# Bash
 
 ## File System
 

@@ -3,9 +3,12 @@ sidebar_position: 1
 ---
 # About
 
-This site documents the key pointers noted during my journey into self-hosting. The Proxmox [repository](https://github.com/therepos/proxmox) stores a collection of scripts created during the process to simplify both setup and maintenance. The technologies covered include [Proxmox], [Docker], [Git], [GitHub] and [Markdown]. 
+This site documents the key pointers noted during my journey into self-hosting. The technologies covered include [Proxmox], [Docker], [Git], [GitHub] and [Markdown]. 
 
 ## Structure
+
+The Proxmox [repository](https://github.com/therepos/proxmox) stores a collection of scripts created during the process to simplify both setup and maintenance. 
+
 ```
 proxmox/
 ├── apps/       # One-click installation scripts (inspired by tteck).
@@ -16,6 +19,7 @@ proxmox/
 ```
 
 ## Hardware
+
 The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with Intel i7-14000, 64GB ECC RAM (max 128GB), and SSD 1TB ZFS + 4TB ext4. The maximum SSD configuration on this system: SSD 2.5" SATA 7.68TB (max 1x) + SSD M.2 NVME 4TB (max 2x).
 
 ## License
