@@ -30,7 +30,8 @@ This work is licensed under [MIT](https://choosealicense.com/licenses/mit/).
 
 [Proxmox]: https://www.proxmox.com/en/
 [Docker]: https://www.docker.com/
-[Git]: https://git-scm.com/
+[Git]: https://learngitbranching.js.org/
+[GitHub]: https://skills.github.com/
 [Markdown]: https://www.markdownguide.org/
 [Docusaurus]: https://docusaurus.io/
 [MkDocs]: https://www.mkdocs.org/
