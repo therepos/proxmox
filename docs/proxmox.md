@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 ---
-# Basic
+# Proxmox
 
 ## File System
 
