@@ -5,6 +5,7 @@ sidebar_position: 2
 
 ## File System
 
+### Navigation
 - Key directories.
 
 ```
