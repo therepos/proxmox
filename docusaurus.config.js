@@ -48,6 +48,7 @@ export default {
     },
     prism: {
       theme: prismThemes.github,
+      additionalLanguages: ['git'],
     },
     footer: {
       style: 'dark',
