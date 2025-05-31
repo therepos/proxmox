@@ -168,9 +168,28 @@ body,
   padding-left: 0.5em;
 }
 
+/* ========================================
+   Code Blocks
+======================================== */
+
 code, pre {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.theme-code-block .codeBlockTitle {
+  background-color: #f5f5f5; /* light grey */
+  color: #333;               /* darker text for contrast */
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+html.dark .theme-code-block .codeBlockTitle {
+  background-color: #2e2e2e;
+  color: #ccc;
 }
 
 /* ========================================
