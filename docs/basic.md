@@ -6,7 +6,7 @@ sidebar_position: 2
 ## File System
 
 ### Navigation
-- Key directories.
+Key directories.
 
 ```
 /var/lib
@@ -21,7 +21,7 @@ sidebar_position: 2
     └── logs/                 # Docker logs
 ```
 
-- Grant _root_ and _sambausers_ access to newly created folder.
+Grant _root_ and _sambausers_ access to newly created folder.
 
 ```bash
 chown -R root:sambausers /mnt/sec/media
@@ -33,13 +33,13 @@ setfacl -R -d -m g:sambausers:rwx /mnt/sec/media
 
 ### Monitoring 
 
-- List open files.
+List open files.
 
 ```bash
 lsof +D /mnt/sec/media/videos/upload/location
 ```
 
-- Listen for file changes.
+Listen for file changes.
 
 ```bash
 inotifywait -m -r /mnt/sec/media/videos/upload/location
@@ -47,7 +47,7 @@ inotifywait -m -r /mnt/sec/media/videos/upload/location
 
 ### Shortcut
 
-- Setup command alias.
+Setup command alias.
 
 ```bash
 alias purgedockerct='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"'
@@ -55,7 +55,7 @@ source ~/.bashrc
 purgedockerct
 ```
 
-- Remove command alias.
+Remove command alias.
 
 ```bash
 unalias purgedockerct
@@ -63,13 +63,13 @@ unalias purgedockerct
 
 ## Network
 
-- Verify port usage. Replace 3017 with the targeted port number.
+Verify port usage. Replace 3017 with the targeted port number.
 
 ```bash
 sudo ss -tuln | grep 3017
 ```
 
-## References
+## Resources
 
 - [Proxmox Training](https://github.com/ondrejsika/proxmox-training)
 - [Awesome List](https://github.com/sindresorhus/awesome)
