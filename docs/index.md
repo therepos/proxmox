@@ -3,11 +3,7 @@ sidebar_position: 1
 ---
 # About
 
-This site chronicles my journey into self-hosting, during which I explored technologies such as [Proxmox], [Docker], [Git], [Markdown], [Docusaurus], and [MkDocs].
-
-## Structure
-
-The [Proxmox repository](https://github.com/therepos/proxmox) stores a collection of scripts that I used to simplify my Proxmox setup and open-sourced applications running in Docker containers. 
+This site chronicles my journey into self-hosting, during which I explored technologies such as [Proxmox], [Docker], [Git], [Markdown], [Docusaurus], and [MkDocs]. The [Proxmox repository](https://github.com/therepos/proxmox) stores a collection of scripts created in the learning process to simplify the setup and maintenance.
 
 ```
 proxmox/
@@ -16,24 +12,6 @@ proxmox/
 ├── docs/       # Documentation and notes.
 ├── old/        # Superceded scripts.
 ├── tools/      # One-click tool scripts for specific task.
-```
-
-## Shortcut
-
-```sh
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/format-disk.sh)"
-```
-```sh
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/mount-drive.sh)"
-```
-```sh
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/print-sysinfo.sh)"
-```
-```sh
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh)"
-```
-```sh
-bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 ```
 
 ## License
