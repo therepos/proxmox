@@ -1,0 +1,272 @@
+/* ========================================
+   Layout: Docs
+======================================== */
+
+.pagination-nav {
+  display: none;
+}
+
+.container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-left: var(--ifm-spacing-horizontal);
+  padding-right: var(--ifm-spacing-horizontal);
+}
+
+.footer {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 14px;
+}
+
+/* ========================================
+   Sidebar
+======================================== */
+
+.menu__link {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: normal !important;
+  word-break: break-word;
+}
+
+/* ========================================
+   Theme
+======================================== */
+
+.theme-doc-markdown {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.theme-doc-markdown p {
+  text-align: justify;
+}
+
+.theme-edit-this-page {
+  font-style: normal;
+  font-size: 0.9rem;
+  color: var(--ifm-color-secondary); 
+  padding-left: var(--ifm-spacing-horizontal);
+}
+
+/* LastUpdated: Stacks vertically */
+.theme-doc-footer-edit-meta-row {
+  display: flex;
+  flex-direction: column;
+}
+
+/* LastUpdated: Align left */
+.theme-doc-footer-edit-meta-row > .col,
+.theme-doc-footer-edit-meta-row > .lastUpdated_JAkA {
+  width: 100% !important;
+  text-align: left !important;
+  margin-left: 0 !important;
+}
+
+/* LastUpdated: Unbold date */
+.theme-last-updated b {
+  font-weight: 400;
+}
+
+/* LastUpdated: Standardize fonts */
+.theme-last-updated {
+  font-style: normal;
+  font-size: 0.9rem;
+  padding-left: 1rem;
+  color: var(--ifm-color-secondary);
+}
+
+/* LastUpdated: Material icon */
+.theme-last-updated::before {
+  content: "schedule";
+  font-family: 'Material Symbols Outlined';
+  font-size: 1rem;
+  vertical-align: middle;
+  margin-right: 0.5em;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/* ========================================
+   Markdown
+======================================== */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/interitalic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+body,
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown p,
+.markdown li,
+.table-of-contents li,
+.table-of-contents a,
+.menu__link {
+  font-family: 'Inter', sans-serif;
+}
+
+.markdown h1 {
+  font-size: 40px;
+  line-height: 35px;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.markdown h2 {
+  font-size: 28px;
+  line-height: 30px;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.markdown h3 {
+  font-size: 18px;
+  line-height: 30px;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.markdown p {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+}
+
+.markdown li {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+}
+
+.markdown ul, 
+.markdown ol {
+  margin-left: 0;
+  padding-left: 1rem;
+}
+
+.markdown li {
+  padding-left: 0.5em;
+}
+
+code, pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ========================================
+   Table of Contents
+======================================== */
+
+.table-of-contents li,
+.table-of-contents a {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  line-height: 21px;
+  font-weight: 400;
+}
+
+/* ========================================
+   Blog Pages
+======================================== */
+
+h2.title_f1Hy {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 40px;
+  font-weight: 600;
+}
+
+h2.title_f1Hy a {
+  font-family: 'Inter', sans-serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: #3578e5;
+  text-decoration: none;
+}
+
+h3.title_f1Hy {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+[class^="yearGroupHeading"] {
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* Component: Container */
+html.blog-wrapper .container {
+  max-width: var(--ifm-container-width-xl);
+  padding-left: var(--ifm-spacing-horizontal) !important;
+  padding-right: var(--ifm-spacing-horizontal) !important;
+}
+
+/* Component: Read More */
+.col text--right col--3 {
+  text-align: left !important;
+}
+
+/* Component: Tags */
+.col--9 > b {
+  display: none;
+}
+
+/* 2. Remove bold from "Read more" */
+a[aria-label^="Read more"] b {
+  font-weight: normal;
+}
+
+/* ========================================
+   Blog Card
+======================================== */
+
+/* Card: Layout */
+article.margin-bottom--xl {
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  margin-bottom: 1rem !important;
+}
+
+/* Card: Hover */
+article.margin-bottom--xl:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* ========================================
+   Custom Text
+======================================== */
+
+mark {
+  background-color: transparent; 
+  color: #3578e5;
+  font-size: inherit;
+  font-weight: normal;
+  display: inline;
+  margin: 0;
+}
