@@ -1,6 +1,20 @@
 # About
 
-Please refer to the [repository](https://github.com/therepos/proxmox).
+This is a collection of scripts that I used to simplify my setup of Proxmox and open-sourced applications running in Docker containers. Please refer to the [repository](https://github.com/therepos/proxmox).
+
+## Structure
+
+The repository structure is as follows:
+
+```
+proxmox/
+├── apps/       # One-click installation scripts (inspired by tteck).
+├── docker/     # Ready-to-run docker compose files.
+├── docs/       # Documentation.
+├── old/        # Superceded scripts.
+├── tools/      # One-click tool scripts for specific task.
+
+```
 
 ## Shortcut
 
@@ -20,17 +34,9 @@ bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-l
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh)"
 ```
 
-## Structure
-
-The repository structure is as follows:
-
-- apps - One-click installation scripts (inspired by tteck).
-- docker - Ready-to-run docker compose files.
-- tools - One-click tool scripts for specific task.
-
 ## License
 
-This work is licensed under MIT. 
+This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
 
 ## Resources
 
