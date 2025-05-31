@@ -3,11 +3,11 @@ sidebar_position: 1
 ---
 # About
 
-This is a collection of scripts that I used to simplify my setup of Proxmox and open-sourced applications running in Docker containers. Please refer to the [repository](https://github.com/therepos/proxmox).
+This is a collection of scripts that I used to simplify my setup of Proxmox and open-sourced applications running in Docker containers. 
 
 ## Structure
 
-The repository structure is as follows:
+The [repository](https://github.com/therepos/proxmox) structure is as follows:
 
 ```
 proxmox/
