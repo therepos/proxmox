@@ -3,6 +3,8 @@ sidebar_position: 2
 ---
 # Proxmox
 
+The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with Intel i7-14000, 64GB ECC RAM (max 128GB), and SSD 1TB ZFS + 4TB ext4. The maximum SSD configuration on this system: SSD 2.5" SATA 7.68TB (max 1x) + SSD M.2 NVME 4TB (max 2x).
+
 ## File System
 
 ### Navigation

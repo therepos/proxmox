@@ -3,7 +3,7 @@ sidebar_position: 1
 ---
 # About
 
-This site chronicles my journey into self-hosting, during which I explored technologies such as [Proxmox], [Docker], [Git], [GitHub] and [Markdown]. The Proxmox [repository](https://github.com/therepos/proxmox) stores a collection of scripts created in the learning process to simplify the setup and maintenance.
+This site documents the key pointers noted during my journey into self-hosting. The Proxmox [repository](https://github.com/therepos/proxmox) stores a collection of scripts created during the process to simplify the setup and maintenance. The technologies covered include [Proxmox], [Docker], [Git], [GitHub] and [Markdown]. 
 
 ```
 proxmox/
