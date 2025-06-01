@@ -17,7 +17,7 @@ Login to GitLab interface.
 
 Profile Icon → Edit Profile → SSH Keys
 
-Configure Git on Your Local Machine
+Configure Git Identity on Your Local Machine
 
 git config --global user.name "Your Name"
 git config --global user.email "your_email@example.com"
@@ -31,3 +31,48 @@ cd your-project
 git add README.md
 git commit -m "Initial commit"
 git push origin master
+
+
+
+# Update Default Email
+
+Enter the container
+
+docker exec -it gitlab bash
+
+Enter the Rails console
+
+gitlab-rails console
+
+You’ll see a Ruby prompt like this:
+
+irb(main):001:0>
+
+```
+user = User.find_by_username('username')
+user.email = 'email@gmail.com'
+user.skip_reconfirmation!
+user.save!
+```
+
+Exit Ruby
+```
+exit
+```
+
+Restart GitLab
+```
+docker exec -it gitlab gitlab-ctl restart
+```
+
+# Admin Console
+
+GitLab > Admin > Applications > GitLab Web IDE
+
+Change to https.
+
+
+# Disable Auto DevOps
+
+Settings → CI/CD → Auto DevOps
+
