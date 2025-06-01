@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.8.0">
 <title data-rh="true">GitLab | Proxmox</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://therepos.github.io/proxmox/gitlab"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="GitLab | Proxmox"><meta data-rh="true" name="description" content="Generate an SSH Key on local machine."><meta data-rh="true" property="og:description" content="Generate an SSH Key on local machine."><link data-rh="true" rel="canonical" href="https://therepos.github.io/proxmox/gitlab"><link data-rh="true" rel="alternate" href="https://therepos.github.io/proxmox/gitlab" hreflang="en"><link data-rh="true" rel="alternate" href="https://therepos.github.io/proxmox/gitlab" hreflang="x-default"><link data-rh="true" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"GitLab","item":"https://therepos.github.io/proxmox/gitlab"}]}</script><link rel="stylesheet" href="/proxmox/assets/css/styles.b9c3a5d5.css">
-<script src="/proxmox/assets/js/runtime~main.75f16837.js" defer="defer"></script>
-<script src="/proxmox/assets/js/main.63005f81.js" defer="defer"></script>
+<script src="/proxmox/assets/js/runtime~main.72baadda.js" defer="defer"></script>
+<script src="/proxmox/assets/js/main.ce056078.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;"><defs>
@@ -19,7 +19,7 @@
 <p>Get-Content $env<!-- -->:USERPROFILE<!-- -->.ssh\id_ed25519.pub</p>
 <p>Login to GitLab interface.</p>
 <p>Profile Icon → Edit Profile → SSH Keys</p>
-<p>Configure Git on Your Local Machine</p>
+<p>Configure Git Identity on Your Local Machine</p>
 <p>git config --global user.name &quot;Your Name&quot;
 git config --global user.email &quot;<a href="mailto:your_email@example.com" target="_blank" rel="noopener noreferrer">your_email@example.com</a>&quot;</p>
 <p>Clone the GitLab Project via SSH</p>
@@ -27,6 +27,23 @@ git config --global user.email &quot;<a href="mailto:your_email@example.com" tar
 cd your-project</p>
 <p>git add README.md
 git commit -m &quot;Initial commit&quot;
-git push origin master</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/therepos/proxmox/edit/main/docs/gitlab.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"><span class="theme-last-updated">Last updated<!-- --> on <b><time datetime="2025-06-01T08:25:58.000Z" itemprop="dateModified">Jun 1, 2025</time></b></span></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/proxmox/git"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Git</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/proxmox/markdown"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Markdown</div></a></nav></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright"><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" style="color: #ebedf0;">CC BY 4.0</a> © 2025 therepos.<br>Made with Docusaurus.</div></div></div></footer></div>
+git push origin master</p>
+<h1>Update Default Email</h1>
+<p>Enter the container</p>
+<p>docker exec -it gitlab bash</p>
+<p>Enter the Rails console</p>
+<p>gitlab-rails console</p>
+<p>You’ll see a Ruby prompt like this:</p>
+<p>irb(main):001:0&gt;</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">user = User.find_by_username(&#x27;username&#x27;)</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">user.email = &#x27;email@gmail.com&#x27;</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">user.skip_reconfirmation!</span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">user.save!</span><br></span></code></pre></div></div>
+<p>Exit Ruby</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">exit</span><br></span></code></pre></div></div>
+<p>Restart GitLab</p>
+<div class="language-text codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-text codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">docker exec -it gitlab gitlab-ctl restart</span><br></span></code></pre></div></div>
+<h1>Admin Console</h1>
+<p>GitLab &gt; Admin &gt; Applications &gt; GitLab Web IDE</p>
+<p>Change to https.</p>
+<h1>Disable Auto DevOps</h1>
+<p>Settings → CI/CD → Auto DevOps</p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/therepos/proxmox/edit/main/docs/gitlab.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"><span class="theme-last-updated">Last updated<!-- --> on <b><time datetime="2025-06-01T09:31:32.000Z" itemprop="dateModified">Jun 1, 2025</time></b></span></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/proxmox/git"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Git</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/proxmox/markdown"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Markdown</div></a></nav></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright"><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" style="color: #ebedf0;">CC BY 4.0</a> © 2025 therepos.<br>Made with Docusaurus.</div></div></div></footer></div>
 </body>
 </html>
