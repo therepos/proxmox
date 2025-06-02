@@ -2,21 +2,21 @@
 
 ## General
 
-#### Clone GitHub repo.
+### Clone GitHub repo.
 
 ```git
 git clone https://github.com/yourname/repo.git
 cd repo
 ```
 
-#### Set Git identity in terminal.
+### Set Git identity in terminal.
 
 ```git
 git config --global user.name <Your Name>
 git config --global user.email <you@example.com>
 ```
 
-#### Stage and commit.
+### Stage and commit.
 
 ```git
 git add .
