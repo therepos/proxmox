@@ -42,6 +42,14 @@ jobs:
             echo "No relevant changes → skipping docgen"
           fi
 
+      - name: Commit updated templates.md (if changed)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add docs/templates.md
+          git diff --cached --quiet || git commit -m "Update templates.md"
+          git push
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
