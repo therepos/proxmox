@@ -63,7 +63,7 @@
 - [mediacms-initialise.sh](https://github.com/therepos/proxmox/blob/main/tools/mediacms-initialise.sh) – Installs the MediaCMS Docker container.  
 - [mount-drive.sh](https://github.com/therepos/proxmox/blob/main/tools/mount-drive.sh) – Mounts a user-specified external drive and optionally updates fstab.  
 - [ocrmypdf-paperless-movefiles.sh](https://github.com/therepos/proxmox/blob/main/tools/ocrmypdf-paperless-movefiles.sh) – Transfer files from the output folder to paperless-ngx consume folder.  
-- [ocrmypdf-paperless-scanfiles.sh](https://github.com/therepos/proxmox/blob/main/tools/ocrmypdf-paperless-scanfiles.sh) – Ocr scans files in the input folder to the output folder.  
+- [ocrmypdf-paperless-scanfiles.sh](https://github.com/therepos/proxmox/blob/main/tools/ocrmypdf-paperless-scanfiles.sh) – Ocr scans files from the input folder to the output folder.  
 - [ocrmypdf-paperless.sh](https://github.com/therepos/proxmox/blob/main/tools/ocrmypdf-paperless.sh) – Ocr scans files from ocrmypdf folder to paperless-ngx consume folder.  
 - [print-sysinfo.sh](https://github.com/therepos/proxmox/blob/main/tools/print-sysinfo.sh) – Prints detailed system information.  
 - [print-workloads.sh](https://github.com/therepos/proxmox/blob/main/tools/print-workloads.sh) – Prints all lxc, vms, dockers and services by their IPs, ports and status.  
