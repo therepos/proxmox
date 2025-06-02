@@ -22,7 +22,7 @@ jobs:
         run: pip install pyyaml
 
       - name: Generate Docker Compose Index
-        run: python tools/gen_compose_index.py
+        run: python tools/index-compose.py
 
       - name: Commit and push changes
         run: |
