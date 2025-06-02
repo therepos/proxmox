@@ -302,6 +302,7 @@ mark {
   margin: 0;
 }
 
+[data-doc-id="templates"] p,
 [data-doc-id="templates"] .text--justify,
 [data-doc-id="templates"] .theme-doc-markdown p {
   text-align: left !important;
