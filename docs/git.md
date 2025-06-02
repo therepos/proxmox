@@ -12,8 +12,8 @@ cd repo
 ### Set Git identity in terminal
 
 ```
-git config --global user.name <Your Name>
-git config --global user.email <you@example.com>
+git config --global user.name "github-actions"
+git config --global user.email "github-actions@github.com"
 ```
 
 ### Stage and commit
