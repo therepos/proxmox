@@ -15,7 +15,7 @@ def extract_services(filepath):
             return []
 
 def generate_index():
-    GITHUB_RAW_BASE = "https://raw.githubusercontent.com/<user>/<repo>/main/docker"
+    GITHUB_RAW_BASE = "https://raw.githubusercontent.com/therepos/proxmox/main/docker"
     # GITHUB_VIEW_BASE = "https://github.com/therepos/proxmox/blob/main/docker"
 
     lines = ['# Docker Compose Templates\n']
@@ -24,7 +24,7 @@ def generate_index():
             filepath = os.path.join(DOCKER_DIR, filename)
             services = extract_services(filepath)
             raw_url = f"{GITHUB_RAW_BASE}/{filename}"
-            lines.append(f"- [`{filename}`]({raw_url})\n")
+            lines.append(f"- [{filename}]({raw_url})\n")
 
     with open(OUTPUT_MD, 'w') as out:
         out.write('\n'.join(lines))
