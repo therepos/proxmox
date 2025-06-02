@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'docker/**'
-      - 'tools/index-compose.py'
+      - 'tools/docgen-compose.py'
 
 jobs:
   build:
@@ -22,7 +22,7 @@ jobs:
         run: pip install pyyaml
 
       - name: Generate Docker Compose Index
-        run: python tools/index-compose.py
+        run: python tools/docgen-compose.py
 
       - name: Commit and push changes
         run: |

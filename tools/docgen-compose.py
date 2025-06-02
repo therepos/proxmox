@@ -1,3 +1,5 @@
+# purpose: this script auto-generate list of docker compose in /docker folder as listcompose.md
+
 import os
 import yaml
 
