@@ -4,21 +4,21 @@
 
 ### Clone GitHub repo.
 
-```git
+```
 git clone https://github.com/yourname/repo.git
 cd repo
 ```
 
 ### Set Git identity in terminal.
 
-```git
+```
 git config --global user.name <Your Name>
 git config --global user.email <you@example.com>
 ```
 
 ### Stage and commit.
 
-```git
+```
 git add .
 git commit -m "Your message"
 git push origin master
@@ -28,22 +28,20 @@ git push origin master
 
 1. GitHub > Settings > Developer Settings > Personal Access Tokens > Classic Token.
 
-```bash
-echo <PAT> | docker login ghcr.io -u therepos --password-stdin
-docker tag therepos/pdfai ghcr.io/therepos/pdfai:latest
-docker push ghcr.io/therepos/pdfai:latest
+    ```
+    echo <PAT> | docker login ghcr.io -u therepos --password-stdin
+    docker tag therepos/pdfai ghcr.io/therepos/pdfai:latest
+    docker push ghcr.io/therepos/pdfai:latest
 
-docker logout ghcr.io
-docker login ghcr.io --username therepos
+    docker logout ghcr.io
+    docker login ghcr.io --username therepos
 
-docker build -t ghcr.io/therepos/pdfai:latest .
-echo <PAT> | docker login ghcr.io -u therepos --password-stdin
-docker push ghcr.io/therepos/pdfai:latest
-```
+    docker build -t ghcr.io/therepos/pdfai:latest .
+    echo <PAT> | docker login ghcr.io -u therepos --password-stdin
+    docker push ghcr.io/therepos/pdfai:latest
+    ```
 
 ## GitLab
-
-# GitLab
 
 ### Setup GitLab
 
@@ -56,8 +54,8 @@ docker push ghcr.io/therepos/pdfai:latest
 
 ### Setup Runner
 
-1. GitLab > Admin > CI/CD > Create Instance Runner
-2. Create a tag > Create Runner
+1. GitLab > Admin > CI/CD > Create Instance Runner.
+2. Create a tag > Create Runner.
     ```
     docker exec -it gitlab-runner bash
     gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
@@ -84,12 +82,12 @@ docker push ghcr.io/therepos/pdfai:latest
     ```
 
 3. You’ll see a Ruby prompt like this:
-    ```ruby
+    ```
     irb(main):001:0>
     ```
 
 4. Change username and email.
-    ```ruby
+    ```
     user = User.find_by_username('username')
     user.email = 'email@gmail.com'
     user.skip_reconfirmation!
@@ -99,7 +97,7 @@ docker push ghcr.io/therepos/pdfai:latest
 5. To exit Ruby `exit`.
 
 6. Restart GitLab
-    ```bash
+    ```
     docker exec -it gitlab gitlab-ctl restart
     ```
 
@@ -114,32 +112,32 @@ Settings > CI/CD > Auto DevOps.
 ### Setup SSH
 
 1. Generate an SSH Key on local machine.
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
+    ```
+    ssh-keygen -t ed25519 -C "your_email@example.com"
+    ```
 
 2. Press Enter to accept the default file location and passphrase (i.e. none).
-```
-cat ~/.ssh/id_ed25519
-```
+    ```
+    cat ~/.ssh/id_ed25519
+    ```
 
 3. Get the public key.
-```powershell
-Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
-```
+    ```
+    Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
+    ```
 
 4. Login to GitLab interface.
 
-Profile Icon → Edit Profile → SSH Keys
+    Profile Icon → Edit Profile → SSH Keys
 
 5. Configure Git Identity on Your Local Machine
-```
-git config --global user.name "Your Name"
-git config --global user.email "your_email@example.com"
-```
+    ```
+    git config --global user.name "Your Name"
+    git config --global user.email "your_email@example.com"
+    ```
 
 6. Clone the GitLab Project via SSH
-```
-git clone git@gitlab.example.com:your-username/your-project.git
-cd your-project
-```
+    ```
+    git clone git@gitlab.example.com:your-username/your-project.git
+    cd your-project
+    ```
