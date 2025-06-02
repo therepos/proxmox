@@ -11,7 +11,11 @@ def extract_purpose(filepath):
             for _ in range(3):
                 line = f.readline()
                 if line.lower().startswith("# purpose:"):
-                    return line.split(":", 1)[1].strip()
+                    text = line.split(":", 1)[1].strip()
+                    text = text[0].upper() + text[1:] if text else ""
+                    if not text.endswith("."):
+                        text += "."
+                    return text
     except Exception:
         pass
     return None
