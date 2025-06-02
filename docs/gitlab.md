@@ -1,6 +1,23 @@
 # GitLab
 
-## Update Default Email
+Setup GitLab
+
+# post deploying compose, wait 3-5 minutes for database setup (important)
+# login with username (root) and password (initial_root_password)
+#   docker exec gitlab cat /etc/gitlab/initial_root_password
+# =====
+# GitLab > Admin > CI/CD > Create Instance Runner
+# Create a tag > Create Runner
+#   docker exec -it gitlab-runner bash
+#   gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
+# url:          http://gitlab:80
+# description:  gitlab-runner
+# executor:     docker
+# image:        alpine
+# =====
+# config files: /etc/gitlab-runner/config.toml
+
+### Update Default Email
 
 Enter the container.
 ```
