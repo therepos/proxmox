@@ -15,13 +15,16 @@ def extract_services(filepath):
             return []
 
 def generate_index():
+    GITHUB_RAW_BASE = "https://raw.githubusercontent.com/<user>/<repo>/main/docker"
+    # GITHUB_VIEW_BASE = "https://github.com/therepos/proxmox/blob/main/docker"
+
     lines = ['# Docker Compose Templates\n']
     for filename in sorted(os.listdir(DOCKER_DIR)):
         if filename.endswith('-docker-compose.yml'):
             filepath = os.path.join(DOCKER_DIR, filename)
             services = extract_services(filepath)
-            lines.append(f"## `{filename}`")
-            lines.append(f"- **Services**: {', '.join(services) if services else 'None found'}\n")
+            raw_url = f"{GITHUB_RAW_BASE}/{filename}"
+            lines.append(f"- [`{filename}`]({raw_url})\n")
 
     with open(OUTPUT_MD, 'w') as out:
         out.write('\n'.join(lines))
