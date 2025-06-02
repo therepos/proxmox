@@ -303,5 +303,5 @@ mark {
 }
 
 [data-doc-id="templates"] .theme-doc-markdown p {
-  text-align: left;
+  text-align: left !important;
 }
