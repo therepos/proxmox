@@ -1,0 +1,33 @@
+name: Generate Docker Compose Index
+
+on:
+  push:
+    paths:
+      - 'docker/**'
+      - 'tools/gen_compose_index.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Generate Docker Compose Index
+        run: python tools/gen_compose_index.py
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add docs/docker-compose-index.md
+          git commit -m "Auto-update docker-compose index" || echo "No changes to commit"
+          git push
