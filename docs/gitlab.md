@@ -1,53 +1,62 @@
 # GitLab
 
-Setup GitLab
+## Setup GitLab
 
-# post deploying compose, wait 3-5 minutes for database setup (important)
-# login with username (root) and password (initial_root_password)
-#   docker exec gitlab cat /etc/gitlab/initial_root_password
-# =====
-# GitLab > Admin > CI/CD > Create Instance Runner
-# Create a tag > Create Runner
-#   docker exec -it gitlab-runner bash
-#   gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
-# url:          http://gitlab:80
-# description:  gitlab-runner
-# executor:     docker
-# image:        alpine
-# =====
-# config files: /etc/gitlab-runner/config.toml
+1. Deploy GitLab [docker compose](https://github.com/therepos/proxmox/blob/main/docker/gitlab-docker-compose.yml). 
+2. Wait 3-5 minutes for database setup (important).
+3. Login with username (root) and password (initial_root_password).
+    ```
+    docker exec gitlab cat /etc/gitlab/initial_root_password
+    ```
+
+### Setup Runner
+
+1. GitLab > Admin > CI/CD > Create Instance Runner
+2. Create a tag > Create Runner
+    ```
+    docker exec -it gitlab-runner bash
+    gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
+    ```
+    ```
+    url:          http://gitlab:80
+    description:  gitlab-runner
+    executor:     docker
+    image:        alpine
+    ```
+
+3. **Info**: Configuration file is located at `/etc/gitlab-runner/config.toml`
 
 ### Update Default Email
 
-Enter the container.
-```
-docker exec -it gitlab bash
-```
-Enter the Rails console.
-```
-gitlab-rails console
-```
-You’ll see a Ruby prompt like this:
-```ruby
-irb(main):001:0>
-```
-Change username and email.
-```ruby
-user = User.find_by_username('username')
-user.email = 'email@gmail.com'
-user.skip_reconfirmation!
-user.save!
-```
+1. Enter the container.
+    ```
+    docker exec -it gitlab bash
+    ```
 
-Exit Ruby
-```
-exit
-```
+2. Enter the Rails console.
+    ```
+    gitlab-rails console
+    ```
 
-Restart GitLab
-```bash
-docker exec -it gitlab gitlab-ctl restart
-```
+3. You’ll see a Ruby prompt like this:
+    ```ruby
+    irb(main):001:0>
+    ```
+
+4. Change username and email.
+    ```ruby
+    user = User.find_by_username('username')
+    user.email = 'email@gmail.com'
+    user.skip_reconfirmation!
+    user.save!
+    ```
+
+5. To exit Ruby `exit`.
+
+6. Restart GitLab
+    ```bash
+    docker exec -it gitlab gitlab-ctl restart
+    ```
 
 ### GitLab Web IDE
 
