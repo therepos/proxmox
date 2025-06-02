@@ -41,8 +41,9 @@ export default {
         },
         {
           href: 'https://github.com/therepos/proxmox',
-          label: 'GitHub',
           position: 'right',
+          className: 'header-github-link',
+          'aria-label': 'GitHub repository',
         },
       ],
     },
