@@ -1,54 +1,21 @@
 # GitLab
 
-Generate an SSH Key on local machine.
+## Update Default Email
 
+Enter the container.
 ```
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
-Press Enter to accept the default file location and passphrase (i.e. none).
-
-
-cat ~/.ssh/id_ed25519
-
-Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
-
-
-Login to GitLab interface.
-
-Profile Icon → Edit Profile → SSH Keys
-
-Configure Git Identity on Your Local Machine
-
-git config --global user.name "Your Name"
-git config --global user.email "your_email@example.com"
-
-Clone the GitLab Project via SSH
-
-git clone git@gitlab.example.com:your-username/your-project.git
-cd your-project
-
-
-git add README.md
-git commit -m "Initial commit"
-git push origin master
-
-
-
-# Update Default Email
-
-Enter the container
-
 docker exec -it gitlab bash
-
-Enter the Rails console
-
-gitlab-rails console
-
-You’ll see a Ruby prompt like this:
-
-irb(main):001:0>
-
 ```
+Enter the Rails console.
+```
+gitlab-rails console
+```
+You’ll see a Ruby prompt like this:
+```ruby
+irb(main):001:0>
+```
+Change username and email.
+```ruby
 user = User.find_by_username('username')
 user.email = 'email@gmail.com'
 user.skip_reconfirmation!
@@ -61,18 +28,57 @@ exit
 ```
 
 Restart GitLab
-```
+```bash
 docker exec -it gitlab gitlab-ctl restart
 ```
 
-# Admin Console
+### GitLab Web IDE
 
-GitLab > Admin > Applications > GitLab Web IDE
+GitLab > Admin > Applications > GitLab Web IDE > Change to https.
 
-Change to https.
+### Disable Auto DevOps
 
+Settings > CI/CD > Auto DevOps.
 
-# Disable Auto DevOps
+## Setup SSH
 
-Settings → CI/CD → Auto DevOps
+1. Generate an SSH Key on local machine.
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+2. Press Enter to accept the default file location and passphrase (i.e. none).
+```
+cat ~/.ssh/id_ed25519
+```
+
+3. Get the public key.
+```powershell
+Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
+```
+
+4. Login to GitLab interface.
+
+Profile Icon → Edit Profile → SSH Keys
+
+5. Configure Git Identity on Your Local Machine
+```
+git config --global user.name "Your Name"
+git config --global user.email "your_email@example.com"
+```
+
+6. Clone the GitLab Project via SSH
+```
+git clone git@gitlab.example.com:your-username/your-project.git
+cd your-project
+```
+
+## Push Changes
+
+7. Push changes to GitLab
+```
+git add README.md
+git commit -m "Initial commit"
+git push origin master
+```
 
