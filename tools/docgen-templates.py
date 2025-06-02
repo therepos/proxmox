@@ -1,5 +1,5 @@
 # purpose: auto-generate listing of scripts in specified folders 
-# test
+# note: generates documentation via templates.md upon changes in specified folders
 
 import os
 

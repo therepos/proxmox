@@ -1,4 +1,6 @@
 # purpose: Github Action manual workflow to generate one-off package-lock.json
+# note: this yml file can be removed after initialisation by manually trigger workflow
+# note: package-lock.json cache dependencies to speed up build
 
 name: Generate package-lock.json
 
