@@ -157,13 +157,6 @@ body,
   margin-bottom: 1rem;
 }
 
-.markdown h4 {
-  font-size: 16px;
-  line-height: 30px;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
 .markdown p {
   font-size: 16px;
   line-height: 26px;
@@ -187,31 +180,9 @@ body,
   padding-left: 0.5em;
 }
 
-/* ========================================
-   Code Blocks
-======================================== */
-
 code, pre {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.theme-code-block .codeBlockTitle_OeMC {
-  background-color: rgba(255, 255, 255, 0.8);
-  color: #333;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-  backdrop-filter: blur(2px);
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
-}
-
-html.dark .theme-code-block .codeBlockTitle_OeMC {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #ccc;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* ========================================
@@ -273,7 +244,7 @@ html.blog-wrapper .container {
   display: none;
 }
 
-/* 2. Remove bold from "Read more" */
+/* Remove bold from "Read more" */
 a[aria-label^="Read more"] b {
   font-weight: normal;
 }
