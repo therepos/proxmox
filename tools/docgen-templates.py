@@ -21,7 +21,7 @@ def extract_purpose(filepath):
     return None
 
 def format_entry(label, url, purpose=None):
-    entry = f"•   [{label}]({url})"
+    entry = f"- [{label}]({url})"
     if purpose:
         entry += f" – {purpose}"
     return entry + "  \n"
