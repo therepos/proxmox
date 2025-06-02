@@ -2,21 +2,21 @@
 
 ## General
 
-### Clone GitHub repo.
+### Clone GitHub repo
 
 ```
 git clone https://github.com/yourname/repo.git
 cd repo
 ```
 
-### Set Git identity in terminal.
+### Set Git identity in terminal
 
 ```
 git config --global user.name <Your Name>
 git config --global user.email <you@example.com>
 ```
 
-### Stage and commit.
+### Stage and commit
 
 ```
 git add .
@@ -24,7 +24,7 @@ git commit -m "Your message"
 git push origin master
 ```
 
-### Push to GHCR.
+### Push to GHCR
 
 1. GitHub > Settings > Developer Settings > Personal Access Tokens > Classic Token.
 
