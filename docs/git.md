@@ -45,7 +45,7 @@ git push origin master
 
 ### Setup GitLab
 
-1. Deploy GitLab [docker compose](https://github.com/therepos/proxmox/blob/main/docker/gitlab-docker-compose.yml). 
+1. Deploy GitLab [docker compose](https://raw.githubusercontent.com/therepos/proxmox/main/docker/gitlab-docker-compose.yml). 
 2. Wait 3-5 minutes for database setup (important).
 3. Login with username (root) and password (initial_root_password).
     ```
