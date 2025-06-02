@@ -301,3 +301,7 @@ mark {
   display: inline;
   margin: 0;
 }
+
+[data-doc-id="templates"] .theme-doc-markdown {
+  text-align: left;
+}
