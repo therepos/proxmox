@@ -302,6 +302,6 @@ mark {
   margin: 0;
 }
 
-[data-doc-id="templates"] .theme-doc-markdown {
+[data-doc-id="templates"] .theme-doc-markdown p {
   text-align: left;
 }
