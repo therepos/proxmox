@@ -1,6 +1,6 @@
 # Git
 
-## General
+## GitHub
 
 ### Clone GitHub repo
 
@@ -40,6 +40,12 @@ git push origin master
     echo <PAT> | docker login ghcr.io -u therepos --password-stdin
     docker push ghcr.io/therepos/pdfai:latest
     ```
+
+### github.dev
+
+Useful keyboard shortcuts:
+- Search entire repository  : <kbd>Shift</kbd> + <kbd>Ctrl</kbd> + <kbd>F</kbd>
+- Replace text              : <kbd>Ctrl</kbd> + <kbd>H</kbd>
 
 ## GitLab
 
