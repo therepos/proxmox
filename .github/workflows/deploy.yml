@@ -42,7 +42,7 @@ jobs:
             echo "No relevant changes → skipping docgen"
           fi
 
-      - name: Commit updated templates.md (if changed)
+      - name: Commit updated templates.md (to trigger LastUpdated)
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
