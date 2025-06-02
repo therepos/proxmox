@@ -10,7 +10,7 @@ def generate_index():
     GITHUB_RAW_BASE = "https://raw.githubusercontent.com/therepos/proxmox/main/docker"
     # GITHUB_VIEW_BASE = "https://github.com/therepos/proxmox/blob/main/docker"
 
-    lines = ['# Docker Compose Templates\n']
+    lines = ['# Templates\n']
     for filename in sorted(os.listdir(DOCKER_DIR)):
         if filename.endswith('-docker-compose.yml'):
             filepath = os.path.join(DOCKER_DIR, filename)
