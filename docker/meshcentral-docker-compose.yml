@@ -1,0 +1,13 @@
+services:
+  meshcentral:
+    image: typhonragewind/meshcentral
+    container_name: meshcentral
+    restart: always
+    ports:
+      - "3030:443" 
+    volumes:
+      - /mnt/sec/apps/meshcentral/data:/app/meshcentral-data
+      - /mnt/sec/apps//meshcentral/files:/app/meshcentral-files
+    environment:
+      - HOSTNAME=your.domain.com
+      - REVERSE_PROXY=1
