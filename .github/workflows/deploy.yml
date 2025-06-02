@@ -29,15 +29,15 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate listcompose.md
+      - name: Generate templates.md
         run: |
           BASE_SHA=${{ github.event.before }}
           if [ -z "$BASE_SHA" ] || ! git cat-file -e $BASE_SHA 2>/dev/null; then
             echo "No valid base SHA — running docgen unconditionally"
-            python tools/docgen-compose.py
-          elif git diff --name-only $BASE_SHA ${{ github.sha }} | grep -E '^(docker/|tools/docgen-compose.py)'; then
+            python tools/docgen-templates.py
+          elif git diff --name-only $BASE_SHA ${{ github.sha }} | grep -E '^(docker/|apps/|tools/)'; then
             echo "Changes detected — running docgen"
-            python tools/docgen-compose.py
+            python tools/docgen-templates.py
           else
             echo "No relevant changes → skipping docgen"
           fi

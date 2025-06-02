@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-lxc.sh?$(date +%s))"
-# purpose: This script removes a user-specified LXC container.
+# purpose: removes a user-specified LXC container.
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

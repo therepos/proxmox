@@ -1,3 +1,5 @@
+# purpose: Github Action manual workflow to generate one-off package-lock.json
+
 name: Generate package-lock.json
 
 on:

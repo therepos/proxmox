@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-nonroot.sh?$(date +%s))"
-# purpose: this script switches from root to a non-root user and sets a default password
+# purpose: switches from root to a non-root user and sets a default password
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

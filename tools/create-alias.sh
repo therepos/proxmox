@@ -1,4 +1,5 @@
 #!/bin/bash
+# purpose: create alias for command-line in proxmox
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

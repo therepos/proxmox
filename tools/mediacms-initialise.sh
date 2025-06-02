@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-mediacms.sh?$(date +%s))"
-# purpose: this script installs the MediaCMS Docker container.
+# purpose: installs the MediaCMS Docker container.
 
 #!/bin/bash
 

@@ -1,4 +1,5 @@
 #!/bin/sh
+# purpose: convert webm to mp4
 
 # User-configurable variables
 WORKDIR="/config"

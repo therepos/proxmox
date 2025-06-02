@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh?$(date +%s))"
-# purpose: this script installs and configures Samba with correct permissions
+# purpose: installs and configures Samba with correct permissions
 # =====
 # notes: to ensure files inside the directory have the right permissions 
 # sudo find /mnt/sec/media -type f -exec chmod 664 {} \;

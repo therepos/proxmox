@@ -1,4 +1,4 @@
-# purpose: this worker script executes the uploading of media files (mov, mp4, mkv) to mediacms
+# purpose: worker script executes the uploading of media files (mov, mp4, mkv) to mediacms
 # notes: 
 # =====
 # update configuration section before use

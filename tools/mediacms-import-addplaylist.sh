@@ -1,5 +1,5 @@
 #!/bin/sh
-# purpose: this worker script that adds a video playlist on mediacms
+# purpose: worker script that adds a video playlist on mediacms
 # notes: precedent to mediacms-import.sh
 
 DB_NAME="mediacms"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/backup-zfs.sh?$(date +%s))"
-# purpose: this script backups or restores zfs drive
+# purpose: backups or restores zfs drive
 
 # Variables
 ZFS_POOL="rpool"

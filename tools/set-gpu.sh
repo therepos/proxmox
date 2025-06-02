@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/set-gpu.sh?$(date +%s))"
-# purpose: this script setups/switches nvidia gpu passthrough between vm and docker
+# purpose: setups/switches nvidia gpu passthrough between vm and docker
 
 # List available VMs in numbered format
 echo "Available VMs:"
@@ -41,7 +41,7 @@ VM_REBOOT_REQUIRED=false
 
 # Ensure script is run as root
 if [[ $EUID -ne 0 ]]; then
-  echo "This script must be run as root." >&2
+  echo "must be run as root." >&2
   exit 1
 fi
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-filebrowser.sh?$(date +%s))"
-# purpose: this script installs filebrowser
+# purpose: installs filebrowser
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"

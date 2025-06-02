@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-nvidiadriver.sh?$(date +%s))"
-# purpose: this script installs nvidia driver and container toolkit
+# purpose: installs nvidia driver and container toolkit
 # =====
 # notes:
 # - continuous monitoring: watch -n 1 nvidia-smi

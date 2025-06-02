@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-movefiles.sh?$(date +%s))"
-# purpose: this script transfer files in the output folder to paperless-ngx consume folder
+# purpose: transfer files in the output folder to paperless-ngx consume folder
 
 OUTPUT_DIR="/mnt/sec/apps/ocrmypdf/output"
 PAPERLESS_CONSUME_DIR="/mnt/sec/apps/paperless/consume"
