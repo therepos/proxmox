@@ -9,5 +9,5 @@ services:
       - /mnt/sec/apps/meshcentral/data:/app/meshcentral-data
       - /mnt/sec/apps//meshcentral/files:/app/meshcentral-files
     environment:
-      - HOSTNAME=your.domain.com
+      - HOSTNAME=meshcentral.domain.com
       - REVERSE_PROXY=1
