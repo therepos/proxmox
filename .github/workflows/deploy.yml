@@ -13,6 +13,27 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+# for listcompose.md
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Conditionally generate Docker Compose list
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '^(docker/|tools/docgen-compose.py)'; then
+            echo "Changes detected in docker/ or tools/ → running docgen"
+            python tools/docgen-compose.py
+          else
+            echo "No relevant changes → skipping docgen"
+          fi
+         
+# for Github Pages
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -25,7 +46,7 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-
+ 
       - name: Install dependencies
         run: npm install
 
