@@ -15,10 +15,10 @@
 ```
 
 :::info[Docusaurus]
-```
+```markdown
 [Site Document](readme)
 ```
-```
+```markdown
 [Outbound Link](https://url.com)
 ```
 :::
