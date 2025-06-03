@@ -9,7 +9,7 @@ git clone https://github.com/yourname/repo.git
 cd repo
 ```
 
-### Set Git identity in terminal
+### Set Git identity
 
 ```
 git config --global user.name "github-actions"
@@ -136,11 +136,7 @@ Settings > CI/CD > Auto DevOps.
 
     Profile Icon → Edit Profile → SSH Keys
 
-5. Configure Git Identity on Your Local Machine
-    ```
-    git config --global user.name "Your Name"
-    git config --global user.email "your_email@example.com"
-    ```
+5. Configure Git Identity. See above.
 
 6. Clone the GitLab Project via SSH
     ```
