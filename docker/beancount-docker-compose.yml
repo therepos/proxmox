@@ -1,3 +1,5 @@
+# notes: need beancount-example.bean to start
+
 services:
   fava:
     container_name: bean
