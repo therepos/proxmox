@@ -1,0 +1,12 @@
+services:
+  fava:
+    container_name: bean
+    image: yegle/fava
+    ports:
+      - 3030:5000
+    environment:
+      - BEANCOUNT_FILE=/bean/example.bean
+    volumes:
+      - /mnt/sec/apps/bean:/bean
+    restart: unless-stopped
+    command: ["--host", "0.0.0.0", "/bean/example.bean"]
