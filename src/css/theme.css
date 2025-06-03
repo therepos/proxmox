@@ -295,3 +295,18 @@ mark {
   display: inline;
   margin: 0;
 }
+
+/* ========================================
+   Code Block
+======================================== */
+
+/* Hide scrollbar while allowing scroll */
+.codeBlockLines {
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+.codeBlockLines::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
