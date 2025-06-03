@@ -1,0 +1,8 @@
+option "title" "My Finances"
+option "operating_currency" "USD"
+
+2015-01-01 open Assets:Bank:Checking USD
+2015-01-01 open Expenses:Food USD
+2015-01-02 * "Grocery Store"
+  Assets:Bank:Checking  -50.00 USD
+  Expenses:Food
