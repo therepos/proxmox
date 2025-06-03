@@ -30,7 +30,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Generate templates.md
+      - name: Generate and commit templates.md if needed
         run: |
           BASE_SHA=${{ github.event.before }}
           if [ -z "$BASE_SHA" ] || ! git cat-file -e $BASE_SHA 2>/dev/null; then
@@ -41,10 +41,9 @@ jobs:
             python tools/docgen-templates.py
           else
             echo "No relevant changes → skipping docgen"
+            exit 0
           fi
 
-      - name: Commit updated templates.md (to trigger LastUpdated)
-        run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add docs/templates.md
