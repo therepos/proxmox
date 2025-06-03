@@ -2,7 +2,16 @@
 
 ## GitHub
 
-### Clone GitHub repo
+### Best Practice
+
+Branching:
+- Use `main` branch for production-ready stable codes.
+- Use `dev` branch for work-in-progress and versioning.
+- Use `github-pages` branch for static site publishing.
+
+### Clone repo
+
+Clone a repository to local machine.
 
 ```
 git clone https://github.com/yourname/repo.git
@@ -11,6 +20,8 @@ cd repo
 
 ### Set Git identity
 
+Create a mandatory Git identity.
+
 ```
 git config --global user.name "github-actions"
 git config --global user.email "github-actions@github.com"
@@ -18,15 +29,42 @@ git config --global user.email "github-actions@github.com"
 
 ### Stage and commit
 
+Push changes from local machine to GitHub.
+
 ```
 git add .
 git commit -m "Your message"
 git push origin master
 ```
 
+### Create branch
+
+Create a branch from `main` on local machine.
+
+```
+git checkout main
+git pull
+git checkout -b dev
+```
+
+If on github.dev: **Create branch** > _dev from main_
+
+### Merge changes
+
+Merge changes in `dev` to `main` on local machine.
+
+```
+git checkout main
+git merge dev
+git push origin main
+```
+
+If on github.dev: _Pull Request > dev → main_ > **Merge**.
+
+
 ### Push to GHCR
 
-1. GitHub > Settings > Developer Settings > Personal Access Tokens > Classic Token.
+_GitHub > Settings > Developer Settings > Personal Access Tokens >_ **Classic Token**.
 
     ```
     echo <PAT> | docker login ghcr.io -u therepos --password-stdin
@@ -52,7 +90,9 @@ Useful keyboard shortcuts:
 ### Setup GitLab
 
 1. Deploy GitLab [docker compose](https://raw.githubusercontent.com/therepos/proxmox/main/docker/gitlab-docker-compose.yml). 
+
 2. Wait 3-5 minutes for database setup (important).
+
 3. Login with username (root) and password (initial_root_password).
     ```
     docker exec gitlab cat /etc/gitlab/initial_root_password
@@ -60,7 +100,7 @@ Useful keyboard shortcuts:
 
 ### Setup Runner
 
-1. GitLab > Admin > CI/CD > Create Instance Runner.
+1. _GitLab > Admin > CI/CD >_ **Create Instance Runner**.
 2. Create a tag > Create Runner.
     ```
     docker exec -it gitlab-runner bash
@@ -109,11 +149,11 @@ Useful keyboard shortcuts:
 
 ### GitLab Web IDE
 
-GitLab > Admin > Applications > GitLab Web IDE > Change to https.
+_GitLab > Admin > Applications > GitLab Web IDE > Change to_ **https**.
 
 ### Disable Auto DevOps
 
-Settings > CI/CD > Auto DevOps.
+_Settings > CI/CD >_ **Auto DevOps : Turn Off**.
 
 ### Setup SSH
 
@@ -134,7 +174,7 @@ Settings > CI/CD > Auto DevOps.
 
 4. Login to GitLab interface.
 
-    Profile Icon → Edit Profile → SSH Keys
+    _Profile Icon > Edit Profile >_ **SSH Keys**
 
 5. Configure Git Identity. See above.
 
