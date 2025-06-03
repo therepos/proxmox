@@ -14,7 +14,7 @@
 [Google]: https://www.google.com
 ```
 
-:::note[Docusaurus]
+:::info[Docusaurus]
 ```
 [Site Document](readme)
 ```
