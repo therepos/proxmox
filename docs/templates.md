@@ -3,6 +3,7 @@
 ## Docker
 - [Actualbudget](https://github.com/therepos/proxmox/blob/main/docker/actualbudget-docker-compose.yml)  
 - [Audacity](https://github.com/therepos/proxmox/blob/main/docker/audacity-docker-compose.yml)  
+- [Beancount](https://github.com/therepos/proxmox/blob/main/docker/beancount-docker-compose.yml)  
 - [Blender](https://github.com/therepos/proxmox/blob/main/docker/blender-docker-compose.yml)  
 - [Calibreweb](https://github.com/therepos/proxmox/blob/main/docker/calibreweb-docker-compose.yml)  
 - [Codeserver](https://github.com/therepos/proxmox/blob/main/docker/codeserver-docker-compose.yml) – This runs codeserver container with pyenv container support.  
