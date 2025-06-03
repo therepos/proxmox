@@ -5,7 +5,7 @@
 - In-line links.
 
 ```markdown
-[Google](https://www.google.com)
+[Site Document](readme.md)
 ```
 
 - Reference links.
@@ -13,6 +13,15 @@
 ```
 [Google]: https://www.google.com
 ```
+
+:::note[Docusaurus]
+```
+[Site Document](readme)
+```
+```
+[Outbound Link](https://url.com)
+```
+:::
 
 ## Anchoring
 
@@ -33,9 +42,7 @@
 this is a code block
 ```
 ````
-## Text
-
-### Emphasis
+## Text Emphasis
 
 <mark>mark</mark>  
 <strong>strong</strong>  
@@ -76,6 +83,11 @@ this is a code block
 ```markdown
 ![Alt text](image_url)
 ```
+:::note[Docusaurus]
+```
+![Site Image](/img/image_url)
+```
+:::
 
 ## Horizontal Line
 
@@ -90,8 +102,6 @@ this is a code block
 |----------|----------|
 | Cell 1 | Cell 2 |
 ```
-
----
 
 ## Resources
 
