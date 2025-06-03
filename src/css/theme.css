@@ -300,13 +300,13 @@ mark {
    Code Block
 ======================================== */
 
-/* Hide scrollbar while allowing scroll */
 .codeBlockLines {
   overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;         /* Firefox */
+  -webkit-overflow-scrolling: touch;  /* Smooth scroll on iOS */
 }
 
 .codeBlockLines::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
+  display: none;
 }
 
