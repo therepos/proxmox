@@ -10,7 +10,14 @@
 # url:          http://gitlab:80
 # description:  gitlab-runner
 # executor:     docker
-# image:        docker:latest
+# image:        alpine
+# =====
+# config files: /etc/gitlab-runner/config.toml
+# [runners.docker]
+#   image = "docker:latest"
+#   privileged = true
+#   volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
+
 
 services:
   gitlab:
@@ -24,9 +31,18 @@ services:
         registry_external_url 'http://gitlabregistry.threeminuteslab.com'
         pages_external_url 'http://gitlabpages.threeminuteslab.com'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        gitlab_rails['pages_https'] = true
+        gitlab_rails['gitlab_https'] = true
+        gitlab_rails['registry_https'] = true
         gitlab_rails['registry_enabled'] = true
         gitlab_pages['enable'] = true
         gitlab_pages['inplace_chroot'] = true
+        gitlab_pages['artifacts_server'] = true
+        gitlab_pages['external_http'] = ["0.0.0.0"]
+        gitlab_pages['listen_proxy'] = true
+        gitlab_pages['redirect_http'] = false
+        nginx['listen_https'] = false
+  
     ports:
       - '3028:80'
       - '2224:22'
