@@ -10,9 +10,7 @@
 # url:          http://gitlab:80
 # description:  gitlab-runner
 # executor:     docker
-# image:        alpine
-# =====
-# config files: /etc/gitlab-runner/config.toml
+# image:        docker:latest
 
 services:
   gitlab:
