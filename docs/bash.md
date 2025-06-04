@@ -23,7 +23,7 @@ Key directories.
 
 Grant _root_ and _sambausers_ access to newly created folder.
 
-```shell
+```sh
 chown -R root:sambausers /mnt/sec/media
 chmod -R 775 /mnt/sec/media
 chmod g+s /mnt/sec/media
