@@ -103,12 +103,12 @@ Useful keyboard shortcuts:
 1. _GitLab > Admin > CI/CD >_ **Create Instance Runner**.
 
 2. Create a tag > Create Runner.
-    ```
+    ```bash
     docker exec -it gitlab-runner bash
     gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
     ```
     Use default settings:
-    ```
+    ```bash
     url:          http://gitlab:80
     description:  gitlab-runner
     executor:     docker
@@ -116,7 +116,7 @@ Useful keyboard shortcuts:
     ```
 
 3. Edit configuration at `/etc/gitlab-runner/config.toml`.
-    ```
+    ```bash
     [runners.docker]
     image = "docker:latest"
     privileged = true
@@ -129,21 +129,21 @@ Useful keyboard shortcuts:
     :::
 
 4. Restart runner.
-    ```
+    ```bash
     docker restart gitlab-runner
     ```
-    
+
 ### Update Default Email
 
 1. Enter the Rails console.
-    ```
+    ```bash
     docker exec -it gitlab bash
     gitlab-rails console
     ```
 
 2. Change username and email
 
-    ```bash
+    ```ruby
     user = User.find_by_username('username')
     user.email = 'email@gmail.com'
     user.skip_reconfirmation!
