@@ -7,13 +7,14 @@
 # Create a tag > Create Runner
 #   docker exec -it gitlab-runner bash
 #   gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
-# url:          http://gitlab:80
+# url:          http://ip:3028
 # description:  gitlab-runner
 # executor:     docker
-# image:        alpine
+# image:        docker:latest
 # =====
 # config files: /etc/gitlab-runner/config.toml
 # [runners.docker]
+#   url = "http://ip:3028"
 #   image = "docker:latest"
 #   privileged = true
 #   volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
@@ -27,23 +28,15 @@ services:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.threeminuteslab.com'
+    hostname: 'gitlab.domain.com'
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.threeminuteslab.com'
-        registry_external_url 'http://gitlabregistry.threeminuteslab.com'
-        pages_external_url 'http://gitlabpages.threeminuteslab.com'
+        external_url 'http://gitlab.domain.com'
+        registry_external_url 'http://ip:5001'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
-        gitlab_rails['pages_https'] = true
         gitlab_rails['gitlab_https'] = true
         gitlab_rails['registry_https'] = true
         gitlab_rails['registry_enabled'] = true
-        gitlab_pages['enable'] = true
-        gitlab_pages['inplace_chroot'] = true
-        gitlab_pages['artifacts_server'] = true
-        gitlab_pages['redirect_http'] = false
-        nginx['listen_https'] = false
-  
     ports:
       - '3028:80'
       - '2224:22'
@@ -54,6 +47,8 @@ services:
       - /mnt/sec/apps/gitlab/logs:/var/log/gitlab
       - /mnt/sec/apps/gitlab/data:/var/opt/gitlab
     shm_size: '256m'
+    networks:
+      - gitlab-net
 
   gitlab-runner:
     image: gitlab/gitlab-runner:latest
@@ -64,3 +59,9 @@ services:
     volumes:
       - ./gitlab-runner/config:/etc/gitlab-runner
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - gitlab-net
+
+networks:
+  gitlab-net:
+
