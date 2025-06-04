@@ -42,6 +42,7 @@
 this is a code block
 ```
 ````
+
 ## Text Emphasis
 
 <mark>mark</mark>  
@@ -105,5 +106,6 @@ this is a code block
 
 ## Resources
 
-* [GitHub Doc - Basic Writing and Formatting Syntax](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
+- [GitHub Doc - Basic Writing and Formatting Syntax](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
+- [Prism Supported Languages](https://prismjs.com/#supported-languages)
 
