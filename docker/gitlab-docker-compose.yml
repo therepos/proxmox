@@ -19,12 +19,14 @@ services:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.threeminuteslab.com'
+    hostname: 'gitlab.domain.com'
     environment:
+      GITLAB_ROOT_EMAIL: "admin@email.com"
+      GITLAB_ROOT_PASSWORD: "password"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.threeminuteslab.com'
-        registry_external_url 'http://gitlabregistry.threeminuteslab.com'
-        pages_external_url 'http://gitlabpages.threeminuteslab.com'
+        external_url 'http://gitlab.domain.com'
+        registry_external_url 'http://gitlabregistry.domain.com'
+        pages_external_url 'http://gitlabpages.domain.com'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
         gitlab_rails['registry_enabled'] = true
         gitlab_pages['enable'] = true
