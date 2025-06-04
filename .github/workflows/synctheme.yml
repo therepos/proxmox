@@ -1,4 +1,4 @@
-name: Sync shared theme.css from template
+name: Sync theme.css
 
 on:
   schedule:
