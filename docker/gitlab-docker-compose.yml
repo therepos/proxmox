@@ -17,19 +17,22 @@
 #   image = "docker:latest"
 #   privileged = true
 #   volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
-
+# =====
+#   nano /etc/docker/daemon.json
+#     "insecure-registries": ["gitlabregistry.domain.com"]
+#   systemctl restart docker
 
 services:
   gitlab:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: always
-    hostname: 'gitlab.threeminuteslab.com'
+    hostname: 'gitlab.domain.com'
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.threeminuteslab.com'
-        registry_external_url 'http://gitlabregistry.threeminuteslab.com'
-        pages_external_url 'http://gitlabpages.threeminuteslab.com'
+        external_url 'http://gitlab.domain.com'
+        registry_external_url 'http://gitlabregistry.domain.com'
+        pages_external_url 'http://gitlabpages.domain.com'
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
         gitlab_rails['pages_https'] = true
         gitlab_rails['gitlab_https'] = true
