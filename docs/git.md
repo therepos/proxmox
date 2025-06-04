@@ -101,11 +101,13 @@ Useful keyboard shortcuts:
 ### Setup Runner
 
 1. _GitLab > Admin > CI/CD >_ **Create Instance Runner**.
+
 2. Create a tag > Create Runner.
     ```
     docker exec -it gitlab-runner bash
     gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
     ```
+    Use default settings:
     ```
     url:          http://gitlab:80
     description:  gitlab-runner
@@ -113,27 +115,44 @@ Useful keyboard shortcuts:
     image:        docker:latest
     ```
 
-3. **Info**: Configuration file is located at `/etc/gitlab-runner/config.toml`
+3. Edit configuration at `/etc/gitlab-runner/config.toml`.
+    ```
+    [runners.docker]
+    image = "docker:latest"
+    privileged = true
+    volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
+    ```
+    :::note
+    project
+    instance
+    group
+    :::
 
+4. Restart runner.
+    ```
+    docker restart gitlab-runner
+    ```
+    
 ### Update Default Email
 
-1. Enter the container.
+1. Enter the Rails console.
     ```
     docker exec -it gitlab bash
-    ```
-
-2. Enter the Rails console. irb(main):001:0>
-    ```
     gitlab-rails console
     ```
 
-    ```bash title="Change username and email."
+2. Change username and email
+
+    ```bash
     user = User.find_by_username('username')
     user.email = 'email@gmail.com'
     user.skip_reconfirmation!
     user.save!
     ```
-    ```bash title="Restart GitLab"
+
+3. Restart GitLab
+
+    ```bash
     docker exec -it gitlab gitlab-ctl restart
     ```
 
@@ -147,28 +166,23 @@ _Settings > CI/CD >_ **Auto DevOps : Turn Off**.
 
 ### Setup SSH
 
-1. Generate an SSH Key on local machine.
+1. Generate an SSH Key on local machine. Press Enter to accept the default file location and passphrase (i.e. none).
     ```
     ssh-keygen -t ed25519 -C "your_email@example.com"
     ```
 
-2. Press Enter to accept the default file location and passphrase (i.e. none).
-    ```
-    cat ~/.ssh/id_ed25519
-    ```
-
-3. Get the public key.
+2. Get the public key.
     ```
     Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
     ```
 
-4. Login to GitLab interface.
+3. Login to GitLab interface.
 
     _Profile Icon > Edit Profile >_ **SSH Keys**
 
-5. Configure Git Identity. See above.
+4. Configure Git Identity. See above.
 
-6. Clone the GitLab Project via SSH
+5. Clone the GitLab Project via SSH
     ```
     git clone git@gitlab.example.com:your-username/your-project.git
     cd your-project
