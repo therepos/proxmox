@@ -63,7 +63,7 @@ unalias purgedockerct
 
 ## Network
 
-Verify port usage. Replace 3017 with the targeted port number.
+Verify port usage e.g. 3017.
 
 ```bash
 sudo ss -tuln | grep 3017
