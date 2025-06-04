@@ -122,28 +122,18 @@ Useful keyboard shortcuts:
     docker exec -it gitlab bash
     ```
 
-2. Enter the Rails console.
+2. Enter the Rails console. irb(main):001:0>
     ```
     gitlab-rails console
     ```
 
-3. You’ll see a Ruby prompt like this:
-    ```
-    irb(main):001:0>
-    ```
-
-4. Change username and email.
-    ```
+    ```bash title="Change username and email."
     user = User.find_by_username('username')
     user.email = 'email@gmail.com'
     user.skip_reconfirmation!
     user.save!
     ```
-
-5. To exit Ruby `exit`.
-
-6. Restart GitLab
-    ```
+    ```bash title="Restart GitLab"
     docker exec -it gitlab gitlab-ctl restart
     ```
 
