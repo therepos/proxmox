@@ -23,7 +23,7 @@ Key directories.
 
 Grant _root_ and _sambausers_ access to newly created folder.
 
-```sh
+```bash
 chown -R root:sambausers /mnt/sec/media
 chmod -R 775 /mnt/sec/media
 chmod g+s /mnt/sec/media
@@ -36,18 +36,18 @@ setfacl -R -d -m g:sambausers:rwx /mnt/sec/media
 List open files.
 
 ```bash
-lsof +D /mnt/sec/media/videos/upload/location
+lsof +D /mnt/sec/media
 ```
 
 Listen for file changes.
 
 ```bash
-inotifywait -m -r /mnt/sec/media/videos/upload/location
+inotifywait -m -r /mnt/sec/media
 ```
 
-### Shortcut
+### Shortcuts
 
-Setup command alias.
+Setup alias for script.
 
 ```bash
 alias purgedockerct='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"'
@@ -66,7 +66,7 @@ unalias purgedockerct
 Verify port usage e.g. 3017.
 
 ```bash
-sudo ss -tuln | grep 3017
+ss -tuln | grep 3017
 ```
 
 ## Resources
