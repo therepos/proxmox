@@ -187,3 +187,14 @@ _Settings > CI/CD >_ **Auto DevOps : Turn Off**.
     git clone git@gitlab.example.com:your-username/your-project.git
     cd your-project
     ```
+
+### Pull from Container Registry
+
+    ```
+    docker login gitlabregistry.threeminuteslab.com
+    ```
+    Username:
+    Password:
+    ```
+    docker pull gitlabregistry.threeminuteslab.com/therepos/codeserver:latest
+    ```
