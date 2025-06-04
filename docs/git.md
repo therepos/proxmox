@@ -110,7 +110,7 @@ Useful keyboard shortcuts:
     url:          http://gitlab:80
     description:  gitlab-runner
     executor:     docker
-    image:        alpine
+    image:        docker:latest
     ```
 
 3. **Info**: Configuration file is located at `/etc/gitlab-runner/config.toml`
