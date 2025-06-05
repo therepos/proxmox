@@ -24,8 +24,9 @@ REPO_SLUG="therepos/$REPO_NAME"
 API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/main?recursive=1"
 
 # === Check if repo exists ===
-REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" $AUTH_HEADER \
+REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" ${AUTH_HEADER:+$AUTH_HEADER} \
   "https://api.github.com/repos/$REPO_SLUG")
+
 if [ "$REPO_CHECK" != "200" ]; then
   echo -e "\e[31m✘ Repo not found: $REPO_SLUG\e[0m"
   exit 1
