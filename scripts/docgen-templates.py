@@ -47,7 +47,7 @@ def generate_templates():
     docker_base = "https://github.com/therepos/proxmox/blob/main/apps/docker"
     lines += generate_section(
         "Docker",
-        "docker",
+        "apps/docker",
         lambda f: f.endswith('-docker-compose.yml'),
         lambda f: f.split('-')[0].capitalize(),
         docker_base
@@ -67,7 +67,7 @@ def generate_templates():
     tools_base = "https://github.com/therepos/proxmox/blob/main/apps/tools"
     lines += generate_section(
         "Tools",
-        "tools",
+        "apps/tools",
         lambda f: os.path.isfile(os.path.join("tools", f)),
         lambda f: f,
         tools_base
