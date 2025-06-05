@@ -35,7 +35,7 @@ docker logs -f <container_name> 2>&1 | grep "DEBUG"
 ```
 
 :::note
-  | less
+  | less  
   | grep -E 'ERROR|SyntaxError|Traceback'
 :::
 
