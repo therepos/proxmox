@@ -23,20 +23,22 @@ AUTH_HEADER=""
 LOCAL_DIR=$(pwd)
 REPO_NAME=$(basename "$LOCAL_DIR")
 REPO_SLUG="therepos/$REPO_NAME"
-API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/main?recursive=1"
 
 echo "🔎 LOCAL_DIR: $LOCAL_DIR"
 echo "🔎 REPO_NAME: $REPO_NAME"
 echo "🔎 REPO_SLUG: $REPO_SLUG"
 
-# === Check if repo exists ===
-REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" ${AUTH_HEADER:+$AUTH_HEADER} \
-  "https://api.github.com/repos/$REPO_SLUG")
+# === Check if repo exists and get default branch ===
+REPO_INFO=$(curl -s ${AUTH_HEADER:+$AUTH_HEADER} "https://api.github.com/repos/$REPO_SLUG")
+REPO_CHECK=$(echo "$REPO_INFO" | jq -r .message)
 
-if [ "$REPO_CHECK" != "200" ]; then
+if [ "$REPO_CHECK" = "Not Found" ]; then
   echo -e "\e[31m✘ Repo not found: $REPO_SLUG\e[0m"
   exit 1
 fi
+
+DEFAULT_BRANCH=$(echo "$REPO_INFO" | jq -r .default_branch)
+API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/$DEFAULT_BRANCH?recursive=1"
 
 # === Initialize Git repo if needed ===
 mkdir -p "$LOCAL_DIR"
@@ -84,7 +86,7 @@ fi
 # === Sparse-checkout selected files ===
 echo -e "\n⬇ Pulling selected files..."
 git sparse-checkout set "${SELECTED_PATHS[@]}"
-git pull origin main
+git pull origin "$DEFAULT_BRANCH"
 
 # === Final result ===
 echo -e "\n\e[32m✔ Pulled:\e[0m"
