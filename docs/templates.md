@@ -43,3 +43,31 @@
 - [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/install-samba.sh) – Installs and configures Samba with correct permissions.  
 
 ## Tools
+- [backup-winstorage.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-winstorage.sh) – Backups storage folder in a docker container called windows.  
+- [backup-zfs.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-zfs.sh) – Backups or restores zfs drive.  
+- [create-alias.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-alias.sh) – Create alias for command-line in proxmox.  
+- [create-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-lxc.sh) – Creates an empty lxc container.  
+- [cron-reboot-ifdown.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/cron-reboot-ifdown.sh) – Reboots proxmox if cloudflared lxc service is down.  
+- [ffmpeg-combinefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-combinefiles.sh) – Combines video files and set chapter markers inside docker container.  
+- [ffmpeg-convertmkv.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-convertmkv.sh) – Converts mkv to mp4.  
+- [ffmpeg-convertwebm.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-convertwebm.sh)  
+- [fix-locale.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/fix-locale.sh) – Fixes missing en_US.UTF-8 locale.  
+- [fix-pvenosub.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/fix-pvenosub.sh) – Configures no PVE subscription prompt and repositories.  
+- [format-disk.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/format-disk.sh) – Formats disk per user specification.  
+- [get-debian.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/get-debian.sh) – Downloads the latest debian ISO.  
+- [mediacms-import-addplaylist.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import-addplaylist.sh) – Worker script that adds a video playlist on mediacms.  
+- [mediacms-import-upload.py](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import-upload.py) – Worker script executes the uploading of media files (mov, mp4, mkv) to mediacms.  
+- [mediacms-import.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import.sh) – Controller scripts that uploads all videos in a folder to a new playlist.  
+- [mediacms-initialise.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-initialise.sh) – Installs the MediaCMS Docker container.  
+- [mount-drive.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mount-drive.sh) – Mounts a user-specified external drive and optionally updates fstab.  
+- [ocrmypdf-paperless-movefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-movefiles.sh) – Transfer files from the output folder to paperless-ngx consume folder.  
+- [ocrmypdf-paperless-scanfiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-scanfiles.sh) – Ocr scans files from the input folder to the output folder.  
+- [ocrmypdf-paperless.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless.sh) – Ocr scans files from ocrmypdf folder to paperless-ngx consume folder.  
+- [print-sysinfo.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/print-sysinfo.sh) – Prints detailed system information.  
+- [print-workloads.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/print-workloads.sh) – Prints all lxc, vms, dockers and services by their IPs, ports and status.  
+- [purge-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-dockerct.sh) – Removes user-specified docker container(s) cleanly.  
+- [purge-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-lxc.sh) – Removes a user-specified LXC container.  
+- [set-gpu.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpu.sh) – Setups/switches nvidia gpu passthrough between vm and docker.  
+- [set-nonroot.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-nonroot.sh) – Switches from root to a non-root user and sets a default password.  
+- [set-swapfile.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-swapfile.sh) – Toggle swapfile to change available memory.  
+- [update-nvidiadriver.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-nvidiadriver.sh) – Updates nvidia driver.  
