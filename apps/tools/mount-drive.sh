@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/mount-drive.sh?$(date +%s))"
 # purpose: mounts a user-specified external drive and optionally updates fstab
 

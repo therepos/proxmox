@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-tailscale.sh)"
 # purpose: this script installs tailscale service
 # source: https://pkgs.tailscale.com/stable/#debian-bookworm

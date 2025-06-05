@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-calibreweb.sh?$(date +%s))"
 # purpose: installs calibre-web docker
 

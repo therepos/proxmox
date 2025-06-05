@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/mediacms-import.sh?$(date +%s))"
 # purpose: controller scripts that uploads all videos in a folder to a new playlist
 

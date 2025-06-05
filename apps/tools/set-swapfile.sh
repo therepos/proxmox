@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/set-swapfile.sh?$(date +%s))"
 # purpose: toggle swapfile to change available memory
 

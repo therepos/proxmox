@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-samba.sh?$(date +%s))"
 # purpose: installs and configures Samba with correct permissions
 # =====

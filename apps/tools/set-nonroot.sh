@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/set-nonroot.sh?$(date +%s))"
 # purpose: switches from root to a non-root user and sets a default password
 

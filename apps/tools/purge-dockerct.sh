@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/purge-dockerct.sh?$(date +%s))"
 # purpose: removes user-specified docker container(s) cleanly
 

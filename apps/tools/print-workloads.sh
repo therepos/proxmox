@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/print-workloads.sh?$(date +%s))"
 # purpose: prints all lxc, vms, dockers and services by their IPs, ports and status
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/get-sysinfo.sh?$(date +%s))"
 # purpose: prints detailed system information
 

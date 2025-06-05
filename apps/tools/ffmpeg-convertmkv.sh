@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ffmpeg-convertmkv.sh?$(date +%s))"
 # purpose: converts mkv to mp4
 

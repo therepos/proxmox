@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ffmpeg-combinefiles.sh?$(date +%s))"
 # purpose: combines video files and set chapter markers inside docker container
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # purpose: worker script that adds a video playlist on mediacms
 # notes: precedent to mediacms-import.sh
 

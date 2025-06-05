@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/purge-lxc.sh?$(date +%s))"
 # purpose: removes a user-specified LXC container
 

@@ -1,8 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-mediacms.sh?$(date +%s))"
 # purpose: installs the MediaCMS Docker container.
-
-#!/bin/bash
 
 # Start the default app processes
 ./deploy/docker/start.sh &

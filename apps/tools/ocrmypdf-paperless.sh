@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ocrmypdf-scantopaperless.sh?$(date +%s))"
 # purpose: ocr scans files from ocrmypdf folder to paperless-ngx consume folder
 

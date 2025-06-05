@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/cron-reboot-ifdown.sh?$(date +%s))"
 # purpose: reboots proxmox if cloudflared lxc service is down
 # =====
@@ -51,7 +51,7 @@ fi
 
 # Write the script content to the appropriate location
 cat << 'EOF' > "$SCRIPT_PATH"
-#!/bin/bash
+#!/usr/bin/env bash
 # purpose: reboots proxmox if cloudflared LXC service is down
 
 # Logging setup

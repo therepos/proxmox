@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/fix-locale.sh?$(date +%s))"
 # purpose: fixes missing en_US.UTF-8 locale
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/backup-winstorage.sh?$(date +%s))"
 # purpose: backups storage folder in a docker container called windows
 
