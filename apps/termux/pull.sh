@@ -12,6 +12,8 @@ for pkg in git jq; do
   fi
 done
 
+echo "🔧 Script is running..."
+
 # === Load GitHub token from ~/.github.env ===
 [ -f "$HOME/.github.env" ] && source "$HOME/.github.env"
 AUTH_HEADER=""
