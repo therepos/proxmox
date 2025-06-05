@@ -161,8 +161,8 @@ _Settings > CI/CD >_ **Auto DevOps : Turn Off**.
 ### Pull from Container Registry
 
     ```
-    docker login gitlabregistry.threeminuteslab.com
+    docker login gitlabregistry.domain.com
     ```
     ```
-    docker pull gitlabregistry.threeminuteslab.com/therepos/codeserver:latest
+    docker pull gitlabregistry.domain.com/username/container:latest
     ```

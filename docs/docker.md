@@ -23,32 +23,35 @@ ls -lah /
 Export folder from docker service to destination folder.
 
 ```bash
-docker cp pdfai:/app /mnt/sec/apps/pdfai/export/app
+docker cp <container_name>:/app <destination>
 ```
 
 ## Debug
 
-Show log by keyword DEBUG.
+Search logs of both error output and standard output by keyword. Use `-f` to follow log stream.
 
 ```bash
-docker logs pdfai 2>&1 | grep "DEBUG"
+docker logs -f <container_name> 2>&1 | grep "DEBUG"
 ```
 
-Show log by keyword ERROR.
+:::note
+  | less
+  | grep -E 'ERROR|SyntaxError|Traceback'
+:::
 
-```bash
-docker logs -f pdfai 2>&1 | grep ERROR
-```
+## Updating through Compose
 
-```bash
-docker logs -f pdfai | grep -E 'ERROR|SyntaxError|Traceback'
-```
+1. Pull the latest image.
 
-Show log with less.
+    ```bash
+    docker-compose pull
+    ```
 
-```bash
-docker logs pdfai | less
-```
+2. Recreate and restart the container.
+
+    ```bash
+    docker-compose up -d
+    ```
 
 ## Others
 

@@ -63,11 +63,30 @@ unalias purgedockerct
 
 ## Network
 
-Verify port usage e.g. 3017.
+`tuln` checks both TCP and UDP ports.  
+`tlnp` checks open TCP port and processes. 
+
+To verify specific port e.g. 3017:
 
 ```bash
 ss -tuln | grep 3017
 ```
+
+## SSH
+
+Remotely access Proxmox from Android using Termux:
+
+1. Install OpenSSH in Termux.
+
+    ```bash
+    pkg update && pkg install openssh
+    ```
+
+2. Log into Proxmox.
+
+    ```
+    ssh root@<tailscale_ip>
+    ```
 
 ## Resources
 

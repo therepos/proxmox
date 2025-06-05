@@ -4,7 +4,7 @@
 #   docker rm tailscale
 #   docker rmi tailscale/tailscale:latest
 #   docker pull tailscale/tailscale:latest
-#   Tailscale Admin Console > Regenerate Hash Key
+#   Tailscale Admin Console > Regenerate Auth Key: https://login.tailscale.com/admin/settings/keys
 #   docker compose up -d
 #   docker exec tailscale tailscale version
 
@@ -26,34 +26,3 @@ services:
       - sys_module
     network_mode: host
     restart: unless-stopped
-
-#   filebrowser:
-#     image: filebrowser/filebrowser:latest
-#     container_name: filebrowser
-#     volumes:
-#       - /mnt/sec:/srv
-# #     - /:/srv  # Mount the entire root filesystem
-#     network_mode: service:tailscale  # Filebrowser will share Tailscale's network
-#     restart: unless-stopped
-
-#   samba:
-#     image: dperson/samba
-#     container_name: samba
-#     environment:
-#       TZ: 'Asia/Singapore'
-#     restart: unless-stopped
-#     stdin_open: true
-#     tty: true
-#     volumes:
-#       - /mnt/sec/media:/mnt/sec/media:z
-#       - /mnt/sec/apps/tailscale/samba:/etc/samba
-#     command: >
-#       -s "mediadb;/mnt/sec/media;yes;no;no;admin;admin;admin"
-#       -u "admin;admin"
-#       -g "force user = admin"
-#       -g "force group = admin"
-#       -g "create mask = 0664"
-#       -g "directory mask = 2775"
-#       -g "force create mode = 0664"
-#       -g "force directory mode = 2775"
-#     network_mode: service:tailscale
