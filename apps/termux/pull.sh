@@ -23,6 +23,10 @@ REPO_NAME=$(basename "$LOCAL_DIR")
 REPO_SLUG="therepos/$REPO_NAME"
 API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/main?recursive=1"
 
+echo "🔎 LOCAL_DIR: $LOCAL_DIR"
+echo "🔎 REPO_NAME: $REPO_NAME"
+echo "🔎 REPO_SLUG: $REPO_SLUG"
+
 # === Check if repo exists ===
 REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" ${AUTH_HEADER:+$AUTH_HEADER} \
   "https://api.github.com/repos/$REPO_SLUG")
