@@ -68,7 +68,7 @@ def generate_templates():
     lines += generate_section(
         "Tools",
         "apps/tools",
-        lambda f: os.path.isfile(os.path.join("tools", f)),
+        lambda f: os.path.isfile(os.path.join("apps/tools", f)),
         lambda f: f,
         tools_base
     )
