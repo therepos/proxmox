@@ -44,7 +44,7 @@ def generate_templates():
     # Docker
     # GITHUB_VIEW_BASE = "https://github.com/therepos/proxmox/blob/main/docker"
     # GITHUB_RAW_BASE = "https://raw.githubusercontent.com/therepos/proxmox/main/docker"
-    docker_base = "https://github.com/therepos/proxmox/blob/main/docker"
+    docker_base = "https://github.com/therepos/proxmox/blob/main/apps/docker"
     lines += generate_section(
         "Docker",
         "docker",
@@ -64,7 +64,7 @@ def generate_templates():
     )
 
     # Tools
-    tools_base = "https://github.com/therepos/proxmox/blob/main/tools"
+    tools_base = "https://github.com/therepos/proxmox/blob/main/apps/tools"
     lines += generate_section(
         "Tools",
         "tools",

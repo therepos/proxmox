@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/get-sysinfo.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/get-sysinfo.sh?$(date +%s))"
 # purpose: prints detailed system information
 
 # Define colors for status messages (already include tick and cross)

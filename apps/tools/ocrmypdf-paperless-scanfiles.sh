@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scanfiles.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ocrmypdf-scanfiles.sh?$(date +%s))"
 # purpose: ocr scans files from the input folder to the output folder
 
 INPUT_DIR="/mnt/sec/apps/ocrmypdf/input"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/cron-reboot-ifdown.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/cron-reboot-ifdown.sh?$(date +%s))"
 # purpose: reboots proxmox if cloudflared lxc service is down
 # =====
 # notes:

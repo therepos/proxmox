@@ -1,10 +1,10 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-scantopaperless.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ocrmypdf-scantopaperless.sh?$(date +%s))"
 # purpose: ocr scans files from ocrmypdf folder to paperless-ngx consume folder
 
 # Define script URLs (Replace with your actual GitHub repository URLs)
-OCR_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-paperless-scanfiles.sh"
-MOVE_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/tools/ocrmypdf-paperless-movefiles.sh"
+OCR_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/ocrmypdf-paperless-scanfiles.sh"
+MOVE_SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/ocrmypdf-paperless-movefiles.sh"
 
 # Fetch and run the OCR process script
 echo "Starting OCR process..."

@@ -1,5 +1,5 @@
 #!/bin/sh
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/ffmpeg-convertmkv.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ffmpeg-convertmkv.sh?$(date +%s))"
 # purpose: converts mkv to mp4
 
 # User-configurable variables

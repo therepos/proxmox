@@ -1,4 +1,6 @@
 #!/bin/sh
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/ffmpeg-convertwebm.sh?$(date +%s))"
+
 # purpose: convert webm to mp4
 
 # User-configurable variables
