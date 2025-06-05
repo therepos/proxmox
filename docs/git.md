@@ -2,9 +2,8 @@
 
 ## GitHub
 
-### Best Practice
+### Branching
 
-Branching:
 - Use `main` branch for production-ready stable codes.
 - Use `dev` branch for work-in-progress and versioning.
 - Use `github-pages` branch for static site publishing.
@@ -109,7 +108,7 @@ Useful keyboard shortcuts:
     ```
     Use default settings:
     ```bash
-    url:          http://gitlab:80
+    url:          http://ip:3028
     description:  gitlab-runner
     executor:     docker
     image:        docker:latest
@@ -122,13 +121,8 @@ Useful keyboard shortcuts:
     privileged = true
     volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
     ```
-    :::note
-    project
-    instance
-    group
-    :::
 
-4. Restart runner.
+5. Restart runner.
     ```bash
     docker restart gitlab-runner
     ```
@@ -164,37 +158,11 @@ _GitLab > Admin > Applications > GitLab Web IDE > Change to_ **https**.
 
 _Settings > CI/CD >_ **Auto DevOps : Turn Off**.
 
-### Setup SSH
-
-1. Generate an SSH Key on local machine. Press Enter to accept the default file location and passphrase (i.e. none).
-    ```
-    ssh-keygen -t ed25519 -C "your_email@example.com"
-    ```
-
-2. Get the public key.
-    ```
-    Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
-    ```
-
-3. Login to GitLab interface.
-
-    _Profile Icon > Edit Profile >_ **SSH Keys**
-
-4. Configure Git Identity. See above.
-
-5. Clone the GitLab Project via SSH
-    ```
-    git clone git@gitlab.example.com:your-username/your-project.git
-    cd your-project
-    ```
-
 ### Pull from Container Registry
 
     ```
     docker login gitlabregistry.threeminuteslab.com
     ```
-    Username:
-    Password:
     ```
     docker pull gitlabregistry.threeminuteslab.com/therepos/codeserver:latest
     ```
