@@ -54,10 +54,10 @@ def generate_templates():
     )
 
     # Apps
-    apps_base = "https://github.com/therepos/proxmox/blob/main/apps"
+    apps_base = "https://github.com/therepos/proxmox/blob/main/apps/installer"
     lines += generate_section(
-        "Apps",
-        "apps",
+        "Installer",
+        "apps/installer",
         lambda f: f.startswith('install-') and f.endswith('.sh'),
         lambda f: f.replace('install-', '').replace('.sh', '').capitalize() + " Installer",
         apps_base
