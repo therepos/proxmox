@@ -4,9 +4,9 @@
 
 # ====== USER CONFIGURATION =======
 ALIASES=(
-  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
-  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh"
-  "purgedockerct|https://github.com/therepos/proxmox/raw/main/apps/tools/purge-dockerct.sh"
+  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s)"
+  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s)"
+  "purgedockerct|https://github.com/therepos/proxmox/raw/main/apps/tools/purge-dockerct.sh?$(date +%s)"
 )
 # =================================
 
@@ -44,8 +44,12 @@ echo ""
 if [[ "$choice" == "1" ]]; then
   for entry in "${ALIASES[@]}"; do
     IFS='|' read -r name url <<< "$entry"
-    script_path="$BIN_DIR/$name.sh"
 
+    # Strip ?timestamp and get clean filename
+    script_filename=$(basename "${url%%\?*}")
+    script_path="$BIN_DIR/$script_filename"
+
+    # Remove old alias and fetch fresh script
     sed -i "/alias $name=/d" "$ALIASES_FILE"
     wget -qO "$script_path" "$url"
     chmod +x "$script_path"
@@ -75,9 +79,10 @@ elif [[ "$choice" == "2" ]]; then
 
   if [[ "$confirm" =~ ^[Yy]$ ]]; then
     for entry in "${ALIASES[@]}"; do
-      IFS='|' read -r name _ <<< "$entry"
+      IFS='|' read -r name url <<< "$entry"
+      script_filename=$(basename "${url%%\?*}")
       sed -i "/alias $name=/d" "$ALIASES_FILE"
-      rm -f "$BIN_DIR/$name.sh"
+      rm -f "$BIN_DIR/$script_filename"
       status_message success "Removed alias and script: $name"
     done
 
