@@ -45,7 +45,7 @@
 ## Tools
 - [backup-winstorage.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-winstorage.sh) – Backups storage folder in a docker container called windows.  
 - [backup-zfs.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-zfs.sh) – Backups or restores zfs drive.  
-- [create-alias.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-alias.sh) – Create alias for command-line in proxmox.  
+- [create-alias.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-alias.sh) – Create alias for command-line in proxmox or termux.  
 - [create-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-lxc.sh) – Creates an empty lxc container.  
 - [cron-reboot-ifdown.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/cron-reboot-ifdown.sh) – Reboots proxmox if cloudflared lxc service is down.  
 - [ffmpeg-combinefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-combinefiles.sh) – Combines video files and set chapter markers inside docker container.  
