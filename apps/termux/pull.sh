@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s))"
 
 echo "🔧 Script is running..."
 
@@ -23,29 +22,21 @@ AUTH_HEADER=""
 LOCAL_DIR=$(pwd)
 REPO_NAME=$(basename "$LOCAL_DIR")
 REPO_SLUG="therepos/$REPO_NAME"
-API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/main?recursive=1"
+REPO_API="https://api.github.com/repos/$REPO_SLUG"
 git config --global --add safe.directory "$LOCAL_DIR" 2>/dev/null
 
-# === Debug output ===
-echo "🔎 LOCAL_DIR: $LOCAL_DIR"
-echo "🔎 REPO_NAME: $REPO_NAME"
-echo "🔎 REPO_SLUG: $REPO_SLUG"
-
-# === Verify repo exists ===
-if [ -n "$AUTH_HEADER" ]; then
-  REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "$AUTH_HEADER" \
-    "https://api.github.com/repos/$REPO_SLUG")
-else
-  REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
-    "https://api.github.com/repos/$REPO_SLUG")
-fi
-
+# === Check if repo exists ===
+REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" ${AUTH_HEADER:+-H "$AUTH_HEADER"} "$REPO_API")
 if [ "$REPO_CHECK" != "200" ]; then
   echo -e "\e[31m✘ Repo not found: $REPO_SLUG\e[0m"
   exit 1
 fi
 
-# === Init Git repo if needed ===
+# === Get default branch from GitHub ===
+DEFAULT_BRANCH=$(curl -s ${AUTH_HEADER:+-H "$AUTH_HEADER"} "$REPO_API" | jq -r '.default_branch')
+API_URL="$REPO_API/git/trees/$DEFAULT_BRANCH?recursive=1"
+
+# === Init Git if needed ===
 mkdir -p "$LOCAL_DIR"
 cd "$LOCAL_DIR" || exit 1
 
@@ -56,27 +47,21 @@ if [ ! -d .git ]; then
   git config pull.rebase false
 fi
 
-# === Ensure remote is set ===
+# === Ensure remote ===
 if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Ensure sparse-checkout is active ===
 [ ! -f .git/info/sparse-checkout ] && git sparse-checkout init
 
 # === Fetch list of .md files ===
-echo -e "\n🔍 Fetching .md files from $REPO_SLUG..."
-if [ -n "$AUTH_HEADER" ]; then
-  FILES_JSON=$(curl -s -H "$AUTH_HEADER" "$API_URL")
-else
-  FILES_JSON=$(curl -s "$API_URL")
-fi
-
+echo -e "\n🔍 Fetching .md files from $REPO_SLUG ($DEFAULT_BRANCH)..."
+FILES_JSON=$(curl -s ${AUTH_HEADER:+-H "$AUTH_HEADER"} "$API_URL")
 mapfile -t FILE_LIST < <(echo "$FILES_JSON" |
   jq -r '.tree[] | select(.path | endswith(".md")) | .path')
 
 if [ ${#FILE_LIST[@]} -eq 0 ]; then
-  echo -e "\e[31m✘ No .md files found or API rate limit reached.\e[0m"
+  echo -e "\e[31m✘ No .md files found.\e[0m"
   exit 1
 fi
 
@@ -89,7 +74,7 @@ done
 echo
 read -p "#? " -a SELECTED
 
-# === Build list of valid file paths ===
+# === Validate input ===
 SELECTED_PATHS=()
 for idx in "${SELECTED[@]}"; do
   if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "${#FILE_LIST[@]}" ]; then
@@ -98,19 +83,17 @@ for idx in "${SELECTED[@]}"; do
 done
 
 if [ ${#SELECTED_PATHS[@]} -eq 0 ]; then
-  echo -e "\e[33m↪ No valid selections made. Exiting.\e[0m"
+  echo -e "\e[33m↪ No valid selections. Exiting.\e[0m"
   exit 0
 fi
 
-# === Enable sparse-checkout for selected files only ===
+# === Pull selected files ===
 echo -e "\n⬇ Pulling selected files..."
 git sparse-checkout set --no-cone "${SELECTED_PATHS[@]}"
-git pull origin main
-
-# === Clean up previously pulled files ===
+git pull origin "$DEFAULT_BRANCH"
 git sparse-checkout reapply
 
-# === Show pulled result ===
+# === Done ===
 echo -e "\n\e[32m✔ Pulled:\e[0m"
 for f in "${SELECTED_PATHS[@]}"; do
   echo "  - $f"
