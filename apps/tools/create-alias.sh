@@ -6,7 +6,7 @@
 ALIASES=(
   "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s)"
   "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s)"
-  "resetsh|https://github.com/therepos/proxmox/raw/main/apps/termux/resetsh.sh?$(date +%s)"
+  "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh?$(date +%s)"
 )
 # =================================
 

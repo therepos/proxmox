@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/resetsh.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh?$(date +%s))"
 
 BASE_DIR=$(pwd)
 
