@@ -36,22 +36,25 @@ fi
 DEFAULT_BRANCH=$(curl -s ${AUTH_HEADER:+-H "$AUTH_HEADER"} "$REPO_API" | jq -r '.default_branch')
 API_URL="$REPO_API/git/trees/$DEFAULT_BRANCH?recursive=1"
 
-# === Init Git with correct branch ===
+# === Init Git ===
 mkdir -p "$LOCAL_DIR"
 cd "$LOCAL_DIR" || exit 1
 
 if [ ! -d .git ]; then
   git init -b "$DEFAULT_BRANCH"
-  git remote add origin "https://github.com/$REPO_SLUG.git"
   git config core.sparseCheckout true
   git sparse-checkout init
   git config pull.rebase false
 else
-  # Switch to default branch if not already
   CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
   if [ "$CURRENT_BRANCH" != "$DEFAULT_BRANCH" ]; then
     git checkout -B "$DEFAULT_BRANCH"
   fi
+fi
+
+# === Always ensure remote is set ===
+if ! git remote get-url origin &>/dev/null; then
+  git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
 # === Fetch list of .md files ===
@@ -90,6 +93,13 @@ fi
 echo -e "\n⬇ Pulling selected files from $DEFAULT_BRANCH..."
 git sparse-checkout set --no-cone "${SELECTED_PATHS[@]}"
 git pull origin "$DEFAULT_BRANCH"
+
+# === Pull failure handling ===
+if [ $? -ne 0 ]; then
+  echo -e "\e[31m✘ Failed to pull from origin/$DEFAULT_BRANCH. Check access and branch.\e[0m"
+  exit 1
+fi
+
 git sparse-checkout reapply
 
 # === Done ===
