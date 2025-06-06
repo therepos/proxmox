@@ -2,7 +2,7 @@
 # Usage: bash -c "$(wget -qLO- https://github.com/.../create-alias.sh)"
 
 # ====== USER CONFIGURATION ======
-MODE="local"  # Options: "live" or "local"
+MODE="live"  # Options: "live" or "local"
 
 ALIASES=(
   "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
