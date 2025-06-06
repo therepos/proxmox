@@ -24,6 +24,7 @@ LOCAL_DIR=$(pwd)
 REPO_NAME=$(basename "$LOCAL_DIR")
 REPO_SLUG="therepos/$REPO_NAME"
 API_URL="https://api.github.com/repos/$REPO_SLUG/git/trees/main?recursive=1"
+git config --global --add safe.directory "$LOCAL_DIR" 2>/dev/null
 
 # === Debug output ===
 echo "🔎 LOCAL_DIR: $LOCAL_DIR"
@@ -44,10 +45,14 @@ cd "$LOCAL_DIR" || exit 1
 
 if [ ! -d .git ]; then
   git init
-  git remote add origin "https://github.com/$REPO_SLUG.git"
   git config core.sparseCheckout true
   git sparse-checkout init --cone
   git config pull.rebase false
+fi
+
+# === Ensure remote is set ===
+if ! git remote get-url origin &>/dev/null; then
+  git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
 # === Ensure sparse-checkout is active ===
@@ -95,3 +100,4 @@ echo -e "\n\e[32m✔ Pulled:\e[0m"
 for f in "${SELECTED_PATHS[@]}"; do
   echo "  - $f"
 done
+

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
-# === Check for required packages ===
+echo "🔧 Syncing..."
+
+# === Check required packages ===
 if ! command -v git &>/dev/null; then
   echo -e "\e[33mℹ 'git' not found. Installing...\e[0m"
   pkg install -y git || {
@@ -10,31 +12,42 @@ if ! command -v git &>/dev/null; then
   }
 fi
 
-# === Load GitHub token if available ===
+# === Load GitHub token if present ===
 [ -f "$HOME/.github.env" ] && source "$HOME/.github.env"
 [ -n "$GITHUB_TOKEN" ] && git config --global credential.helper "!f() { echo username=x; echo password=$GITHUB_TOKEN; }; f"
 
-# === Check for .git ===
+# === Mark this dir as safe for Git ===
+git config --global --add safe.directory "$(pwd)" 2>/dev/null
+
+# === Ensure .git exists ===
 if [ ! -d .git ]; then
-  echo -e "\e[31m✘ This folder is not a Git repo. Run pull.sh first.\e[0m"
+  echo -e "\e[31m✘ This folder is not a Git repo. Run 'pull' first.\e[0m"
   exit 1
 fi
 
-# === Pull latest changes ===
+# === Ensure remote is set ===
+REPO_NAME=$(basename "$(pwd)")
+REPO_SLUG="therepos/$REPO_NAME"
+if ! git remote get-url origin &>/dev/null; then
+  git remote add origin "https://github.com/$REPO_SLUG.git"
+fi
+
+# === Pull latest from GitHub ===
 echo -e "\n🔄 Pulling latest from origin..."
 git pull origin main || {
   echo -e "\e[31m✘ Pull failed. Resolve conflicts manually.\e[0m"
   exit 1
 }
 
-# === Show changes ===
-echo -e "\n📦 Current status:"
+# === Show git status ===
+echo -e "\n📦 Git status:"
 git status
 
-# === Stage and commit .md files only ===
-echo -e "\n➕ Staging .md changes..."
+# === Add .md files ===
+echo -e "\n➕ Staging .md files..."
 git add *.md */*.md */*/*.md 2>/dev/null
 
+# === Commit if needed ===
 if git diff --cached --quiet; then
   echo -e "\e[34mℹ No changes to commit.\e[0m"
 else
