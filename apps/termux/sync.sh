@@ -2,7 +2,6 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
 echo "🧪 Running latest sync.sh at $(date)"
-
 echo "🔧 Syncing..."
 
 # === Check required packages ===
@@ -36,15 +35,22 @@ if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Pull latest changes ===
+# === Detect or create current branch ===
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo main)
+
+if ! git show-ref --quiet --verify "refs/heads/$CURRENT_BRANCH"; then
+  echo -e "📎 Creating local branch: $CURRENT_BRANCH"
+  git checkout -b "$CURRENT_BRANCH"
+fi
+
+# === Pull latest ===
 echo -e "\n🔄 Pulling latest from origin..."
-CURRENT_BRANCH=$(git symbolic-ref --short HEAD)
 git pull origin "$CURRENT_BRANCH" || {
   echo -e "\e[31m✘ Pull failed. Resolve conflicts manually.\e[0m"
   exit 1
 }
 
-# === Show git status ===
+# === Git status ===
 echo -e "\n📦 Git status:"
 git status
 
@@ -52,7 +58,7 @@ git status
 echo -e "\n➕ Staging .md files..."
 git add *.md */*.md */*/*.md 2>/dev/null
 
-# === Commit if needed ===
+# === Commit and push ===
 if git diff --cached --quiet; then
   echo -e "\e[34mℹ No changes to commit.\e[0m"
 else
