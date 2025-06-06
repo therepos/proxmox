@@ -17,7 +17,7 @@ done
 # === Load GitHub token if present ===
 [ -f "$HOME/.github.env" ] && source "$HOME/.github.env"
 AUTH_HEADER=""
-[ -n "$GITHUB_TOKEN" ] && AUTH_HEADER="-H Authorization: token $GITHUB_TOKEN"
+[ -n "$GITHUB_TOKEN" ] && AUTH_HEADER="Authorization: token $GITHUB_TOKEN"
 
 # === Auto-detect repo ===
 LOCAL_DIR=$(pwd)
@@ -32,8 +32,14 @@ echo "🔎 REPO_NAME: $REPO_NAME"
 echo "🔎 REPO_SLUG: $REPO_SLUG"
 
 # === Verify repo exists ===
-REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" ${AUTH_HEADER:+$AUTH_HEADER} \
-  "https://api.github.com/repos/$REPO_SLUG")
+if [ -n "$AUTH_HEADER" ]; then
+  REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "$AUTH_HEADER" \
+    "https://api.github.com/repos/$REPO_SLUG")
+else
+  REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+    "https://api.github.com/repos/$REPO_SLUG")
+fi
+
 if [ "$REPO_CHECK" != "200" ]; then
   echo -e "\e[31m✘ Repo not found: $REPO_SLUG\e[0m"
   exit 1
@@ -60,7 +66,13 @@ fi
 
 # === Fetch list of .md files ===
 echo -e "\n🔍 Fetching .md files from $REPO_SLUG..."
-mapfile -t FILE_LIST < <(curl -s ${AUTH_HEADER:+$AUTH_HEADER} "$API_URL" |
+if [ -n "$AUTH_HEADER" ]; then
+  FILES_JSON=$(curl -s -H "$AUTH_HEADER" "$API_URL")
+else
+  FILES_JSON=$(curl -s "$API_URL")
+fi
+
+mapfile -t FILE_LIST < <(echo "$FILES_JSON" |
   jq -r '.tree[] | select(.path | endswith(".md")) | .path')
 
 if [ ${#FILE_LIST[@]} -eq 0 ]; then
@@ -100,4 +112,3 @@ echo -e "\n\e[32m✔ Pulled:\e[0m"
 for f in "${SELECTED_PATHS[@]}"; do
   echo "  - $f"
 done
-
