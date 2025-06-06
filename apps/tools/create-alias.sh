@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# Create or remove aliases in Termux/Proxmox
 # Usage: bash -c "$(wget -qLO- https://github.com/.../create-alias.sh)"
-# alias setalias='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s))'
 
 # ====== USER CONFIGURATION ======
-MODE="live"  # "live" = fetch fresh each time, "local" = download scripts
+MODE="live"  # Options: "live" or "local"
 
 ALIASES=(
   "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
   "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh"
+  "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh"
 )
 # =================================
 
-# Symbols
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 BLUE="\e[34mℹ\e[0m"
@@ -69,33 +67,46 @@ if [[ "$choice" == "1" ]]; then
   done
 
 elif [[ "$choice" == "2" ]]; then
-  status_message info "This will remove the following aliases:"
-  for entry in "${ALIASES[@]}"; do
-    IFS='|' read -r name _ <<< "$entry"
-    echo "  - $name"
+  echo -e "\n📛 Installed aliases:"
+  for i in "${!ALIASES[@]}"; do
+    IFS='|' read -r name _ <<< "${ALIASES[$i]}"
+    printf "%2d) %s\n" "$((i+1))" "$name"
   done
+  echo "  a) Remove all"
+  echo "  0) Cancel"
+
   echo ""
-  read -p "Proceed? (y/n): " confirm
+  read -p "Select aliases to remove (e.g. 1 3 or 'a'): " -a selections
   echo ""
 
-  if [[ "$confirm" =~ ^[Yy]$ ]]; then
-    for entry in "${ALIASES[@]}"; do
-      IFS='|' read -r name _ <<< "$entry"
+  if [[ " ${selections[*]} " =~ " 0 " ]]; then
+    status_message error "Cancelled. No changes made."
+    exit 0
+  fi
+
+  if [[ " ${selections[*]} " =~ " a " ]]; then
+    selections=()
+    for i in "${!ALIASES[@]}"; do
+      selections+=("$((i+1))")
+    done
+  fi
+
+  for idx in "${selections[@]}"; do
+    if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -ge 1 ] && [ "$idx" -le "${#ALIASES[@]}" ]; then
+      IFS='|' read -r name _ <<< "${ALIASES[$((idx-1))]}"
       sed -i "/alias $name=/d" "$ALIASES_FILE"
       rm -f "$BIN_DIR/$name.sh"
-      status_message success "Removed alias and script: $name"
-    done
-
-    if [ ! -s "$ALIASES_FILE" ]; then
-      rm -f "$ALIASES_FILE"
-      sed -i '/source ~/.aliases/d' "$SHELL_RC"
-      status_message info "Cleaned up ~/.aliases"
+      status_message success "Removed alias: $name"
     fi
+  done
 
-    status_message success "Uninstall complete."
-  else
-    status_message error "Cancelled."
+  if [ ! -s "$ALIASES_FILE" ]; then
+    rm -f "$ALIASES_FILE"
+    sed -i '/source ~/.aliases/d' "$SHELL_RC"
+    status_message info "Cleaned up empty ~/.aliases"
   fi
+
+  status_message success "Uninstall complete."
 
 else
   status_message error "Invalid selection. Exiting."
