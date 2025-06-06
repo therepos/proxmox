@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
-echo "🧪 Running latest sync.sh at $(date)"
+echo "🧪 Running latest ** sync.sh at $(date)"
 echo "🔧 Syncing..."
 
 # === Check required packages ===
@@ -35,20 +35,23 @@ if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Detect or create current branch ===
-CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo main)
+# === Detect current branch or create main ===
+CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 
-if ! git show-ref --quiet --verify "refs/heads/$CURRENT_BRANCH"; then
-  echo -e "📎 Creating local branch: $CURRENT_BRANCH"
+if ! git show-ref --quiet --heads "$CURRENT_BRANCH"; then
+  echo -e "📎 No local branch '$CURRENT_BRANCH' — creating it..."
   git checkout -b "$CURRENT_BRANCH"
 fi
 
-# === Pull latest ===
-echo -e "\n🔄 Pulling latest from origin..."
-git pull origin "$CURRENT_BRANCH" || {
-  echo -e "\e[31m✘ Pull failed. Resolve conflicts manually.\e[0m"
-  exit 1
-}
+# === Try pulling from origin ===
+echo -e "\n🔄 Pulling latest from origin/$CURRENT_BRANCH..."
+if ! git pull origin "$CURRENT_BRANCH" 2>/dev/null; then
+  echo -e "🔁 No remote branch yet. Pushing initial '$CURRENT_BRANCH' to GitHub..."
+  git push -u origin "$CURRENT_BRANCH" || {
+    echo -e "\e[31m✘ Push failed. Check remote access.\e[0m"
+    exit 1
+  }
+fi
 
 # === Git status ===
 echo -e "\n📦 Git status:"
