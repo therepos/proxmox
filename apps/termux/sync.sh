@@ -21,36 +21,35 @@ fi
 # === Mark this directory as safe for Git ===
 git config --global --add safe.directory "$(pwd)" 2>/dev/null
 
-# === Ensure Git repo exists ===
+# === Ensure Git repo ===
 if [ ! -d .git ]; then
-  echo -e "\e[31m✘ This folder is not a Git repo. Run 'pull' first.\e[0m"
+  echo -e "\e[31m✘ Not a Git repo. Run 'pull' first.\e[0m"
   exit 1
 fi
 
-# === Ensure remote is set ===
+# === Ensure remote ===
 REPO_NAME=$(basename "$(pwd)")
 REPO_SLUG="therepos/$REPO_NAME"
 if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Detect or create current branch ===
+# === Detect or create branch ===
 CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
 if ! git show-ref --quiet --heads "$CURRENT_BRANCH"; then
   echo -e "📎 Creating local branch: $CURRENT_BRANCH"
   git checkout -b "$CURRENT_BRANCH"
 fi
 
-# === Try pulling ===
+# === Pull or rebase ===
 echo -e "\n🔄 Pulling latest from origin/$CURRENT_BRANCH..."
 if ! git pull origin "$CURRENT_BRANCH" 2>/dev/null; then
-  echo -e "⚠ Remote ahead — trying rebase to avoid non-fast-forward..."
+  echo -e "⚠ Remote ahead — stashing and rebasing..."
 
-  echo "🛠 Staging local .md changes before rebase..."
-  git add *.md */*.md */*/*.md 2>/dev/null
-
+  git stash push --include-untracked --message "autosync-stash"
   if git pull --rebase origin "$CURRENT_BRANCH"; then
     echo "✅ Rebase successful"
+    git stash pop || echo "⚠ Nothing to restore from stash."
   else
     echo -e "\e[31m✘ Rebase failed. Resolve conflicts manually.\e[0m"
     exit 1
