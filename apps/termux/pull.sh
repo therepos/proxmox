@@ -52,7 +52,7 @@ cd "$LOCAL_DIR" || exit 1
 if [ ! -d .git ]; then
   git init
   git config core.sparseCheckout true
-  git sparse-checkout init --cone
+  git sparse-checkout init             # non-cone mode
   git config pull.rebase false
 fi
 
@@ -61,8 +61,8 @@ if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Ensure sparse-checkout is active ===
-[ ! -f .git/info/sparse-checkout ] && git sparse-checkout init --cone
+# === Ensure sparse-checkout active ===
+[ ! -f .git/info/sparse-checkout ] && git sparse-checkout init
 
 # === Fetch list of .md files ===
 echo -e "\n🔍 Fetching .md files from $REPO_SLUG..."
@@ -102,9 +102,9 @@ if [ ${#SELECTED_PATHS[@]} -eq 0 ]; then
   exit 0
 fi
 
-# === Enable sparse-checkout for selected files ===
+# === Enable sparse-checkout for selected files only (non-cone) ===
 echo -e "\n⬇ Pulling selected files..."
-git sparse-checkout set "${SELECTED_PATHS[@]}"
+git sparse-checkout set --no-cone "${SELECTED_PATHS[@]}"
 git pull origin main
 
 # === Show pulled result ===
