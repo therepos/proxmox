@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
 echo "🧪 Running latest sync.sh at $(date)"
 echo "🔧 Syncing..."
@@ -19,12 +18,12 @@ if [ -n "$GITHUB_TOKEN" ]; then
   git config --global credential.helper "!f() { echo username=x; echo password=$GITHUB_TOKEN; }; f"
 fi
 
-# === Mark current directory as safe ===
+# === Mark this directory as safe for Git ===
 git config --global --add safe.directory "$(pwd)" 2>/dev/null
 
-# === Verify it's a Git repo ===
+# === Ensure Git repo exists ===
 if [ ! -d .git ]; then
-  echo -e "\e[31m✘ Not a Git repo. Run 'pull' first.\e[0m"
+  echo -e "\e[31m✘ This folder is not a Git repo. Run 'pull' first.\e[0m"
   exit 1
 fi
 
@@ -42,10 +41,14 @@ if ! git show-ref --quiet --heads "$CURRENT_BRANCH"; then
   git checkout -b "$CURRENT_BRANCH"
 fi
 
-# === Pull from remote or rebase if needed ===
+# === Try pulling ===
 echo -e "\n🔄 Pulling latest from origin/$CURRENT_BRANCH..."
 if ! git pull origin "$CURRENT_BRANCH" 2>/dev/null; then
-  echo "⚠ Remote ahead — trying rebase to avoid non-fast-forward..."
+  echo -e "⚠ Remote ahead — trying rebase to avoid non-fast-forward..."
+
+  echo "🛠 Staging local .md changes before rebase..."
+  git add *.md */*.md */*/*.md 2>/dev/null
+
   if git pull --rebase origin "$CURRENT_BRANCH"; then
     echo "✅ Rebase successful"
   else
