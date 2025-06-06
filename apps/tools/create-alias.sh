@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s))"
-# purpose: create alias for command-line in proxmox or termux
+# Create or remove aliases in Termux/Proxmox
+# Usage: bash -c "$(wget -qLO- https://github.com/.../create-alias.sh)"
 
-# ====== USER CONFIGURATION =======
+# ====== USER CONFIGURATION ======
+MODE="live"  # "live" = fetch fresh each time, "local" = download scripts
+
 ALIASES=(
-  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s)"
-  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s)"
-  "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh?$(date +%s)"
+  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
+  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh"
 )
 # =================================
 
-# Define colors and status symbols
+# Symbols
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 BLUE="\e[34mℹ\e[0m"
 
-function status_message() {
+status_message() {
   local status=$1
   local message=$2
   if [[ "$status" == "success" ]]; then
@@ -27,15 +28,13 @@ function status_message() {
   fi
 }
 
-# Paths
 ALIASES_FILE="$HOME/.aliases"
 SHELL_RC="$HOME/.bashrc"
 BIN_DIR="$HOME/.local/bin"
 mkdir -p "$BIN_DIR"
 touch "$ALIASES_FILE"
 
-# Menu
-echo -e "\n \e[1mAlias Manager\e[0m"
+echo -e "\n \e[1mAlias Manager [$MODE mode]\e[0m"
 echo "1) Install aliases"
 echo "2) Uninstall aliases"
 read -p "Select an option (1 or 2): " choice
@@ -44,24 +43,25 @@ echo ""
 if [[ "$choice" == "1" ]]; then
   for entry in "${ALIASES[@]}"; do
     IFS='|' read -r name url <<< "$entry"
-
-    # Strip ?timestamp and get clean filename
-    script_filename=$(basename "${url%%\?*}")
-    script_path="$BIN_DIR/$script_filename"
-
-    # Remove old alias and fetch fresh script
     sed -i "/alias $name=/d" "$ALIASES_FILE"
-    wget -qO "$script_path" "$url"
-    chmod +x "$script_path"
-    echo "alias $name=\"$script_path\"" >> "$ALIASES_FILE"
-    status_message success "Installed alias: $name"
+
+    if [[ "$MODE" == "live" ]]; then
+      echo "alias $name='bash -c \"\$(wget -qLO- ${url}?$(date +%s})\"'" >> "$ALIASES_FILE"
+      status_message success "Alias '$name' set to fetch live"
+    else
+      script_path="$BIN_DIR/$name.sh"
+      wget -qO "$script_path" "${url}?$(date +%s)"
+      chmod +x "$script_path"
+      echo "alias $name=\"$script_path\"" >> "$ALIASES_FILE"
+      status_message success "Alias '$name' installed locally"
+    fi
   done
 
   grep -q "source ~/.aliases" "$SHELL_RC" || echo '[ -f ~/.aliases ] && source ~/.aliases' >> "$SHELL_RC"
   source "$ALIASES_FILE"
 
   echo ""
-  status_message info "All aliases ready. Try:"
+  status_message info "Aliases ready. Try:"
   for entry in "${ALIASES[@]}"; do
     IFS='|' read -r name _ <<< "$entry"
     echo "  → $name"
@@ -79,22 +79,21 @@ elif [[ "$choice" == "2" ]]; then
 
   if [[ "$confirm" =~ ^[Yy]$ ]]; then
     for entry in "${ALIASES[@]}"; do
-      IFS='|' read -r name url <<< "$entry"
-      script_filename=$(basename "${url%%\?*}")
+      IFS='|' read -r name _ <<< "$entry"
       sed -i "/alias $name=/d" "$ALIASES_FILE"
-      rm -f "$BIN_DIR/$script_filename"
+      rm -f "$BIN_DIR/$name.sh"
       status_message success "Removed alias and script: $name"
     done
 
     if [ ! -s "$ALIASES_FILE" ]; then
       rm -f "$ALIASES_FILE"
       sed -i '/source ~/.aliases/d' "$SHELL_RC"
-      status_message info "Cleaned up empty ~/.aliases and removed sourcing."
+      status_message info "Cleaned up ~/.aliases"
     fi
 
     status_message success "Uninstall complete."
   else
-    status_message error "Cancelled. No changes made."
+    status_message error "Cancelled."
   fi
 
 else
