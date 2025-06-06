@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Create or remove aliases in Termux/Proxmox
 # Usage: bash -c "$(wget -qLO- https://github.com/.../create-alias.sh)"
+# alias setalias='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s))'
 
 # ====== USER CONFIGURATION ======
 MODE="live"  # "live" = fetch fresh each time, "local" = download scripts
