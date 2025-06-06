@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
-echo "🧪 Running latest ** sync.sh at $(date)"
+echo "🧪 Running latest sync.sh at $(date)"
 echo "🔧 Syncing..."
 
 # === Check required packages ===
@@ -19,12 +19,12 @@ if [ -n "$GITHUB_TOKEN" ]; then
   git config --global credential.helper "!f() { echo username=x; echo password=$GITHUB_TOKEN; }; f"
 fi
 
-# === Mark this dir as safe for Git ===
+# === Mark current directory as safe ===
 git config --global --add safe.directory "$(pwd)" 2>/dev/null
 
-# === Ensure .git exists ===
+# === Verify it's a Git repo ===
 if [ ! -d .git ]; then
-  echo -e "\e[31m✘ This folder is not a Git repo. Run 'pull' first.\e[0m"
+  echo -e "\e[31m✘ Not a Git repo. Run 'pull' first.\e[0m"
   exit 1
 fi
 
@@ -35,22 +35,23 @@ if ! git remote get-url origin &>/dev/null; then
   git remote add origin "https://github.com/$REPO_SLUG.git"
 fi
 
-# === Detect current branch or create main ===
+# === Detect or create current branch ===
 CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo main)
-
 if ! git show-ref --quiet --heads "$CURRENT_BRANCH"; then
-  echo -e "📎 No local branch '$CURRENT_BRANCH' — creating it..."
+  echo -e "📎 Creating local branch: $CURRENT_BRANCH"
   git checkout -b "$CURRENT_BRANCH"
 fi
 
-# === Try pulling from origin ===
+# === Pull from remote or rebase if needed ===
 echo -e "\n🔄 Pulling latest from origin/$CURRENT_BRANCH..."
 if ! git pull origin "$CURRENT_BRANCH" 2>/dev/null; then
-  echo -e "🔁 No remote branch yet. Pushing initial '$CURRENT_BRANCH' to GitHub..."
-  git push -u origin "$CURRENT_BRANCH" || {
-    echo -e "\e[31m✘ Push failed. Check remote access.\e[0m"
+  echo "⚠ Remote ahead — trying rebase to avoid non-fast-forward..."
+  if git pull --rebase origin "$CURRENT_BRANCH"; then
+    echo "✅ Rebase successful"
+  else
+    echo -e "\e[31m✘ Rebase failed. Resolve conflicts manually.\e[0m"
     exit 1
-  }
+  fi
 fi
 
 # === Git status ===
