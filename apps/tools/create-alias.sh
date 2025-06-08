@@ -5,10 +5,10 @@
 MODE="live"  # Options: "live" or "local"
 
 ALIASES=(
-  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
-  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh"
-  "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh"
-  "setalias|https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh"
+  "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s)"
+  "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s)"
+  "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh?$(date +%s)"
+  "setalias|https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s)"
 )
 # =================================
 
