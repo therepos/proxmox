@@ -1,0 +1,36 @@
+services:
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    restart: always
+    ports:
+      - "3029:3000"     # Web UI
+      - "222:22"        # SSH
+    volumes:
+      - ./gitea:/data
+    networks:
+      - gitea
+
+  runner:
+    image: gitea/act_runner:latest
+    container_name: gitea-runner
+    restart: always
+    depends_on:
+      - gitea
+    environment:
+      - GITEA_INSTANCE_URL=https://gitea.domain.com
+      - GITEA_RUNNER_REGISTRATION_TOKEN=YOUR_TOKEN_HERE # Replace with token
+      - GITEA_RUNNER_NAME=docker-runner
+      - GITEA_RUNNER_LABELS=ubuntu-latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./runner:/data
+    networks:
+      - gitea
+
+networks:
+  gitea:
+    driver: bridge
