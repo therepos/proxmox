@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s))"
 
 echo "🔧 Starting pull..."
 

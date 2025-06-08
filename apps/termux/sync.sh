@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh?$(date +%s))"
 
 echo "🧪 Running latest sync.sh at $(date)"
 echo "🔧 Syncing..."

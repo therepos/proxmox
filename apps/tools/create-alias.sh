@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: bash -c "$(wget -qLO- https://github.com/.../create-alias.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s))"
 
 # ====== USER CONFIGURATION ======
 MODE="live"  # Options: "live" or "local"
@@ -8,9 +8,7 @@ ALIASES=(
   "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh"
   "sync|https://github.com/therepos/proxmox/raw/main/apps/termux/sync.sh"
   "resetd|https://github.com/therepos/proxmox/raw/main/apps/termux/resetd.sh"
-
-"setalias|https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh"
-
+  "setalias|https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh"
 )
 # =================================
 
