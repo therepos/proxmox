@@ -2,7 +2,7 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/create-alias.sh?$(date +%s))"
 
 # ====== USER CONFIGURATION ======
-MODE="live"  # Options: "live" or "local"
+MODE="local"  # Options: "live" or "local"
 
 ALIASES=(
   "pull|https://github.com/therepos/proxmox/raw/main/apps/termux/pull.sh?$(date +%s)"
