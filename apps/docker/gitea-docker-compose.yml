@@ -10,7 +10,7 @@ services:
       - "3029:3000"     # Web UI
       - "222:22"        # SSH
     volumes:
-      - ./gitea:/data
+      - ./data:/data
     networks:
       - gitea
 
