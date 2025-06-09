@@ -1,6 +1,6 @@
 # 1. initial setup: disable runner and pages services.
 # 2. get registration token by creating a runner in gitea.
-# 3. re-enable runner and pages services
+# 3. re-enable runner and pages services.
 
 services:
   gitea:
