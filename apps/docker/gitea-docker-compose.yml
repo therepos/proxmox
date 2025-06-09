@@ -1,3 +1,7 @@
+# 1. initial setup: disable runner and pages services.
+# 2. get registration token by creating a runner in gitea.
+# 3. re-enable runner and pages services
+
 services:
   gitea:
     image: gitea/gitea:latest
@@ -22,15 +26,27 @@ services:
       - gitea
     environment:
       - GITEA_INSTANCE_URL=https://gitea.domain.com
-      - GITEA_RUNNER_REGISTRATION_TOKEN=YOUR_TOKEN_HERE # Replace with token
-      - GITEA_RUNNER_NAME=docker-runner
-      - GITEA_RUNNER_LABELS=ubuntu-latest
+      - GITEA_RUNNER_REGISTRATION_TOKEN=sPfd1vvFMGcj9uN00HhRnuVMHOoicFcVf89CiguJ
+      - GITEA_RUNNER_NAME=gitea-runner
+      - GITEA_RUNNER_LABELS=ubuntu
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./runner:/data
+      - /mnt/sec/apps/gitea/pages:/usr/share/nginx/html
     networks:
       - gitea
 
+  pages:
+    image: nginx:alpine
+    container_name: gitea-pages
+    volumes:
+      - /mnt/sec/apps/gitea/pages:/usr/share/nginx/html
+    ports:
+      - "3030:80"
+    networks:
+      - gitea
+      
 networks:
   gitea:
+    name: gitea-net
     driver: bridge
