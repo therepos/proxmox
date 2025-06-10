@@ -33,7 +33,7 @@ Push changes from local machine to GitHub.
 ```
 git add .
 git commit -m "Your message"
-git push origin master
+git push origin main
 ```
 
 ### Create branch
