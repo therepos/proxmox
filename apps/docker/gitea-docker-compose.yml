@@ -45,7 +45,20 @@ services:
       - "3030:80"
     networks:
       - gitea
-      
+
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    environment:
+      - PASSWORD=password   # change this!
+    user: "1000:1000"
+    ports:
+      - "3031:8080"
+    volumes:
+      - /mnt/sec/apps/gitea/pages/therepos:/home/coder/project:rw  # Mount Gitea repos
+    networks:
+      - gitea
+            
 networks:
   gitea:
     name: gitea-net
