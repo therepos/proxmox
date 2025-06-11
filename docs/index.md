@@ -22,12 +22,13 @@ proxmox/
 
 The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with:
 - Intel i7-14700.
-- 64GB ECC RAM _(max 128GB)_.  
+- 64GB ECC RAM.
+  _max: 128GB_  
 - SSD 1TB zfs (root) + 4TB ext4 (storage).  
-  _SSD 2.5" SATA 7.68TB (1x) + SSD M.2 NVME 4TB (2x)_ 
+  _max: SSD 2.5" SATA 7.68TB (1x) + SSD M.2 NVME 4TB (2x)_ 
 - NVIDIA RTX A2000 12GB.  
-  _NVIDIA RTX 4000 SFF Ada Generation 20GB GDDR6_  
-  _NVIDIA RTX 2000 Ada Generation 16GB GDDR6_
+  _alt: NVIDIA RTX 4000 SFF Ada Generation 20GB GDDR6_  
+  _alt: NVIDIA RTX 2000 Ada Generation 16GB GDDR6_
 
 ## License
 
