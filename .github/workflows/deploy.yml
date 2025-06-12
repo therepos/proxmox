@@ -1,6 +1,8 @@
 name: Deploy to GitHub Pages
 
 on:
+  schedule:
+    - cron: '0 0 * * *'  # every day at 00:00 UTC
   push:
     branches:
       - main
@@ -10,6 +12,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      SITE_TITLE: ${{ github.repository }}
+      SITE_URL: https://${{ github.repository_owner }}.github.io
+      BASE_URL: /${{ github.event.repository.name }}/
+      ORG_NAME: ${{ github.repository_owner }}
+      PROJECT_NAME: ${{ github.event.repository.name }}
+          
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
