@@ -71,4 +71,5 @@
 - [set-gpu.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpu.sh) – Setups/switches nvidia gpu passthrough between vm and docker.  
 - [set-nonroot.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-nonroot.sh) – Switches from root to a non-root user and sets a default password.  
 - [set-swapfile.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-swapfile.sh) – Toggle swapfile to change available memory.  
+- [update-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-dockerct.sh) – Update all Docker Compose apps.  
 - [update-nvidiadriver.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-nvidiadriver.sh) – Updates nvidia driver.  
