@@ -45,6 +45,11 @@ Listen for file changes.
 inotifywait -m -r /mnt/sec/media
 ```
 
+Check for GPU
+```bash
+lspci | grep -i vga
+```
+
 ### Shortcuts
 
 Setup alias for script.
