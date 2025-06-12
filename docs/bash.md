@@ -63,6 +63,7 @@ Remove command alias.
 
 ```bash
 unalias purgedockerct
+nano ~/.bashrc
 ```
 
 ## Network
