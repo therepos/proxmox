@@ -55,9 +55,8 @@ lspci | grep -i vga
 Setup alias for script.
 
 ```bash
-alias purgedockerct='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"'
+alias purgeapps='bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/tools/purge-dockerct.sh)"'
 source ~/.bashrc
-purgedockerct
 ```
 
 Remove command alias.
