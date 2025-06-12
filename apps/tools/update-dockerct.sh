@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/set-nonroot.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/update-dockerct.sh?$(date +%s))"
 # purpose: update all Docker Compose apps
 
 BASE_DIR="/mnt/sec/apps"
