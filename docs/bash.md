@@ -33,21 +33,17 @@ setfacl -R -d -m g:sambausers:rwx /mnt/sec/media
 
 ### Monitoring 
 
-List open files.
-
-```bash
+```bash title="List open files"
 lsof +D /mnt/sec/media
 ```
-
-Listen for file changes.
-
-```bash
+```bash title="Listen for file changes"
 inotifywait -m -r /mnt/sec/media
 ```
-
-Check for GPU
-```bash
+```bash title="Check for GPU"
 lspci | grep -i vga
+```
+```bash title="Monitor GPU usage"
+watch -n 1 nvidia-smi
 ```
 
 ### Shortcuts
