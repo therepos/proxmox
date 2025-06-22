@@ -10,7 +10,7 @@ LOG_FILE="/var/log/install-samba.log"
 SHARE_NAME="mediadb"
 SHARE_PATH="/mnt/sec/media"
 SAMBA_GROUP="sambausers"
-SAMBA_USER="admin"
+SAMBA_USER="toor"
 
 # Function to log status messages
 function status_message() {
