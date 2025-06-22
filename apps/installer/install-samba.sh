@@ -87,6 +87,7 @@ EOF
 
 install_dependencies
 setup_samba_share
+systemctl enable smbd
 
 status_message "success" "Samba share '$SHARE_NAME' has been configured successfully."
 echo "You can access it via: \\\\<Proxmox-IP>\\$SHARE_NAME"
