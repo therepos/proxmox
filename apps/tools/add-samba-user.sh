@@ -17,7 +17,7 @@ echo "$NEW_USER:$NEW_PASS" | chpasswd
 (echo "$NEW_PASS"; echo "$NEW_PASS") | smbpasswd -s -a "$NEW_USER"
 usermod -aG "$SAMBA_GROUP" "$NEW_USER"
 
-# Step 3: List first-level folders under SHARE_ROOT
+# Step 3: List first-level folders
 echo -e "\nAvailable folders in $SHARE_ROOT:"
 FOLDERS=()
 i=1
@@ -28,24 +28,29 @@ for dir in "$SHARE_ROOT"/*/; do
     ((i++))
 done
 
-# Step 4: Prompt user to choose
-read -rp "Select a folder by number to give access to: " SELECTED
-TARGET_PATH="${FOLDERS[$((SELECTED-1))]}"
-TARGET_NAME=$(basename "$TARGET_PATH")
+# Step 4: Choose folders
+read -rp "Select folders (space-separated numbers, e.g. 1 3): " -a SELECTED
 
-echo -e "\nConfiguring access to: $TARGET_PATH"
+echo
 
-# Step 5: Set permissions
-chown -R root:"$SAMBA_GROUP" "$TARGET_PATH"
-chmod -R 2775 "$TARGET_PATH"
-chmod g+s "$TARGET_PATH"
-setfacl -R -m u:"$NEW_USER":rwX "$TARGET_PATH"
-setfacl -R -m d:u:"$NEW_USER":rwX "$TARGET_PATH"
+# Step 5: Process selected folders
+for index in "${SELECTED[@]}"; do
+    TARGET_PATH="${FOLDERS[$((index-1))]}"
+    TARGET_NAME=$(basename "$TARGET_PATH")
 
-# Step 6: Add Samba share to smb.conf
-cat <<EOF >> /etc/samba/smb.conf
+    echo "Setting access for '$NEW_USER' to: $TARGET_PATH"
 
-[$TARGET_NAME]
+    # Set permissions and ACL
+    chown -R root:"$SAMBA_GROUP" "$TARGET_PATH"
+    chmod -R 2775 "$TARGET_PATH"
+    chmod g+s "$TARGET_PATH"
+    setfacl -R -m u:"$NEW_USER":rwX "$TARGET_PATH"
+    setfacl -R -m d:u:"$NEW_USER":rwX "$TARGET_PATH"
+
+    # Add share to smb.conf
+    cat <<EOF >> /etc/samba/smb.conf
+
+[$TARGET_NAME-$NEW_USER]
    path = $TARGET_PATH
    browseable = yes
    writable = yes
@@ -58,7 +63,9 @@ cat <<EOF >> /etc/samba/smb.conf
    write list = $NEW_USER
 EOF
 
-# Step 7: Restart Samba
+done
+
+# Step 6: Restart Samba
 systemctl restart smbd
 
-echo -e "\n\033[32m✔ User '$NEW_USER' created with access to '\\\\<proxmox-ip>\\$TARGET_NAME'\033[0m"
+echo -e "\n\033[32m✔ User '$NEW_USER' added with access to selected folder(s).\033[0m"
