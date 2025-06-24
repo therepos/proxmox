@@ -53,8 +53,7 @@ Some essential configurations at initial setup:
     source /etc/network/interfaces.d/*
     ```
     ```bash title="etc/resolv.conf"
-    # ideally router IPv4 DNS is set to the same nameservers
-    nameserver 8.8.8.8
+    nameserver 8.8.8.8              # ideally router IPv4 DNS uses the same nameservers
     nameserver 8.8.4.4
     ```
     ```bash title="Install Tailscale for LAN access"
