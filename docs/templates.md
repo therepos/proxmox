@@ -34,7 +34,7 @@
 
 ## Installer
 - [Calibreweb Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-calibreweb.sh) – Installs calibre-web docker.  
-- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-dockerhost.sh) – Installs docker engine, docker compose, and nvidia container toolkit.  
+- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-dockerhost.sh) – Installs docker engine, docker compose, and optional nvidia container toolkit.  
 - [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-filebrowser.sh) – Installs filebrowser.  
 - [Jellyfin Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-jellyfin.sh) – Installs jellyfin docker.  
 - [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
