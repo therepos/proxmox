@@ -27,7 +27,7 @@ The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/wa
 - [x] SSD M.2 NVME 1.00TB zfs (max 4TB).
 - [x] SSD M.2 NVME 4.00TB ext4 (max).  
 - [ ] SSD 2.5 SATA 7.68TB (max). ⭐
-- [x] GPU NVIDIA RTX A2000 12GB.  
+- [ ] GPU NVIDIA RTX 4000 SFF 20GB. ⭐ 
 
 ## Essentials
 
