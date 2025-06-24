@@ -28,9 +28,11 @@ The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/wa
 - [ ] SSD 2.5 SATA 7.68TB (max).
 - [x] GPU NVIDIA RTX A2000 12GB.  
 
-## Essential
+## Essentials
 
 Some essential configurations at initial setup:
+
+### Networking
 
     ```bash title="Configures no PVE subscription prompt and repositories"
     bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/fix-pvenosub.sh?$(date +%s))"
@@ -67,6 +69,16 @@ Some essential configurations at initial setup:
     ```bash title="Verify configuration"
     ping google.com
     ```
+
+### Administration
+
+    ```bash title="Install Filebrowser"
+    bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh?$(date +%s))"
+    ```
+    ```bash title="Install Webmin System Administration"
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/webmin.sh)"
+    ```
+
 ## License
 
 This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
