@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-dockerhost.sh?$(date +%s))"
-# purpose: installs docker engine, docker compose, and nvidia container toolkit
+# purpose: installs docker engine, docker compose, and optional nvidia container toolkit
 
 # Define colors and status symbols
 GREEN="\e[32m✔\e[0m"
@@ -22,17 +22,25 @@ function status_message() {
     fi
 }
 
+# Step 0: Prompt NVIDIA GPU or not
+echo -e "\nDoes this system have an NVIDIA GPU?"
+echo "1) Yes - install NVIDIA runtime"
+echo "2) No  - skip NVIDIA setup"
+read -rp "Select option [1-2]: " GPU_OPTION
+
 # Step 1: Update the System
 apt-get update -y &>/dev/null && apt-get upgrade -y &>/dev/null
 status_message success "System updated successfully."
 
-# Step 2: Install Prerequisites
+# Step 2: Install prerequisites
 apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
     software-properties-common \
-    gnupg lsb-release zfsutils-linux \
+    gnupg \
+    lsb-release \
+    zfsutils-linux \
     jq &>/dev/null
 status_message success "Prerequisites installed successfully."
 
@@ -55,63 +63,57 @@ status_message success "Docker installed and started successfully."
 
 # Step 6: Install Docker Compose
 if ! docker compose version &>/dev/null; then
-    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose &>/dev/null
-    chmod +x /usr/local/bin/docker-compose &>/dev/null
-    if docker compose version &>/dev/null; then
-        status_message success "Docker Compose installed successfully."
-    else
-        status_message failure "Failed to install Docker Compose."
-    fi
+    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \
+        -o /usr/local/bin/docker-compose &>/dev/null
+    chmod +x /usr/local/bin/docker-compose
+    docker compose version &>/dev/null && \
+        status_message success "Docker Compose installed." || \
+        status_message failure "Docker Compose install failed."
 else
-    status_message success "Docker Compose is already installed."
+    status_message success "Docker Compose already installed."
 fi
 
-# Step 7: Configure Docker to Use ZFS
+# Step 7: Configure Docker for ZFS (and optionally NVIDIA)
 DOCKER_CONFIG="/etc/docker/daemon.json"
-if [ ! -f "$DOCKER_CONFIG" ]; then
-    tee "$DOCKER_CONFIG" > /dev/null <<EOF
-{
-    "storage-driver": "zfs",
-    "runtimes": {
+ZFS_CONFIG='{"storage-driver": "zfs"}'
+
+if [[ "$GPU_OPTION" == "1" ]]; then
+    ZFS_CONFIG=$(jq -n '{
+      "storage-driver": "zfs",
+      "runtimes": {
         "nvidia": {
-            "path": "nvidia-container-runtime",
-            "runtimeArgs": []
+          "path": "nvidia-container-runtime",
+          "runtimeArgs": []
         }
-    }
-}
-EOF
-else
-    jq '. + {"storage-driver": "zfs", "runtimes": {"nvidia": {"path": "nvidia-container-runtime", "runtimeArgs": []}}}' "$DOCKER_CONFIG" > /tmp/daemon.json
-    mv /tmp/daemon.json "$DOCKER_CONFIG"
+      }
+    }')
 fi
 
-systemctl restart docker &>/dev/null
-status_message success "Docker configured with ZFS storage driver and NVIDIA runtime."
+echo "$ZFS_CONFIG" > "$DOCKER_CONFIG"
+status_message success "Docker configured with ZFS${GPU_OPTION:+ and NVIDIA runtime}."
 
-# Step 8: Add NVIDIA GPG Key and Repository
-distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg &>/dev/null
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
-apt-get update &>/dev/null
-status_message success "NVIDIA Container Toolkit repository added successfully."
+# Step 8: NVIDIA Setup (optional)
+if [[ "$GPU_OPTION" == "1" ]]; then
+    distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+    curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg &>/dev/null
+    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
+    apt-get update &>/dev/null
+    status_message success "NVIDIA repository added."
 
-# Step 9: Install NVIDIA Container Toolkit
-apt-get install -y nvidia-container-toolkit &>/dev/null
-nvidia-ctk runtime configure --runtime=docker &>/dev/null
-systemctl restart docker &>/dev/null
-status_message success "NVIDIA Container Toolkit installed and configured successfully."
+    apt-get install -y nvidia-container-toolkit &>/dev/null
+    nvidia-ctk runtime configure --runtime=docker &>/dev/null
+    status_message success "NVIDIA Container Toolkit installed and configured."
 
-# Step 10: Verify NVIDIA Docker Integration
-docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null
-if [ $? -eq 0 ]; then
-    status_message success "NVIDIA Docker integration verified successfully."
-else
-    status_message failure "Docker NVIDIA GPU integration failed."
+    # Step 9: Test NVIDIA integration
+    docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null
+    [[ $? -eq 0 ]] && \
+        status_message success "NVIDIA GPU detected and verified in Docker." || \
+        status_message failure "NVIDIA GPU not functioning correctly in Docker."
 fi
 
-# Step 11: Clean Up and Finish
+# Step 9: Clean Up and Finish
+systemctl restart docker &>/dev/null
 docker image prune -a -f &>/dev/null
-status_message success "Cleanup completed successfully."
+status_message success "Cleanup completed."
 
-echo -e "${GREEN}Docker, Docker Compose, and NVIDIA integration are now configured to work seamlessly with ZFS on your Proxmox host.${RESET}"
-
+echo -e "${GREEN}Docker and Docker Compose are now installed and configured${GPU_OPTION:+ with NVIDIA runtime} using ZFS on your Proxmox host.${RESET}"

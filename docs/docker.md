@@ -26,6 +26,11 @@ Export folder from docker service to destination folder.
 docker cp <container_name>:/app <destination>
 ```
 
+Remove stopped containers and unused resources bypassing prompt.
+```bash
+docker system prune --volumes -f
+```
+
 ## Debug
 
 Search logs of both error output and standard output by keyword. Use `-f` to follow log stream.

@@ -28,6 +28,46 @@ The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/wa
 - [ ] SSD 2.5 SATA 7.68TB (max).
 - [x] GPU NVIDIA RTX A2000 12GB.  
 
+## Essential
+
+Some essential configurations at initial setup:
+
+    ```bash title="Configures no PVE subscription prompt and repositories"
+    bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/fix-pvenosub.sh?$(date +%s))"
+    ```
+
+    ```bash title="etc/network/interfaces"
+    auto lo
+    iface lo inet loopback
+    iface enp3s0 inet manual
+    auto vmbr0
+    iface vmbr0 inet static
+        address 192.168.1.XXX/24
+        gateway 192.168.1.1
+        dns-nameservers 8.8.8.8 8.8.4.4
+        bridge-ports enp3s0
+        bridge-stp off
+        bridge-fd 0
+    iface enp4s0 inet manual
+    iface wlo1 inet manual
+    source /etc/network/interfaces.d/*
+    ```
+    ```bash title="etc/resolv.conf"
+    # ideally router IPv4 DNS is set to the same nameservers
+    nameserver 8.8.8.8
+    nameserver 8.8.4.4
+    ```
+    ```bash title="Install Tailscale for LAN access"
+    curl -fsSL https://tailscale.com/install.sh | sh
+    tailscale up --accept-dns=false
+    ```
+    ```bash title="Reloads network configurations"
+    ifreload -a                     # without rebooting, or
+    systemctl restart networking    # reboots
+    ```
+    ```bash title="Verify configuration"
+    ping google.com
+    ```
 ## License
 
 This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
