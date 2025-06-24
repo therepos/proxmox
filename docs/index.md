@@ -32,11 +32,13 @@ The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/wa
 
 Some essential configurations at initial setup:
 
-### Networking
+### PVE Subscription
 
     ```bash title="Configures no PVE subscription prompt and repositories"
     bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/fix-pvenosub.sh?$(date +%s))"
     ```
+
+### Networking
 
     ```bash title="etc/network/interfaces"
     auto lo
@@ -58,6 +60,15 @@ Some essential configurations at initial setup:
     nameserver 8.8.8.8              # ideally router IPv4 DNS uses the same nameservers
     nameserver 8.8.4.4
     ```
+
+#### Cloudflared
+
+- _Cloudflare > Networks > Tunnels >_ ***Install and run a connector***.
+- Install a service.
+- `systemctl restart cloudflared` to refresh cache.
+
+#### Tailscale
+
     ```bash title="Install Tailscale for LAN access"
     curl -fsSL https://tailscale.com/install.sh | sh
     tailscale up --accept-dns=false
@@ -73,7 +84,7 @@ Some essential configurations at initial setup:
 ### Administration
 
     ```bash title="Install Filebrowser"
-    bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh?$(date +%s))"
+    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh)"
     ```
     ```bash title="Install Webmin System Administration"
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/webmin.sh)"
