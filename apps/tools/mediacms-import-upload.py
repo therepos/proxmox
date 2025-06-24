@@ -18,7 +18,7 @@ import shutil  # For removing folders
 
 # Configuration
 MEDIA_FOLDER = "/mnt/sec/media/videos/uploads"
-API_BASE_URL = "http://192.168.1.111:3025/api/v1/"
+API_BASE_URL = "http://ip:3025/api/v1/"
 API_MEDIA_URL = API_BASE_URL + "media"
 USERNAME = "admin"
 PASSWORD = "password"
