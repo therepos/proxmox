@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-filebrowser.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh?$(date +%s))"
 # purpose: installs filebrowser
 
 # Define colors and status symbols
