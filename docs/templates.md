@@ -61,6 +61,7 @@
 - [mediacms-import-upload.py](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import-upload.py) – Worker script executes the uploading of media files (mov, mp4, mkv) to mediacms.  
 - [mediacms-import.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import.sh) – Controller scripts that uploads all videos in a folder to a new playlist.  
 - [mediacms-initialise.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-initialise.sh) – Installs the MediaCMS Docker container.  
+- [mount-drive-v2.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mount-drive-v2.sh)  
 - [mount-drive.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mount-drive.sh) – Mounts a user-specified external drive and optionally updates fstab.  
 - [ocrmypdf-paperless-movefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-movefiles.sh) – Transfer files from the output folder to paperless-ngx consume folder.  
 - [ocrmypdf-paperless-scanfiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-scanfiles.sh) – Ocr scans files from the input folder to the output folder.  
