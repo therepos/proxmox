@@ -35,7 +35,7 @@ Some essential configurations at initial setup:
 ### PVE Subscription
 
     ```bash title="Configures no PVE subscription prompt and repositories"
-    bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/fix-pvenosub.sh?$(date +%s))"
+    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/tools/fix-pvenosub.sh)"
     ```
 
 ### Networking
