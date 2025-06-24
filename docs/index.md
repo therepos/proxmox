@@ -61,6 +61,9 @@ Some essential configurations at initial setup:
     nameserver 8.8.8.8              # ideally router IPv4 DNS uses the same nameservers
     nameserver 8.8.4.4
     ```
+    ```bash title="Install ifupdown2"
+    apt update && apt install ifupdown2 -y
+    ```
 
 #### Cloudflared
 
