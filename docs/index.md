@@ -88,7 +88,7 @@ Some essential configurations at initial setup:
 ### Administration
 
     ```bash title="Install Filebrowser"
-    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh)"
+    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh)"
     ```
     ```bash title="Install Webmin System Administration"
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/webmin.sh)"
