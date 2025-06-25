@@ -53,11 +53,11 @@ def generate_templates():
         docker_base
     )
 
-    # Apps
-    apps_base = "https://github.com/therepos/proxmox/blob/main/apps/installer"
+    # Installers
+    apps_base = "https://github.com/therepos/proxmox/blob/main/apps/installers"
     lines += generate_section(
-        "Installer",
-        "apps/installer",
+        "Installers",
+        "apps/installers",
         lambda f: f.startswith('install-') and f.endswith('.sh'),
         lambda f: f.replace('install-', '').replace('.sh', '').capitalize() + " Installer",
         apps_base
