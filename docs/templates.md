@@ -32,16 +32,16 @@
 - [Usememos](https://github.com/therepos/proxmox/blob/main/apps/docker/usememos-docker-compose.yml)  
 - [Windows](https://github.com/therepos/proxmox/blob/main/apps/docker/windows-docker-compose.yml)  
 
-## Installer
-- [Calibreweb Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-calibreweb.sh) – Installs calibre-web docker.  
-- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-dockerhost.sh) – Installs docker engine, docker compose, and optional nvidia container toolkit.  
-- [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-filebrowser.sh) – Installs filebrowser.  
-- [Jellyfin Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-jellyfin.sh) – Installs jellyfin docker.  
-- [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
-- [Ollama Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-ollama.sh) – Installs ollama docker ct.  
-- [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-plex.sh) – Installs plex docker.  
-- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-portainer.sh) – Installs portainer docker.  
-- [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installer/install-samba.sh) – Installs and configures Samba with correct permissions.  
+## Installers
+- [Calibreweb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-calibreweb.sh) – Installs calibre-web docker.  
+- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost.sh) – Installs docker engine, docker compose, and optional nvidia container toolkit.  
+- [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-filebrowser.sh) – Installs filebrowser.  
+- [Jellyfin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-jellyfin.sh) – Installs jellyfin docker.  
+- [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
+- [Ollama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-ollama.sh) – Installs ollama docker ct.  
+- [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-plex.sh) – Installs plex docker.  
+- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
+- [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs and configures Samba with correct permissions.  
 
 ## Tools
 - [add-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/add-samba-user.sh) – Add samba user and access.  
