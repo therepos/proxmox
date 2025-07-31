@@ -1,6 +1,7 @@
 services:
   pdf-ai:
     image: ghcr.io/therepos/pdfai:latest
+    container_name: pdf-ai
     ports:
       - "3024:8000"
     volumes:
