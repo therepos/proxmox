@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installer/install-portainer.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-portainer.sh?$(date +%s))"
 # purpose: installs portainer docker
 # updating:
 #  docker stop portainer
