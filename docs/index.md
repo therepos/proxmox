@@ -20,14 +20,14 @@ proxmox/
 
 ## Hardware
 
-The current Proxmox homelab runs on [Lenovo P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with:
+The current Proxmox homelab runs on [ThinkStation P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with:
 - [x] CPU Intel i7-14700.
-- [x] RAM 64GB ECC HMCG88AGBAA095N (max). 
-- [ ] RAM 64GB ECC HMCG88AGBAA095N (max). ⭐
+- [x] RAM SK Hynix 32GB DDR5-SODIMM 5600MTs ECC HMCG88AGBAA095N (max). 
+- ⭐ RAM SK Hynix 32GB DDR5-SODIMM 5600MTs ECC HMCG88AGBAA095N (max). 
 - [x] SSD M.2 NVME 1.00TB zfs (max 4TB).
-- [x] SSD M.2 NVME 4.00TB ext4 (max).  
-- [ ] SSD 2.5 SATA 7.68TB (max). ⭐
-- [ ] GPU NVIDIA RTX 4000 SFF 20GB. ⭐ 
+- [x] SSD M.2 NVME 4.00TB ext4 Lexar NM790 (max).  
+- ⭐ SSD 2.5 SATA 7.68TB (max).
+- ⭐ GPU NVIDIA RTX 4000 SFF Ada Generation 20GB GDDR6.
 
 ## Essentials
 
@@ -88,7 +88,7 @@ Some essential configurations at initial setup:
 ### Administration
 
     ```bash title="Install Filebrowser"
-    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh)"
+    bash -c "$(curl -fsSL https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh)"
     ```
     ```bash title="Install Webmin System Administration"
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/tools/addon/webmin.sh)"
@@ -100,6 +100,7 @@ This work is licensed under [MIT](https://choosealicense.com/licenses/mit/).
 
 ## Resources
 
+- [Proxmox Scripts](https://therepos.github.io/proxmox/)
 - [Self-managed life](https://wiki.futo.org/index.php/Introduction_to_a_Self_Managed_Life:_a_13_hour_%26_28_minute_presentation_by_FUTO_software)
 - [GitHub finest](https://github.com/arbal/awesome-stars)
 - [Proxmox helper script](https://community-scripts.github.io/ProxmoxVE/)
