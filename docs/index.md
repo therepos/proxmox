@@ -100,7 +100,6 @@ This work is licensed under [MIT](https://choosealicense.com/licenses/mit/).
 
 ## Resources
 
-- [Proxmox Scripts](https://therepos.github.io/proxmox/)
 - [Self-managed life](https://wiki.futo.org/index.php/Introduction_to_a_Self_Managed_Life:_a_13_hour_%26_28_minute_presentation_by_FUTO_software)
 - [GitHub finest](https://github.com/arbal/awesome-stars)
 - [Proxmox helper script](https://community-scripts.github.io/ProxmoxVE/)
