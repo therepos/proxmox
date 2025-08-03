@@ -16,6 +16,7 @@
 - [Hoarder](https://github.com/therepos/proxmox/blob/main/apps/docker/hoarder-docker-compose.yml)  
 - [Jellyfin](https://github.com/therepos/proxmox/blob/main/apps/docker/jellyfin-docker-compose.yml)  
 - [Librephotos](https://github.com/therepos/proxmox/blob/main/apps/docker/librephotos-docker-compose.yml)  
+- [Media](https://github.com/therepos/proxmox/blob/main/apps/docker/media-docker-compose.yml)  
 - [Mediacms](https://github.com/therepos/proxmox/blob/main/apps/docker/mediacms-docker-compose.yml)  
 - [Meshcentral](https://github.com/therepos/proxmox/blob/main/apps/docker/meshcentral-docker-compose.yml)  
 - [Metube](https://github.com/therepos/proxmox/blob/main/apps/docker/metube-docker-compose.yml)  
