@@ -2,22 +2,33 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/backup-winstorage.sh?$(date +%s))"
 # purpose: backups storage folder in a docker container called windows
 
-# Source and destination directories
+set -euo pipefail
+
 SOURCE_DIR="/mnt/sec/apps/windows/storage/"
 DEST_DIR="/mnt/sec/backup/docker/storage/"
+REQUIRED_PKGS=("rsync" "findutils")
 
-# Check if the destination folder exists
-if [ -d "$DEST_DIR" ]; then
-    # Get the current date and time, formatted as yyyymmdd-hhmm
-    CURRENT_TIME=$(date +"%Y%m%d-%H%M")
+# Dependency check & install
+for pkg in "${REQUIRED_PKGS[@]}"; do
+    if ! command -v "${pkg%%-*}" >/dev/null 2>&1; then
+        echo "Installing $pkg..."
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y "$pkg"
+        elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y "$pkg"
+        else
+            echo "Package manager not found. Install $pkg manually."
+            exit 1
+        fi
+    fi
+done
 
-    # Rename the existing folder by appending the current timestamp
-    mv "$DEST_DIR" "${DEST_DIR%/}-$CURRENT_TIME"
-    echo "Renamed existing folder to ${DEST_DIR%/}-$CURRENT_TIME"
-fi
+# Cleanup old timestamped backups
+find "$(dirname "${DEST_DIR%/}")" -maxdepth 1 -type d -name "$(basename "${DEST_DIR%/}")-*" -exec rm -rf {} + || true
 
-# Create the destination directory again (if it doesn't exist)
-mkdir -p "$DEST_DIR" || { echo "Failed to create destination directory $DEST_DIR"; exit 1; }
+# Ensure destination exists & sync
+mkdir -p "$DEST_DIR"
+rsync -a --delete --exclude='.sync' "$SOURCE_DIR" "$DEST_DIR"
 
-# Copy the source folder to the destination, overwriting the new empty folder
-rsync -av --delete --exclude='.sync' "$SOURCE_DIR" "$DEST_DIR" || { echo "rsync failed"; exit 1; }
+echo "Backup refreshed: $(date)"
+
