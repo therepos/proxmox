@@ -4,21 +4,6 @@
 # sonarr: add download client
 
 services:
-  lidarr:
-    image: lscr.io/linuxserver/lidarr:latest
-    container_name: lidarr
-    environment:
-      - PUID=1000      
-      - PGID=1000      
-      - TZ=Asia/Kuala_Lumpur
-    volumes:
-      - /mnt/sec/apps/lidarr/config:/config
-      - /mnt/sec/media/music:/music
-      - /mnt/sec/media/downloads:/downloads
-    ports:
-      - 3027:8686
-    restart: unless-stopped
-
   radarr:
     image: linuxserver/radarr
     container_name: radarr
