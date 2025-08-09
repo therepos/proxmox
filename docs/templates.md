@@ -47,7 +47,7 @@
 
 ## Tools
 - [add-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/add-samba-user.sh) – Add samba user and access.  
-- [backup-winstorage.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-winstorage.sh) – Backups storage folder in a docker container called windows.  
+- [backup-winstorage.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-winstorage.sh) – Backups docker windows.  
 - [backup-zfs.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-zfs.sh) – Backups or restores zfs drive.  
 - [create-alias.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-alias.sh)  
 - [create-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-lxc.sh) – Creates an empty lxc container.  
