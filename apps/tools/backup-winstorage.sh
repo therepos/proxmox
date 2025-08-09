@@ -4,46 +4,41 @@
 
 set -euo pipefail
 
-# === Colors & status symbols ===
-GREEN="\e[32m✔\e[0m"
-RED="\e[31m✘\e[0m"
-RESET="\e[0m"
-
-function status_message() {
-    local status=$1
-    local message=$2
-    if [[ "$status" == "success" ]]; then
-        echo -e "${GREEN} ${message}"
-    else
-        echo -e "${RED} ${message}"
-        exit 1
-    fi
-}
+# === Colors & status ===
+GREEN="\e[32m✔\e[0m"; RED="\e[31m✘\e[0m"
+status_message(){ [[ $1 == success ]] && echo -e "${GREEN} $2" || { echo -e "${RED} $2"; exit 1; }; }
 
 # === Config ===
 SOURCE_DIR="/mnt/sec/apps/windows/storage/"
 DEST_DIR="/mnt/sec/backup/docker/storage/"
-REQUIRED_PKGS=("rsync" "findutils")
 
-# === Dependency check & install ===
-for pkg in "${REQUIRED_PKGS[@]}"; do
-    if ! command -v "${pkg%%-*}" >/dev/null 2>&1; then
-        echo "Installing $pkg..."
-        if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y "$pkg" && status_message success "$pkg installed"
-        elif command -v yum >/dev/null 2>&1; then
-            sudo yum install -y "$pkg" && status_message success "$pkg installed"
-        else
-            status_message fail "Package manager not found. Install $pkg manually."
-        fi
-    else
-        status_message success "$pkg already installed"
-    fi
-done
+# === Dependency: rsync only ===
+if ! command -v rsync >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq rsync
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum -q -y install rsync
+  else
+    status_message fail "No supported package manager for rsync"
+  fi
+  status_message success "rsync installed"
+else
+  status_message success "rsync already installed"
+fi
 
 # === Cleanup old timestamped backups ===
-find "$(dirname "${DEST_DIR%/}")" -maxdepth 1 -type d -name "$(basename "${DEST_DIR%/}")-*" -exec rm -rf {} + && \
-status_message success "Old timestamped backups removed"
+dest_parent="$(dirname "${DEST_DIR%/}")"
+dest_base="$(basename "${DEST_DIR%/}")"
+shopt -s nullglob
+old_dirs=("$dest_parent/${dest_base}-"*)
+shopt -u nullglob
+if (( ${#old_dirs[@]} )); then
+  rm -rf -- "${old_dirs[@]}"
+  status_message success "Old timestamped backups removed"
+else
+  status_message success "No old timestamped backups found"
+fi
 
 # === Ensure destination exists ===
 mkdir -p "$DEST_DIR" && status_message success "Destination folder ready"
