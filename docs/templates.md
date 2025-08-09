@@ -26,7 +26,6 @@
 - [Ocrmypdf](https://github.com/therepos/proxmox/blob/main/apps/docker/ocrmypdf-docker-compose.yml)  
 - [Ollama](https://github.com/therepos/proxmox/blob/main/apps/docker/ollama-docker-compose.yml)  
 - [Paperless](https://github.com/therepos/proxmox/blob/main/apps/docker/paperless-docker-compose.yml)  
-- [Pdfai](https://github.com/therepos/proxmox/blob/main/apps/docker/pdfai-docker-compose.yml)  
 - [Photoprism](https://github.com/therepos/proxmox/blob/main/apps/docker/photoprism-docker-compose.yml)  
 - [Samba](https://github.com/therepos/proxmox/blob/main/apps/docker/samba-docker-compose.yml)  
 - [Stirlingpdf](https://github.com/therepos/proxmox/blob/main/apps/docker/stirlingpdf-docker-compose.yml)  
