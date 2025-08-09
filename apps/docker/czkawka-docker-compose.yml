@@ -1,3 +1,6 @@
+# purpose: remove duplicated photos
+# -----
+# https://github.com/qarmin/czkawka
 # https://github.com/jlesage/docker-czkawka
 # Algorithm
 #   Nearest: Fast but low quality. Use for speed over accuracy.
