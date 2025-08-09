@@ -7,7 +7,7 @@
 - [Calibreweb](https://github.com/therepos/proxmox/blob/main/apps/docker/calibreweb-docker-compose.yml)  
 - [Carvekit](https://github.com/therepos/proxmox/blob/main/apps/docker/carvekit-docker-compose.yml)  
 - [Codeserver](https://github.com/therepos/proxmox/blob/main/apps/docker/codeserver-docker-compose.yml) – This runs codeserver container with pyenv container support.  
-- [Czkawka](https://github.com/therepos/proxmox/blob/main/apps/docker/czkawka-docker-compose.yml)  
+- [Czkawka](https://github.com/therepos/proxmox/blob/main/apps/docker/czkawka-docker-compose.yml) – Remove duplicated photos.  
 - [Ffmpeg](https://github.com/therepos/proxmox/blob/main/apps/docker/ffmpeg-docker-compose.yml)  
 - [Gimp](https://github.com/therepos/proxmox/blob/main/apps/docker/gimp-docker-compose.yml)  
 - [Gitea](https://github.com/therepos/proxmox/blob/main/apps/docker/gitea-docker-compose.yml)  
@@ -17,7 +17,7 @@
 - [Hoarder](https://github.com/therepos/proxmox/blob/main/apps/docker/hoarder-docker-compose.yml)  
 - [Jellyfin](https://github.com/therepos/proxmox/blob/main/apps/docker/jellyfin-docker-compose.yml)  
 - [Librephotos](https://github.com/therepos/proxmox/blob/main/apps/docker/librephotos-docker-compose.yml)  
-- [Media](https://github.com/therepos/proxmox/blob/main/apps/docker/media-docker-compose.yml)  
+- [Media](https://github.com/therepos/proxmox/blob/main/apps/docker/media-docker-compose.yml) – Torrent downloader.  
 - [Mediacms](https://github.com/therepos/proxmox/blob/main/apps/docker/mediacms-docker-compose.yml)  
 - [Meshcentral](https://github.com/therepos/proxmox/blob/main/apps/docker/meshcentral-docker-compose.yml)  
 - [Metube](https://github.com/therepos/proxmox/blob/main/apps/docker/metube-docker-compose.yml)  
