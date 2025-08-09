@@ -1,4 +1,4 @@
-# purpose: this runs codeserver container with pyenv container support
+# purpose: codeserver with pyenv
 # navigate to python project directory:
 #   docker exec -it python-env bash
 #   cd /workspace/my_project
