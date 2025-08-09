@@ -1,0 +1,32 @@
+# https://github.com/OPHoperHPO/image-background-remove-tool/tree/master
+# https://carve.photos/
+
+services:
+  carvekit:
+    image: anodev/carvekit:latest-cpu
+    container_name: carvekit
+    environment:
+      - CARVEKIT_HOST=0.0.0.0
+      - CARVEKIT_PORT=5000
+      - CARVEKIT_DEVICE=cpu
+      - CARVEKIT_SEGMENTATION_NETWORK=basnet  # can be u2net, tracer_b7, basnet, deeplabv3
+      - CARVEKIT_PREPROCESSING_METHOD=none # can be none, stub
+      - CARVEKIT_POSTPROCESSING_METHOD=fba # can be none, fba
+      - CARVEKIT_DEVICE=cpu # can be cuda (req. cuda docker image), cpu
+      - CARVEKIT_BATCH_SIZE_SEG=5 #  Number of images processed per one segmentation nn call. NOT USED IF WEB API IS USED
+      - CARVEKIT_BATCH_SIZE_MATTING=1  # Number of images processed per one matting nn call. NOT USED IF WEB API IS USED
+      - CARVEKIT_SEG_MASK_SIZE=640  # The size of the input image for the segmentation neural network.
+      - CARVEKIT_MATTING_MASK_SIZE=2048   # The size of the input image for the matting neural network.
+      - CARVEKIT_FP16=0 # Enables FP16 mode (Only CUDA at the moment)
+      - CARVEKIT_TRIMAP_PROB_THRESHOLD=100  # Probability threshold at which the prob_filter and prob_as_unknown_area operations will be applied
+      - CARVEKIT_TRIMAP_DILATION=30  # The size of the offset radius from the object mask in pixels when forming an unknown area
+      - CARVEKIT_TRIMAP_EROSION=5  # The number of iterations of erosion that the object's mask will be subjected to before forming an unknown area
+      - CARVEKIT_AUTH_ENABLE=0  # Enables authentication by tokens using 1
+      # - CARVEKIT_ADMIN_TOKEN=admin123
+      # - CARVEKIT_ALLOWED_TOKENS=mytoken123
+    volumes:
+      - /mnt/sec/apps/carvekit/data:/data
+      - /mnt/sec/apps/carvekit/config:/config
+    ports:
+      - 3019:5000
+    restart: unless-stopped
