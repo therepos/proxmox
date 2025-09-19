@@ -23,7 +23,7 @@ proxmox/
 The current Proxmox homelab runs on [ThinkStation P3 Ultra](https://www.youtube.com/watch?v=SSRAPUTpOic) with:
 - [x] CPU Intel i7-14700.
 - [x] RAM SK Hynix 32GB DDR5-SODIMM 5600MTs ECC HMCG88AGBAA095N (max). 
-- ⭐ RAM SK Hynix 32GB DDR5-SODIMM 5600MTs ECC HMCG88AGBAA095N (max). 
+- [x] RAM SK Hynix 32GB DDR5-SODIMM 5600MTs ECC HMCG88AGBAA095N (max). 
 - [x] SSD M.2 NVME 1.00TB zfs (max 4TB).
 - [x] SSD M.2 NVME 4.00TB ext4 Lexar NM790 (max).  
 - ⭐ SSD 2.5 SATA 7.68TB (max).
