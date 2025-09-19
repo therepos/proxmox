@@ -54,48 +54,6 @@ jobs:
 
           git config user.name "therepos"
           git config user.email "therepos@github.com"
-          git add docs/templates.md
+          git add templates.md
           git diff --cached --quiet || git commit -m "Update templates.md"
           git push
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Cache node modules
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Sync and commit theme from template
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-          git clone --filter=blob:none --no-checkout https://x-access-token:${{ secrets.PAT }}@github.com/therepos/docusaurus.git temp-docusaurus
-          cd temp-docusaurus
-          git sparse-checkout init --cone
-          git sparse-checkout set src/css/theme.css footer.js
-          git checkout main
-          cp src/css/theme.css ../src/css/theme.css
-          cp footer.js ../footer.js
-          cd ..
-          rm -rf temp-docusaurus
-          git add src/css/theme.css footer.js
-          git commit -m "Sync theme.css and footer.js from template" || echo "No changes"
-          git push
-                  
-      - name: Build site
-        run: npm run build
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./build
