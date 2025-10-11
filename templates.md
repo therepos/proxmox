@@ -42,8 +42,7 @@
 - [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
 - [Ollama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-ollama.sh) – Installs ollama docker ct.  
 - [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-plex.sh) – Installs plex docker.  
-- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
-- [Portainer2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer2.sh) – Installs portainer docker for pve9.  
+- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker for pve9.  
 - [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs and configures Samba with correct permissions.  
 
 ## Tools
