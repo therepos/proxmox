@@ -2,10 +2,6 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-dockerhost2.sh?$(date +%s))"
 # purpose: installs docker engine, docker compose, and optional nvidia container toolkit
 
-#!/usr/bin/env bash
-# install-dockerhost.sh
-# Docker Engine + Compose plugin on Proxmox/Debian/Ubuntu with logging and trixie fallback.
-
 set -euo pipefail
 
 # --- logging ---
@@ -115,4 +111,3 @@ main() {
 }
 
 main "$@"
-
