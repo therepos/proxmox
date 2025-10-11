@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/install-jellyfin.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-jellyfin.sh?$(date +%s))"
 # purpose: installs jellyfin docker
 
 # Define colors and status symbols

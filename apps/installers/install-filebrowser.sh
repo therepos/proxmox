@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installer/install-filebrowser.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh?$(date +%s))"
 # purpose: installs filebrowser
 # username: admin
 # password: helper-scripts.com
