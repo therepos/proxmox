@@ -20,7 +20,6 @@ NAME="portainer"
 command -v docker >/dev/null || fail "Docker not found"
 [[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 
-# optional bind (create if present in script)
 HOST_BIND="/mnt/sec/apps"
 [[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"
 
@@ -40,10 +39,8 @@ case "$MODE" in
   *) fail "Unknown MODE='${MODE}' (use install|update|uninstall)";;
 esac
 
-# create volume if missing
 docker volume inspect portainer_data >/dev/null 2>&1 || docker volume create portainer_data >/dev/null
 
-# use host docker-socket GID so Portainer can access the socket
 SOCK_GID="$(stat -c '%g' /var/run/docker.sock)"
 
 info "Starting ${NAME} (HTTPS 9443)"
@@ -51,6 +48,8 @@ docker rm -f "${NAME}" >/dev/null 2>&1 || true
 docker run -d --name "${NAME}" \
   --pull=always \
   --restart=always \
+  --security-opt apparmor=unconfined \
+  --security-opt seccomp=unconfined \
   -p 9443:9443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data \
@@ -59,7 +58,6 @@ docker run -d --name "${NAME}" \
   "${IMAGE}" \
   -H unix:///var/run/docker.sock >/dev/null
 
-# wait up to ~30s for running
 for i in {1..30}; do
   docker ps --format '{{.Names}}' | grep -qx "${NAME}" && break
   sleep 1
@@ -71,3 +69,4 @@ if docker ps --format '{{.Names}}' | grep -qx "${NAME}"; then
 else
   fail "Container failed to start"
 fi
+

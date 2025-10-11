@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-dockerhost2.sh?$(date +%s))"
-# purpose: installs docker engine, docker compose, and optional nvidia container toolkit
+# purpose: installs docker engine and docker compose for pve9
 
 set -euo pipefail
 
