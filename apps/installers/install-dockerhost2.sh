@@ -2,6 +2,10 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-dockerhost2.sh?$(date +%s))"
 # purpose: installs docker engine, docker compose, and optional nvidia container toolkit
 
+#!/usr/bin/env bash
+# install-dockerhost.sh
+# Docker Engine + Compose plugin on Proxmox/Debian/Ubuntu with logging and trixie fallback.
+
 set -euo pipefail
 
 # --- logging ---
@@ -22,33 +26,29 @@ require_root() {
 detect_os() {
   [[ -r /etc/os-release ]] || { err "/etc/os-release not found"; exit 1; }
   . /etc/os-release
-  OS_ID="${ID:-debian}"                    # debian | ubuntu
-  OS_CODENAME="${VERSION_CODENAME:-}"      # bookworm, bullseye, jammy, focal, trixie, etc.
+  OS_ID="${ID:-debian}"               # debian | ubuntu
+  OS_CODENAME="${VERSION_CODENAME:-}" # bookworm, bullseye, jammy, focal, trixie, etc.
   ARCH="$(dpkg --print-architecture)"
+
   if [[ -z "${OS_CODENAME}" ]]; then
     case "${OS_ID}:${VERSION_ID:-}" in
       ubuntu:22.04) OS_CODENAME="jammy" ;;
       ubuntu:20.04) OS_CODENAME="focal" ;;
       debian:12)    OS_CODENAME="bookworm" ;;
       debian:11)    OS_CODENAME="bullseye" ;;
-      *) err "Cannot determine VERSION_CODENAME; set it manually."; exit 1 ;;
+      *) err "Cannot determine VERSION_CODENAME"; exit 1 ;;
     esac
   fi
   log "Detected: ${PRETTY_NAME:-$OS_ID} (${OS_CODENAME}) [${ARCH}]"
 }
 
-# Return 0 if docker publishes a repo for OS_ID/CODENAME
-repo_exists() {
-  curl -fsSI "https://download.docker.com/linux/${OS_ID}/dists/${1}/Release" >/dev/null 2>&1
-}
+repo_exists() { curl -fsSI "https://download.docker.com/linux/${OS_ID}/dists/${1}/Release" >/dev/null 2>&1; }
 
 pick_supported_codename() {
   local c="${OS_CODENAME}"
-  if repo_exists "$c"; then
-    echo "$c"; return
-  fi
-  # Fallback matrix
+  if repo_exists "$c"; then echo "$c"; return; fi
   if [[ "$OS_ID" == "debian" ]]; then
+    # PVE9/trixie fallback to bookworm (preferred), then bullseye as last resort.
     for alt in bookworm bullseye; do
       if repo_exists "$alt"; then
         warn "Docker repo not available for '${c}'; falling back to '${alt}'."
@@ -63,7 +63,7 @@ pick_supported_codename() {
       fi
     done
   fi
-  err "No supported Docker repo for ${OS_ID}/${c} (and no viable fallback)."
+  err "No supported Docker repo for ${OS_ID}/${c}."
   exit 1
 }
 
@@ -85,10 +85,9 @@ install_repo() {
   chmod a+r "$KEYRING"
 
   SUPPORTED_CODENAME="$(pick_supported_codename)"
-
   LIST="/etc/apt/sources.list.d/docker.list"
   echo "deb [arch=${ARCH} signed-by=${KEYRING}] https://download.docker.com/linux/${OS_ID} ${SUPPORTED_CODENAME} stable" > "$LIST"
-  log "Docker repo configured: $LIST -> ${SUPPORTED_CODENAME}"
+  log "Docker repo configured (${SUPPORTED_CODENAME})"
   apt-get update -y
 }
 
@@ -116,3 +115,4 @@ main() {
 }
 
 main "$@"
+
