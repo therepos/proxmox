@@ -17,26 +17,23 @@ MODE="${MODE:-install}"   # install|update|uninstall
 IMAGE="portainer/portainer-ce:lts"
 NAME="portainer"
 
-# ensure docker is present
 command -v docker >/dev/null || fail "Docker not found"
+[[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 
 # optional bind (create if present in script)
 HOST_BIND="/mnt/sec/apps"
-if [[ -n "${HOST_BIND}" ]]; then
-  mkdir -p "${HOST_BIND}"
-fi
+[[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"
 
 case "$MODE" in
   uninstall)
     info "Stopping/removing ${NAME}"
     docker rm -f "${NAME}" >/dev/null 2>&1 || true
     docker volume rm portainer_data >/dev/null 2>&1 || true
-    ok "Uninstalled"
-    exit 0
+    ok "Uninstalled"; exit 0
     ;;
   update)
     info "Updating image ${IMAGE}"
-    docker pull "${IMAGE}"
+    docker pull "${IMAGE}" >/dev/null
     docker rm -f "${NAME}" >/dev/null 2>&1 || true
     ;;
   install) : ;;
@@ -46,21 +43,25 @@ esac
 # create volume if missing
 docker volume inspect portainer_data >/dev/null 2>&1 || docker volume create portainer_data >/dev/null
 
-# run (idempotent; --pull=always ensures the image is fresh)
-info "Starting ${NAME}"
+# use host docker-socket GID so Portainer can access the socket
+SOCK_GID="$(stat -c '%g' /var/run/docker.sock)"
+
+info "Starting ${NAME} (HTTPS 9443)"
+docker rm -f "${NAME}" >/dev/null 2>&1 || true
 docker run -d --name "${NAME}" \
   --pull=always \
   --restart=always \
-  -p 8000:8000 \
   -p 9443:9443 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v portainer_data:/data \
   $( [[ -n "${HOST_BIND}" ]] && echo "-v ${HOST_BIND}:/mnt/sec/apps" ) \
-  "${IMAGE}" >/dev/null
+  --group-add "${SOCK_GID}" \
+  "${IMAGE}" \
+  -H unix:///var/run/docker.sock >/dev/null
 
-# wait up to ~30s for healthy/running
+# wait up to ~30s for running
 for i in {1..30}; do
-  if docker ps --format '{{.Names}}' | grep -qx "${NAME}"; then break; fi
+  docker ps --format '{{.Names}}' | grep -qx "${NAME}" && break
   sleep 1
 done
 
@@ -70,4 +71,3 @@ if docker ps --format '{{.Names}}' | grep -qx "${NAME}"; then
 else
   fail "Container failed to start"
 fi
-
