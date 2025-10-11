@@ -44,6 +44,7 @@
 - [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-plex.sh) – Installs plex docker.  
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
 - [Portainer2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer2.sh) – Installs portainer docker.  
+- [Portainer3 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer3.sh) – Installs portainer docker.  
 - [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs and configures Samba with correct permissions.  
 
 ## Tools
