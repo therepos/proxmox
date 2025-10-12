@@ -10,7 +10,6 @@
 #   sudo update-initramfs -u
 #   sudo reboot
 
-#!/usr/bin/env bash
 set -euo pipefail
 
 # ---------- UI ----------
