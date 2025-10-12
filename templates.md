@@ -40,6 +40,7 @@
 - [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-filebrowser.sh) – Installs filebrowser.  
 - [Jellyfin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-jellyfin.sh) – Installs jellyfin docker.  
 - [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
+- [Nvidiadriver2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver2.sh) – Installs nvidia driver and container toolkit.  
 - [Ollama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-ollama.sh) – Installs ollama docker ct.  
 - [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-plex.sh) – Installs plex docker.  
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker for pve9.  
