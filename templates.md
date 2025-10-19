@@ -69,7 +69,8 @@
 - [purge-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-dockerct.sh) – Removes user-specified docker container(s) cleanly.  
 - [purge-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-lxc.sh) – Removes a user-specified LXC container.  
 - [remove-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/remove-samba-user.sh) – Remove samba user and access.  
-- [set-gpu.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpu.sh) – Setups/switches nvidia gpu passthrough between vm and docker.  
+- [set-gpupass.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpupass.sh) – Set gpu passthrough.  
+- [set-gpuswitch.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpuswitch.sh) – Setups/switches nvidia gpu passthrough between vm and docker.  
 - [set-nonroot.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-nonroot.sh) – Switches from root to a non-root user and sets a default password.  
 - [set-swapfile.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-swapfile.sh) – Toggle swapfile to change available memory.  
 - [update-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-dockerct.sh) – Update all Docker Compose apps.  
