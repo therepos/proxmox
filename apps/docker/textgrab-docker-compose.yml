@@ -1,0 +1,13 @@
+services:
+  textgrab:
+    image: ghcr.io/therepos/textgrab:latest
+    container_name: textgrab
+    ports:
+      - "3020:8000"
+    volumes:
+      - /mnt/sec/apps/textgrab/uploads:/app/uploads
+      - /mnt/sec/apps/textgrab/exports:/app/exports
+    restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
