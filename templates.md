@@ -40,6 +40,7 @@
 - [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-filebrowser.sh) – Installs filebrowser.  
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
 - [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs and configures Samba with correct permissions.  
+- [Samba2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba2.sh) – Installs samba.  
 
 ## Tools
 - [add-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/add-samba-user.sh) – Add samba user and access.  
