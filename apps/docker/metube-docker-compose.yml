@@ -10,3 +10,6 @@ services:
       - /mnt/sec/apps/metube/downloads:/downloads
     ports:
       - "3010:8081"
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
