@@ -23,6 +23,9 @@ services:
       # You almost never want to change the value of the DATA_DIR variable.
       # If you want to mount a custom directory, change the volume mapping above instead.
       DATA_DIR: /data # DON'T CHANGE THIS
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined      
   chrome:
     image: gcr.io/zenika-hub/alpine-chrome:123
     container_name: hoarder-chrome
