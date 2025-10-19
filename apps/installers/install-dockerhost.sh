@@ -1,119 +1,117 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-dockerhost.sh?$(date +%s))"
-# purpose: installs docker engine, docker compose, and optional nvidia container toolkit for pve8
+# purpose: installs docker engine and docker compose 
+# version: pve9
 
-# Define colors and status symbols
-GREEN="\e[32m✔\e[0m"
-RED="\e[31m✘\e[0m"
-RESET="\e[0m"
+set -euo pipefail
 
-function status_message() {
-    local status=$1
-    local message=$2
-    if [[ "$status" == "success" ]]; then
-        echo -e "${GREEN} ${message}"
-    else
-        echo -e "${RED} ${message}"
-        echo -e "Check logs for details:"
-        echo -e "  - System logs: /var/log/syslog"
-        echo -e "  - Docker logs: /var/log/docker.log"
-        echo -e "  - NVIDIA setup logs: /var/log/nvidia-installer.log (if available)"
-        exit 1
-    fi
+# Helpers
+LOG_DIR="/var/log"
+LOG_FILE="$LOG_DIR/dockerhost-install-$(date +%F).log"
+mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"
+exec > >(tee -a "$LOG_FILE") 2>&1
+trap 'printf "\033[1;31m✘ Error on line %s\033[0m\n" "$LINENO"' ERR
+log()  { printf "\033[1;32m✔ %s\033[0m\n" "$1"; }
+warn() { printf "\033[1;33m! %s\033[0m\n" "$1"; }
+err()  { printf "\033[1;31m✘ %s\033[0m\n" "$1" >&2; }
+
+require_root() { [[ $EUID -eq 0 ]] || { err "Run as root (no sudo on Proxmox)."; exit 1; }; }
+
+detect_os() {
+  [[ -r /etc/os-release ]] || { err "/etc/os-release not found"; exit 1; }
+  . /etc/os-release
+  OS_ID="${ID:-debian}"               # debian | ubuntu
+  OS_CODENAME="${VERSION_CODENAME:-}" # trixie/bookworm/bullseye/jammy/focal...
+  ARCH="$(dpkg --print-architecture)"
+  if [[ -z "${OS_CODENAME}" ]]; then
+    case "${OS_ID}:${VERSION_ID:-}" in
+      debian:12) OS_CODENAME="bookworm" ;;
+      debian:11) OS_CODENAME="bullseye" ;;
+      ubuntu:22.04) OS_CODENAME="jammy" ;;
+      ubuntu:20.04) OS_CODENAME="focal" ;;
+      *) err "Cannot determine VERSION_CODENAME"; exit 1 ;;
+    esac
+  fi
+  log "Detected: ${PRETTY_NAME:-$OS_ID} (${OS_CODENAME}) [${ARCH}]"
 }
 
-# Step 0: Prompt NVIDIA GPU or not
-echo -e "\nDoes this system have an NVIDIA GPU?"
-echo "1) Yes - install NVIDIA runtime"
-echo "2) No  - skip NVIDIA setup"
-read -rp "Select option [1-2]: " GPU_OPTION
+repo_exists() { curl -fsSI "https://download.docker.com/linux/${OS_ID}/dists/${1}/Release" >/dev/null 2>&1; }
 
-# Step 1: Update the System
-apt-get update -y &>/dev/null && apt-get upgrade -y &>/dev/null
-status_message success "System updated successfully."
+pick_supported_codename() {
+  local c="${OS_CODENAME}"
+  if repo_exists "$c"; then echo "$c"; return; fi
+  if [[ "$OS_ID" == "debian" ]]; then
+    for alt in bookworm bullseye; do
+      if repo_exists "$alt"; then
+        warn "Docker repo not available for '${c}'; falling back to '${alt}'."
+        echo "$alt"; return
+      fi
+    done
+  elif [[ "$OS_ID" == "ubuntu" ]]; then
+    for alt in jammy focal; do
+      if repo_exists "$alt"; then
+        warn "Docker repo not available for '${c}'; falling back to '${alt}'."
+        echo "$alt"; return
+      fi
+    done
+  fi
+  err "No supported Docker repo for ${OS_ID}/${c}."
+  exit 1
+}
 
-# Step 2: Install prerequisites
-apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    software-properties-common \
-    gnupg \
-    lsb-release \
-    zfsutils-linux \
-    jq &>/dev/null
-status_message success "Prerequisites installed successfully."
+apt_prep() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y
+  apt-get install -y ca-certificates curl gnupg apt-transport-https software-properties-common || true
+  log "Prerequisites installed"
+}
 
-# Step 3: Verify ZFS Availability for Docker
-if ! zpool list > /dev/null 2>&1; then
-    status_message failure "No ZFS pools detected. Ensure ZFS is properly configured before proceeding."
-fi
-status_message success "ZFS environment verified."
+install_repo() {
+  # remove any malformed docker entries first (surgical cleanup)
+  if [[ -f /etc/apt/sources.list.d/docker.list ]]; then
+    mv /etc/apt/sources.list.d/docker.list "/etc/apt/sources.list.d/docker.list.$(date +%s).bak"
+  fi
+  sed -i 's|^\(.*download\.docker\.com.*\)$|# \1|' /etc/apt/sources.list || true
 
-# Step 4: Add Docker GPG Key and Repository
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg &>/dev/null
-echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-apt-get update &>/dev/null
-status_message success "Docker GPG key and repository added successfully."
+  install -m 0755 -d /etc/apt/keyrings
+  KEYRING="/etc/apt/keyrings/docker.gpg"
+  if [[ ! -f "$KEYRING" ]]; then
+    curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" | gpg --dearmor -o "$KEYRING"
+  else
+    warn "Keyring exists: $KEYRING (keeping)"
+  fi
+  chmod a+r "$KEYRING"
 
-# Step 5: Install Docker
-apt-get install -y docker-ce docker-ce-cli containerd.io &>/dev/null
-systemctl enable --now docker &>/dev/null
-status_message success "Docker installed and started successfully."
+  SUPPORTED_CODENAME="$(pick_supported_codename)"
+  LIST="/etc/apt/sources.list.d/docker.list"
+  echo "deb [arch=${ARCH} signed-by=${KEYRING}] https://download.docker.com/linux/${OS_ID} ${SUPPORTED_CODENAME} stable" > "$LIST"
+  log "Docker repo configured: ${SUPPORTED_CODENAME}"
+  apt-get clean
+  rm -rf /var/lib/apt/lists/*
+  apt-get update -y
+}
 
-# Step 6: Install Docker Compose
-if ! docker compose version &>/dev/null; then
-    curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \
-        -o /usr/local/bin/docker-compose &>/dev/null
-    chmod +x /usr/local/bin/docker-compose
-    docker compose version &>/dev/null && \
-        status_message success "Docker Compose installed." || \
-        status_message failure "Docker Compose install failed."
-else
-    status_message success "Docker Compose already installed."
-fi
+install_docker() {
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  systemctl enable --now docker
+  log "Docker installed and started"
+}
 
-# Step 7: Configure Docker for ZFS (and optionally NVIDIA)
-DOCKER_CONFIG="/etc/docker/daemon.json"
-ZFS_CONFIG='{"storage-driver": "zfs"}'
+verify() {
+  docker --version
+  docker compose version
+  log "Validation OK"
+}
 
-if [[ "$GPU_OPTION" == "1" ]]; then
-    ZFS_CONFIG=$(jq -n '{
-      "storage-driver": "zfs",
-      "runtimes": {
-        "nvidia": {
-          "path": "nvidia-container-runtime",
-          "runtimeArgs": []
-        }
-      }
-    }')
-fi
+main() {
+  require_root
+  detect_os
+  apt_prep
+  install_repo
+  install_docker
+  verify
+  echo "Log saved to: $LOG_FILE"
+  log "All done"
+}
 
-echo "$ZFS_CONFIG" > "$DOCKER_CONFIG"
-status_message success "Docker configured with ZFS${GPU_OPTION:+ and NVIDIA runtime}."
-
-# Step 8: NVIDIA Setup (optional)
-if [[ "$GPU_OPTION" == "1" ]]; then
-    distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-    curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-docker-keyring.gpg &>/dev/null
-    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list > /etc/apt/sources.list.d/nvidia-docker.list
-    apt-get update &>/dev/null
-    status_message success "NVIDIA repository added."
-
-    apt-get install -y nvidia-container-toolkit &>/dev/null
-    nvidia-ctk runtime configure --runtime=docker &>/dev/null
-    status_message success "NVIDIA Container Toolkit installed and configured."
-
-    # Step 9: Test NVIDIA integration
-    docker run --rm --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi &>/dev/null
-    [[ $? -eq 0 ]] && \
-        status_message success "NVIDIA GPU detected and verified in Docker." || \
-        status_message failure "NVIDIA GPU not functioning correctly in Docker."
-fi
-
-# Step 9: Clean Up and Finish
-systemctl restart docker &>/dev/null
-docker image prune -a -f &>/dev/null
-status_message success "Cleanup completed."
-
-echo -e "${GREEN}Docker and Docker Compose are now installed and configured${GPU_OPTION:+ with NVIDIA runtime} using ZFS on your Proxmox host.${RESET}"
+main "$@"

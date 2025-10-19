@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh?$(date +%s))"
 # purpose: installs filebrowser
+# version: pve9
 # username: admin
 # password: helper-scripts.com
 
-# Define colors and status symbols
+# Helpers
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 RESET="\e[0m"
@@ -20,7 +21,7 @@ function status_message() {
     fi
 }
 
-# Function to uninstall FileBrowser
+# Uninstall Filebrowser
 uninstall_filebrowser() {
     echo "Uninstalling FileBrowser..."
     systemctl stop filebrowser
@@ -31,7 +32,7 @@ uninstall_filebrowser() {
     status_message "success" "FileBrowser has been uninstalled."
 }
 
-# Function to change the port of FileBrowser
+# Change Port
 change_port() {
     read -p "Do you want to change the default port (8080)? [y/N]: " change_response
     if [[ "$change_response" =~ ^[Yy]$ ]]; then
@@ -60,7 +61,7 @@ change_port() {
     fi
 }
 
-# Check if FileBrowser is already installed
+# Precheck
 if command -v filebrowser &> /dev/null; then
     echo "FileBrowser is already installed."
     read -p "Do you want to uninstall it? [y/N]: " uninstall_response
@@ -73,15 +74,13 @@ if command -v filebrowser &> /dev/null; then
     fi
 fi
 
-# Step 1: Install FileBrowser
+# Install FileBrowser
 bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh)"
 
-# Check if the installation was successful
 if [[ $? -ne 0 ]]; then
     status_message "error" "FileBrowser installation failed. Please check your network connection or the script URL."
 else
     status_message "success" "FileBrowser installation completed successfully."
 fi
 
-# Step 2: Prompt for port change
 change_port

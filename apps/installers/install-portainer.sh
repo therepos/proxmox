@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-portainer.sh?$(date +%s))"
-# purpose: installs portainer docker for pve9
+# purpose: installs portainer docker 
+# version: pve9
 
-#!/usr/bin/env bash
 set -euo pipefail
 
-# ===== settings =====
+# Settings
 IMAGE="portainer/portainer-ce:lts"
 NAME="portainer"
 PORT_HTTPS="9443"
 HOST_BIND="/mnt/sec/apps"   # optional; leave empty to disable
 
-# ===== ui helpers =====
-GREEN="\e[32m✔\e[0m"; RED="\e[31m✘\e[0m"; BLUE="\e[34mℹ\e[0m"
+# Helpers
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+BLUE="\e[34mℹ\e[0m"
+
 ok(){ echo -e "${GREEN} $*"; }
 info(){ echo -e "${BLUE} $*"; }
 fail(){ echo -e "${RED} $*"; exit 1; }
@@ -26,7 +29,7 @@ asknum(){ # asknum "prompt" "min" "max" "default"
   done
 }
 
-# ===== prechecks =====
+# Prechecks
 command -v docker >/dev/null || fail "Docker not found"
 [[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 [[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"
@@ -80,7 +83,7 @@ uninstall_portainer(){ # auto-clean everything
   ok "Uninstalled Portainer (container, volume, images)."
 }
 
-# ===== menu flow =====
+# Menu
 if exists_container; then
   echo "Portainer is already installed. What would you like to do?"
   echo "1) Update"
