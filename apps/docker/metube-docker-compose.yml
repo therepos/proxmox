@@ -2,14 +2,20 @@ services:
   metube:
     image: alexta69/metube:latest
     container_name: metube
-    network_mode: bridge
-    restart: unless-stopped
-    environment:
-      - TZ=Asia/Singapore
-    volumes:
-      - /mnt/sec/apps/metube/downloads:/downloads
     ports:
       - "3010:8081"
+    volumes:
+      - /mnt/sec/media/music:/downloads
+      - /mnt/sec/apps/metube:/config
+    restart: unless-stopped
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
+      
+  metubetag:
+    image: ghcr.io/therepos/metubetag:latest
+    container_name: metubetag
+    volumes:
+      - /mnt/sec/media/music:/music
+      - /mnt/sec/apps/metube:/metube
+    restart: unless-stopped

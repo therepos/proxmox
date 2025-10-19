@@ -5,7 +5,7 @@ services:
       volumes:
          - /mnt/sec/apps/vaultwarden/data/:/data/
       ports:
-         - 3027:80
+         - 3018:80
       restart: unless-stopped
       environment:
          - ADMIN_TOKEN=45645ierd09hlkasdf9dsjfglkdhfo9gj3okjf9fdslkjfhgdf8kjjkjhkk

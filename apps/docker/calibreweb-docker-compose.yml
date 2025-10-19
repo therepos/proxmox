@@ -25,3 +25,6 @@ services:
     ports:
       - 3015:8083
     restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
