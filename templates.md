@@ -34,16 +34,9 @@
 - [Windows](https://github.com/therepos/proxmox/blob/main/apps/docker/windows-docker-compose.yml)  
 
 ## Installers
-- [Calibreweb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-calibreweb.sh) – Installs calibre-web docker.  
-- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost.sh) – Installs docker engine, docker compose, and optional nvidia container toolkit for pve8.  
-- [Dockerhost2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost2.sh) – Installs docker engine and docker compose for pve9.  
+- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost.sh) – Installs docker engine and docker compose.  
 - [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-filebrowser.sh) – Installs filebrowser.  
-- [Jellyfin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-jellyfin.sh) – Installs jellyfin docker.  
-- [Nvidiadriver Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver.sh) – Installs nvidia driver and container toolkit.  
-- [Nvidiadriver2 Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-nvidiadriver2.sh) – Installs nvidia driver and container toolkit.  
-- [Ollama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-ollama.sh) – Installs ollama docker ct.  
-- [Plex Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-plex.sh) – Installs plex docker.  
-- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker for pve9.  
+- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
 - [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs and configures Samba with correct permissions.  
 
 ## Tools
