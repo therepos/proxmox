@@ -30,6 +30,7 @@
 - [Samba](https://github.com/therepos/proxmox/blob/main/apps/docker/samba-docker-compose.yml)  
 - [Stirlingpdf](https://github.com/therepos/proxmox/blob/main/apps/docker/stirlingpdf-docker-compose.yml)  
 - [Tailscale](https://github.com/therepos/proxmox/blob/main/apps/docker/tailscale-docker-compose.yml)  
+- [Textgrab](https://github.com/therepos/proxmox/blob/main/apps/docker/textgrab-docker-compose.yml)  
 - [Torrent](https://github.com/therepos/proxmox/blob/main/apps/docker/torrent-docker-compose.yml)  
 - [Usememos](https://github.com/therepos/proxmox/blob/main/apps/docker/usememos-docker-compose.yml)  
 - [Windows](https://github.com/therepos/proxmox/blob/main/apps/docker/windows-docker-compose.yml)  
