@@ -1,0 +1,80 @@
+#
+# The Firefly III Data Importer will ask you for the Firefly III URL and a "Client ID".
+# You can generate the Client ID at http://localhost/profile (after registering)
+# The Firefly III URL is: http://app:8080
+#
+# Other URL's will give 500 | Server Error
+#
+
+services:
+  app:
+    image: fireflyiii/core:latest
+    container_name: firefly3
+    networks:
+      - firefly3
+    restart: always
+    volumes:
+      - /mnt/sec/apps/firefly3/upload:/var/www/html/storage/upload
+    env_file: stack.env
+    ports:
+      - '3019:8080'
+    depends_on:
+      - db
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+  db:
+    image: mariadb:lts
+    container_name: firefly3-db
+    networks:
+      - firefly3
+    restart: always
+    env_file: stack.env
+    volumes:
+      - /mnt/sec/apps/firefly3/db:/var/lib/mysql
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+      
+  importer:
+    image: fireflyiii/data-importer:latest
+    container_name: firefly3-importer
+    restart: always
+    networks:
+      - firefly3
+    ports:
+      - '3017:8080'
+    depends_on:
+      - app
+    env_file: stack.env
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+      
+  cron:
+    #
+    # To make this work, set STATIC_CRON_TOKEN in your .env file or as an environment variable
+    # The STATIC_CRON_TOKEN must be *exactly* 32 characters long
+    # Use this URL for inspiration: https://www.random.org/strings/?num=1&len=32&digits=on&upperalpha=on&loweralpha=on&unique=on&format=html&rnd=new
+    #
+    image: alpine
+    container_name: firefly3-cron
+    restart: always
+    env_file: stack.env
+    command: sh -c "
+      apk add tzdata && \
+      (ln -fs /usr/share/zoneinfo/$$TZ /etc/localtime || true) && \
+      echo \"0 3 * * * wget -qO- https://firefly3.threeminuteslab.com/api/v1/cron/$$STATIC_CRON_TOKEN;echo\"
+      | crontab - && \
+      crond -f -L /dev/stdout"
+    networks:
+      - firefly3
+    depends_on:
+      - app
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+      
+networks:
+  firefly3:
+    driver: bridge
