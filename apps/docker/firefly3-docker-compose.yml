@@ -4,7 +4,7 @@
 # The Firefly III URL is: http://app:8080
 #
 # Other URL's will give 500 | Server Error
-#
+# https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
 
 services:
   app:
