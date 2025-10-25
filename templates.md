@@ -9,6 +9,7 @@
 - [Codeserver](https://github.com/therepos/proxmox/blob/main/apps/docker/codeserver-docker-compose.yml) – Codeserver with pyenv.  
 - [Czkawka](https://github.com/therepos/proxmox/blob/main/apps/docker/czkawka-docker-compose.yml) – Remove duplicated photos.  
 - [Ffmpeg](https://github.com/therepos/proxmox/blob/main/apps/docker/ffmpeg-docker-compose.yml)  
+- [Firefly3](https://github.com/therepos/proxmox/blob/main/apps/docker/firefly3-docker-compose.yml)  
 - [Gimp](https://github.com/therepos/proxmox/blob/main/apps/docker/gimp-docker-compose.yml)  
 - [Gitea](https://github.com/therepos/proxmox/blob/main/apps/docker/gitea-docker-compose.yml)  
 - [Gitlab](https://github.com/therepos/proxmox/blob/main/apps/docker/gitlab-docker-compose.yml)  
