@@ -1,13 +1,3 @@
-# =====
-# Mailer Setup using Zoho:
-# SMTP_HOST=smtp.zoho.com
-# SMTP_PORT=587
-# SMTP_FROM=username@email.com
-# SMTP_USERNAME=username@email.com
-# SMTP_PASSWORD=<email password>
-# SMTP_SSL: "true"
-#
-
 services:
    vaultwarden:
       container_name: vaultwarden
@@ -18,13 +8,13 @@ services:
          - 3019:80
       restart: unless-stopped
       environment:
-         - ADMIN_TOKEN=67B5C8DE5CC4956E0945E64A555155190B17219CBF925577CF9E0AD65625BF10
-         - SMTP_HOST: "smtp.zoho.com"
-         - SMTP_PORT: "587"
-         - SMTP_FROM: "admin@threeminuteslab.com"
-         - SMTP_USERNAME: "admin@threeminuteslab.com"
-         - SMTP_PASSWORD: "Keywords@ail01"
-         - SMTP_SSL: "true"
+        - ADMIN_TOKEN=67B5C8DE5CC4956E0945E64A555155190B17219CBF925577CF9E0AD65625BF10
+        - SMTP_HOST=smtp.zoho.com
+        - SMTP_PORT=587
+        - SMTP_FROM=username@email.com
+        - SMTP_USERNAME=username@email.com
+        - SMTP_PASSWORD=<email password>
+        - SMTP_SECURITY=starttls
       security_opt:
         - apparmor=unconfined
         - seccomp:unconfined
