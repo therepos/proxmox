@@ -1,10 +1,24 @@
+# The Firefly III Data Importer:
+# 1. Generate Personal Access Token
+# 2. Edit .env --> FIREFLY_III_ACCESS_TOKEN = (Personal Access Token)
 #
-# The Firefly III Data Importer will ask you for the Firefly III URL and a "Client ID".
-# You can generate the Client ID at http://localhost/profile (after registering)
+# =====
+# General:
 # The Firefly III URL is: http://app:8080
-#
-# Other URL's will give 500 | Server Error
 # https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
+#
+# =====
+# Mailer Setup using Zoho:
+# MAIL_MAILER=smtp
+# MAIL_HOST=smtp.zoho.com
+# MAIL_PORT=587
+# MAIL_ENCRYPTION=tls
+# MAIL_USERNAME=username@email.com
+# MAIL_PASSWORD=<email password>
+# MAIL_FROM_ADDRESS=username@email.com
+# MAIL_FROM_NAME="Firefly III"
+# MAIL_FROM=username@email.com
+#
 
 services:
   app:
