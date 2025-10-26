@@ -8,6 +8,6 @@ services:
       # - "2222:2222" # SSH port, can be removed if you don't use SSH
     volumes:
       - "/mnt/sec/apps/opengist:/opengist"
-    environment:
-      # OG_LOG_LEVEL: info
-      # other configuration options
+    # environment:
+    #   # OG_LOG_LEVEL: info
+    #   # other configuration options
