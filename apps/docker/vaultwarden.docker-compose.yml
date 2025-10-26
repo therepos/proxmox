@@ -1,3 +1,16 @@
+# =====
+# Mailer Setup using Zoho:
+# MAIL_MAILER=smtp
+# MAIL_HOST=smtp.zoho.com
+# MAIL_PORT=587
+# MAIL_ENCRYPTION=tls
+# MAIL_USERNAME=username@email.com
+# MAIL_PASSWORD=<email password>
+# MAIL_FROM_ADDRESS=username@email.com
+# MAIL_FROM_NAME="Firefly III"
+# MAIL_FROM=username@email.com
+#
+
 services:
    vaultwarden:
       container_name: vaultwarden
@@ -8,14 +21,13 @@ services:
          - 3019:80
       restart: unless-stopped
       environment:
-         - ADMIN_TOKEN=45645ierd09hlkasdf9dsjfglkdhfo9gj3okjf9fdslkjfhgdf8kjjkjhkk
-         # Optional: Email configuration for password reset, etc.
-         # - SMTP_HOST: "smtp.example.com"
-         # - SMTP_PORT: "587"
-         # - SMTP_FROM: "vaultwarden@example.com"
-         # - SMTP_USERNAME: "your_smtp_username"
-         # - SMTP_PASSWORD: "your_smtp_password"
-         # - SMTP_SSL: "true"
+         - ADMIN_TOKEN=67B5C8DE5CC4956E0945E64A555155190B17219CBF925577CF9E0AD65625BF10
+         - SMTP_HOST: "smtp.zoho.com"
+         - SMTP_PORT: "587"
+         - SMTP_FROM: "admin@threeminuteslab.com"
+         - SMTP_USERNAME: "admin@threeminuteslab.com"
+         - SMTP_PASSWORD: "Keywords@ail01"
+         - SMTP_SSL: "true"
       security_opt:
         - apparmor=unconfined
         - seccomp:unconfined
