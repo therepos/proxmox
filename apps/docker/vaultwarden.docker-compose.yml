@@ -1,14 +1,11 @@
 # =====
 # Mailer Setup using Zoho:
-# MAIL_MAILER=smtp
-# MAIL_HOST=smtp.zoho.com
-# MAIL_PORT=587
-# MAIL_ENCRYPTION=tls
-# MAIL_USERNAME=username@email.com
-# MAIL_PASSWORD=<email password>
-# MAIL_FROM_ADDRESS=username@email.com
-# MAIL_FROM_NAME="Firefly III"
-# MAIL_FROM=username@email.com
+# SMTP_HOST=smtp.zoho.com
+# SMTP_PORT=587
+# SMTP_FROM=username@email.com
+# SMTP_USERNAME=username@email.com
+# SMTP_PASSWORD=<email password>
+# SMTP_SSL: "true"
 #
 
 services:
