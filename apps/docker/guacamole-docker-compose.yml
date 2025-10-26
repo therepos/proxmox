@@ -1,3 +1,18 @@
+# Connection Setup: 
+# Name: VM
+# Location: ROOT
+# Protocol: RDP
+# Hostname: IP of VM
+# Port: 3389
+# Username: Access local account first. 
+# Password: Then switch login to Microsoft Account.
+# Security mode: Any
+# Ignore server certificate: Yes
+# Time zone: Asia/Singapore
+# Resize method: Reconnect
+# Enable font smoothing (ClearType): Yes
+#
+
 services:
   guacamole:
     image: abesnier/guacamole
@@ -5,11 +20,14 @@ services:
     volumes:
       - /mnt/sec/apps/guacamole/config:/config
     ports:
-      - 3024:8080
+      - 3022:8080
     restart: unless-stopped
-    networks:             # optional:
-      - windows_default   # to use the same network as windows-vm
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+#     networks:             # optional:
+#       - windows_default   # to use the same network as windows-vm
 
-networks:
-  windows_default:
-    external: true
+# networks:
+#   windows_default:
+#     external: true
