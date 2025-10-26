@@ -83,17 +83,44 @@ uninstall_portainer(){ # auto-clean everything
   ok "Uninstalled Portainer (container, volume, images)."
 }
 
+restore_portainer(){
+  local dir="/mnt/sec/backup/portainer"
+  local latest
+
+  [[ -d "$dir" ]] || fail "Backup directory not found: $dir"
+  latest=$(ls -t "$dir"/portainer-*.tar 2>/dev/null | head -n 1)
+  [[ -f "$latest" ]] || fail "No backup tar found in $dir"
+
+  info "Using latest backup: $latest"
+  info "Stopping ${NAME} (if running)…"
+  docker rm -f "${NAME}" >/dev/null 2>&1 || true
+
+  info "Restoring backup into 'portainer_data' volume…"
+  docker volume inspect portainer_data >/dev/null 2>&1 || docker volume create portainer_data >/dev/null
+
+  docker run --rm \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data \
+    -v "${latest}":/backup.tar \
+    "${IMAGE}" --restore /backup.tar
+
+  ok "Restore complete. Starting Portainer…"
+  start_portainer
+}
+
 # Menu
 if exists_container; then
   echo "Portainer is already installed. What would you like to do?"
   echo "1) Update"
-  echo "2) Uninstall (auto-clean)"
+  echo "2) Restore"
+  echo "3) Uninstall"
   echo "0) Exit"
-  choice="$(asknum 'Enter choice' 1 2 1)"
+  choice="$(asknum 'Enter choice' 1 3 1)"
   case "$choice" in
     0) ok "Bye."; exit 0 ;;
     1) update_portainer ;;
-    2) uninstall_portainer ;;
+    2) restore_portainer ;;
+    3) uninstall_portainer ;;
   esac
 else
   echo "Portainer is not installed. What would you like to do?"
@@ -105,3 +132,4 @@ else
     1) start_portainer ;;
   esac
 fi
+
