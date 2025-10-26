@@ -6,12 +6,9 @@ services:
     restart: unless-stopped
     environment:
       - TZ=Asia/Singapore
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
     volumes:
       - /mnt/sec/apps/jellyfin/config:/config
       - /mnt/sec/apps/jellyfin/cache:/cache
       - /mnt/sec/media:/media
     ports:
       - "3011:8096"
-    runtime: nvidia

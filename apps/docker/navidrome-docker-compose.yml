@@ -3,7 +3,7 @@ services:
     image: deluan/navidrome:latest
     container_name: navidrome
     ports:
-      - "3017:4533"
+      - "3012:4533"
     environment:
       ND_MUSICFOLDER: /music
       ND_DATAFOLDER: /data
