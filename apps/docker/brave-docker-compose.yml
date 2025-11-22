@@ -1,0 +1,24 @@
+# Must use https: and tls:no-verify
+# User : kasm_user
+# Password: password
+
+services:
+  brave:
+    image: kasmweb/brave:1.18.0
+    container_name: brave
+    ports:
+      - "3003:6901"
+    environment:
+      - VNC_PW=password
+      - LAUNCH_URL=https://sites.google.com
+    shm_size: 1028m # Shared memory allocation
+    restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+    volumes:
+      - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
+      
+volumes:
+  brave-data:
+    driver: local
