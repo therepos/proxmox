@@ -68,7 +68,10 @@ services:
       PAPERLESS_DBUSER: paperless # only needed if non-default username
       PAPERLESS_DBPASS: paperless # only needed if non-default password
       PAPERLESS_DBPORT: 3306
-
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+      
 volumes:
   data:
   media:
