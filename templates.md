@@ -7,6 +7,7 @@
 - [Brave](https://github.com/therepos/proxmox/blob/main/apps/docker/brave-docker-compose.yml)  
 - [Calibreweb](https://github.com/therepos/proxmox/blob/main/apps/docker/calibreweb-docker-compose.yml)  
 - [Carvekit](https://github.com/therepos/proxmox/blob/main/apps/docker/carvekit-docker-compose.yml)  
+- [Clipcascade](https://github.com/therepos/proxmox/blob/main/apps/docker/clipcascade-docker-compose.yml)  
 - [Codeserver](https://github.com/therepos/proxmox/blob/main/apps/docker/codeserver-docker-compose.yml) – Codeserver with pyenv.  
 - [Czkawka](https://github.com/therepos/proxmox/blob/main/apps/docker/czkawka-docker-compose.yml) – Remove duplicated photos.  
 - [Ffmpeg](https://github.com/therepos/proxmox/blob/main/apps/docker/ffmpeg-docker-compose.yml)  
