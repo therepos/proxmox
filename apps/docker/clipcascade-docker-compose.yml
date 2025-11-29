@@ -1,0 +1,17 @@
+services:
+  clipcascade:
+    image: sathvikrao/clipcascade:latest
+    container_name: clipcascade
+    ports:
+      - "3004:8080"  # Expose the ClipCascade server on port 8080
+    restart: always  # Automatically restart the container if it stops
+    volumes:
+      - /mnt/sec/apps/clipcascade/data:/database  # Persistent storage for user data
+    environment:
+      - CC_MAX_MESSAGE_SIZE_IN_MiB=500   # Maximum message size in MiB (ignored if P2P mode is enabled)
+      - CC_P2P_ENABLED=false  # Enables or disables peer-to-peer(P2P) mode
+      # - CC_ALLOWED_ORIGINS=https://clipcascade.example.com  # Defines allowed CORS origins for security
+      # - CC_SIGNUP_ENABLED=false  # Enables or disables user self-registration
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
