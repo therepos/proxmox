@@ -38,6 +38,7 @@
 - [Torrent](https://github.com/therepos/proxmox/blob/main/apps/docker/torrent-docker-compose.yml)  
 - [Usememos](https://github.com/therepos/proxmox/blob/main/apps/docker/usememos-docker-compose.yml)  
 - [Windows](https://github.com/therepos/proxmox/blob/main/apps/docker/windows-docker-compose.yml)  
+- [Zipfile](https://github.com/therepos/proxmox/blob/main/apps/docker/zipfile-docker-compose.yml)  
 
 ## Installers
 - [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost.sh) – Installs docker engine and docker compose.  
