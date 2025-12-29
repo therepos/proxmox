@@ -12,3 +12,9 @@ services:
       - /mnt/sec/media:/media
     ports:
       - "3011:8096"
+    devices:
+      - /dev/dri:/dev/dri # iGPU
+    cpus: "6"
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
