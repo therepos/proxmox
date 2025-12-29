@@ -1,3 +1,4 @@
+```
 /
 ├── bin -> usr/bin
 ├── boot
@@ -1262,3 +1263,4 @@
     └── tmp
 
 851 directories, 411 files
+```
