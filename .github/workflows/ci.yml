@@ -54,6 +54,6 @@ jobs:
 
           git config user.name "therepos"
           git config user.email "therepos@github.com"
-          git add templates.md
+          git add docs/templates.md
           git diff --cached --quiet || git commit -m "Update templates.md"
           git push
