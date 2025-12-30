@@ -43,10 +43,10 @@ jobs:
           BASE_SHA=${{ github.event.before }}
           if [ -z "$BASE_SHA" ] || ! git cat-file -e $BASE_SHA 2>/dev/null; then
             echo "No valid base SHA — running docgen unconditionally"
-            python scripts/docgen-templates.py
+            python scripts/doctemplates.py
           elif git diff --name-only $BASE_SHA ${{ github.sha }} | grep -E '^(apps/docker/|apps/installer|apps/tools/)'; then
             echo "Changes detected — running docgen"
-            python scripts/docgen-templates.py
+            python scripts/doctemplates.py
           else
             echo "No relevant changes → skipping docgen"
             exit 0

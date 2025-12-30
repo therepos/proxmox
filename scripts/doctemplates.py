@@ -3,7 +3,7 @@
 
 import os
 
-OUTPUT_MD = 'templates.md'
+OUTPUT_MD = 'docs/templates.md'
 
 def extract_purpose(filepath):
     try:
