@@ -1,75 +1,33 @@
+# Proxmox
+
+---
+
+## How to Use
+
+1. Download the latest [release](https://github.com/therepos/excelUI/releases/excelUI/latest/download/excelUI.zip). 
+2. Install with excelUIsetup.cmd
+
+## Structure
+
 ```
-/
-├── bin -> usr/bin
-├── boot
-│   ├── config-6.8.12-5-pve
-│   ├── config-6.8.4-2-pve
-│   ├── efi
-│   ├── grub
-│   ├── initrd.img-6.8.12-5-pve
-│   ├── initrd.img-6.8.4-2-pve
-│   ├── memtest86+ia32.bin
-│   ├── memtest86+ia32.efi
-│   ├── memtest86+x64.bin
-│   ├── memtest86+x64.efi
-│   ├── pve
-│   ├── System.map-6.8.12-5-pve
-│   ├── System.map-6.8.4-2-pve
-│   ├── vmlinuz-6.8.12-5-pve
-│   └── vmlinuz-6.8.4-2-pve
-├── dev
-├── etc
-├── home
-├── lib -> usr/lib
-├── lib32 -> usr/lib32
-├── lib64 -> usr/lib64
-├── media
-├── mnt
-├── opt
-│   └── containerd
-├── proc
-├── root
-├── rpool
-│   ├── data
-│   └── ROOT
-├── run
-├── sbin -> usr/sbin
-├── srv
-├── sys
-│   ├── block
-│   ├── bus
-│   ├── class
-│   ├── dev
-│   ├── devices
-│   ├── firmware
-│   ├── fs
-│   ├── hypervisor
-│   ├── kernel
-│   ├── module
-│   └── power
-├── tmp
-├── usr
-│   ├── bin
-│   ├── games
-│   ├── include
-│   ├── lib
-│   ├── lib32
-│   ├── lib64
-│   ├── libexec
-│   ├── local
-│   ├── sbin
-│   ├── share
-│   └── src
-└── var
-    ├── backups
-    ├── cache
-    ├── lib
-    ├── local
-    ├── lock -> /run/lock
-    ├── log
-    ├── mail
-    ├── opt
-    ├── run -> /run
-    ├── spool
-    └── tmp
+proxmox
+├── .github
+│   └── workflows
+├── apps                
+│   ├── docker          # Ready-to-run docker compose files.
+│   ├── installers      # One-click bash installers.
+│   ├── tools           # One-click bash scripts.
+├── docs                # Documentation and notes.
+├── scraps              # Superceded stuff.
+└── scripts             # Internal helpers.
+
 ```
+
+## Notes
+
+- This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
+
+## Resources
+
+- [Proxmox community scripts](https://community-scripts.github.io/ProxmoxVE/)
+- [Proxmox helper scripts](https://github.com/tteck/Proxmox)
