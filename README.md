@@ -1,5 +1,3 @@
-# Proxmox
-
 ## Usage
 
 1. Execute the wget command line from the selected script.
