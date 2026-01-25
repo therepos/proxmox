@@ -1,0 +1,10 @@
+services:
+  mazanoke:
+    image: ghcr.io/civilblur/mazanoke:latest
+    container_name: mazanoke
+    restart: unless-stopped
+    ports:
+      - "3027:80"
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
