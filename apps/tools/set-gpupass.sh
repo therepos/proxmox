@@ -135,7 +135,7 @@ iommu_flag_tokens_for_cpu() {
 
 detect_nvidia_gpu_addrs() {
   # NVIDIA VGA or 3D controllers
-  lspci -Dn | awk '$0 ~ /10de:/ && $0 ~ /(VGA compatible controller|3D controller)/ {print $1}'
+  lspci -Dn | awk '($2 ~ /^0300:/ || $2 ~ /^0302:/) && $3 ~ /^10de:/ { print $1 }'
 }
 
 gpu_model_for_addr() {
