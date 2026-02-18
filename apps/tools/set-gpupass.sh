@@ -766,34 +766,66 @@ revert_vm_optimizations_if_any() {
   say "VM settings reverted."
 }
 
-# ======================= VM start helper =======================
+# ======================= VM stop/start helpers =======================
+stop_vm_with_wait() {
+  local vmid="$1"
+  local timeout=90
+  local interval=3
+
+  if ! vm_running "$vmid"; then
+    say "VM $vmid is already stopped."
+    return 0
+  fi
+
+  info "Sending shutdown to VM $vmid..."
+  # Try graceful shutdown first (sends ACPI shutdown to guest)
+  qm shutdown "$vmid" 2>/dev/null || true
+
+  local waited=0
+  while vm_running "$vmid" && (( waited < 30 )); do
+    printf "."
+    sleep "$interval"
+    waited=$((waited + interval))
+  done
+  echo  # newline after dots
+
+  # If graceful didn't work, use stop (pulls the plug)
+  if vm_running "$vmid"; then
+    warn "Graceful shutdown timed out. Stopping VM $vmid..."
+    qm stop "$vmid" 2>&1 || true
+
+    waited=0
+    while vm_running "$vmid" && (( waited < 30 )); do
+      printf "."
+      sleep "$interval"
+      waited=$((waited + interval))
+    done
+    echo
+  fi
+
+  # Last resort: force stop
+  if vm_running "$vmid"; then
+    warn "VM $vmid still running. Force-stopping..."
+    qm stop "$vmid" --forceStop 1 2>&1 || true
+    sleep 5
+    if vm_running "$vmid"; then
+      err "Could not stop VM $vmid after ${timeout}s."
+      return 1
+    fi
+  fi
+
+  say "VM $vmid stopped."
+  sleep 2  # brief pause to let resources release
+  return 0
+}
+
 start_vm_with_wait() {
   local vmid="$1"
-  local timeout=60
-  local interval=3
 
   # Safety: if VM is somehow running, stop it first
   if vm_running "$vmid"; then
     warn "VM $vmid is currently running. Stopping it first..."
-    qm stop "$vmid" 2>&1 || true
-
-    # Wait for stop
-    local waited=0
-    while vm_running "$vmid" && (( waited < timeout )); do
-      sleep "$interval"
-      waited=$((waited + interval))
-    done
-    if vm_running "$vmid"; then
-      warn "VM $vmid did not stop within ${timeout}s. Forcing stop..."
-      qm stop "$vmid" --forceStop 1 2>&1 || true
-      sleep 5
-      if vm_running "$vmid"; then
-        err "Could not stop VM $vmid. Please stop it manually and then start it."
-        return 1
-      fi
-    fi
-    say "VM $vmid stopped."
-    sleep 2  # brief pause between stop and start
+    stop_vm_with_wait "$vmid" || return 1
   fi
 
   info "Starting VM $vmid..."
@@ -1095,10 +1127,41 @@ mode_bind() {
     return 0
   fi
 
+  # Collect all VMs that need to be stopped before we can proceed
+  local vms_to_stop=()
   local vmid
+
+  # Running VMs that currently reference the GPU
   for vmid in "${REF_VMS[@]}"; do
-    vm_running "$vmid" && die "VM $vmid is running and references GPU. Stop it first to change GPU bindings safely."
+    vm_running "$vmid" && vms_to_stop+=("$vmid")
   done
+
+  # Target VM (if assigning, not freeing) may also be running
+  if [[ "$target" != "__FREE__" ]] && [[ "$target" != "__EXIT__" ]]; then
+    if vm_running "$target"; then
+      # Avoid duplicates
+      local already=0
+      for vmid in "${vms_to_stop[@]+"${vms_to_stop[@]}"}"; do
+        [[ "$vmid" == "$target" ]] && already=1
+      done
+      [[ $already -eq 0 ]] && vms_to_stop+=("$target")
+    fi
+  fi
+
+  # If any VMs need stopping, offer to do it
+  if [[ ${#vms_to_stop[@]} -gt 0 ]]; then
+    echo
+    warn "The following VM(s) must be stopped first: ${vms_to_stop[*]}"
+    info "GPU bindings cannot be changed while VMs using the GPU are running."
+    echo
+    if prompt_yn "Stop VM(s) ${vms_to_stop[*]} now?"; then
+      for vmid in "${vms_to_stop[@]}"; do
+        stop_vm_with_wait "$vmid" || die "Could not stop VM $vmid. Please stop it manually and try again."
+      done
+    else
+      die "Cannot proceed while VM(s) are running. Stop them manually and try again."
+    fi
+  fi
 
   if [[ "$target" == "__FREE__" ]]; then
     if [[ ${#REF_VMS[@]} -eq 0 ]]; then
@@ -1111,8 +1174,6 @@ mode_bind() {
     say "GPU freed (no VM references remain)."
     return 0
   fi
-
-  vm_running "$target" && die "Target VM $target is running. Stop it first."
 
   # Optional prompts (opt-in)
   maybe_optimize_vm_for_gpu "$target"
@@ -1188,9 +1249,20 @@ mode_revert() {
     done
 
     local vmid
+    local vms_to_stop=()
     for vmid in "${REF_VMS[@]}"; do
-      vm_running "$vmid" && die "VM $vmid is running. Stop it first to remove GPU safely."
+      vm_running "$vmid" && vms_to_stop+=("$vmid")
     done
+    if [[ ${#vms_to_stop[@]} -gt 0 ]]; then
+      warn "Running VM(s) reference the GPU: ${vms_to_stop[*]}"
+      if prompt_yn "Stop them now to proceed?"; then
+        for vmid in "${vms_to_stop[@]}"; do
+          stop_vm_with_wait "$vmid" || die "Could not stop VM $vmid. Stop it manually and try again."
+        done
+      else
+        die "Cannot remove GPU from running VMs. Stop them manually and try again."
+      fi
+    fi
     for vmid in "${REF_VMS[@]}"; do
       remove_from_vm_if_present "$vmid" "${FUNCS[@]}"
     done
