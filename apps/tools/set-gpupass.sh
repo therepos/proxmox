@@ -769,7 +769,6 @@ revert_vm_optimizations_if_any() {
 # ======================= VM stop/start helpers =======================
 stop_vm_with_wait() {
   local vmid="$1"
-  local timeout=90
   local interval=3
 
   if ! vm_running "$vmid"; then
@@ -777,24 +776,33 @@ stop_vm_with_wait() {
     return 0
   fi
 
-  info "Sending shutdown to VM $vmid..."
-  # Try graceful shutdown first (sends ACPI shutdown to guest)
-  qm shutdown "$vmid" 2>/dev/null || true
+  # Check if guest agent is available — if not, skip straight to qm stop
+  local has_agent=0
+  if qm config "$vmid" 2>/dev/null | grep -qE '^agent:.*1'; then
+    # Agent is configured; try graceful shutdown
+    info "Sending graceful shutdown to VM $vmid..."
+    if qm shutdown "$vmid" 2>/dev/null; then
+      has_agent=1
+      local waited=0
+      while vm_running "$vmid" && (( waited < 30 )); do
+        printf "."
+        sleep "$interval"
+        waited=$((waited + interval))
+      done
+      echo
+    fi
+  fi
 
-  local waited=0
-  while vm_running "$vmid" && (( waited < 30 )); do
-    printf "."
-    sleep "$interval"
-    waited=$((waited + interval))
-  done
-  echo  # newline after dots
-
-  # If graceful didn't work, use stop (pulls the plug)
+  # If no agent, or graceful shutdown didn't work, use qm stop
   if vm_running "$vmid"; then
-    warn "Graceful shutdown timed out. Stopping VM $vmid..."
+    if [[ $has_agent -eq 0 ]]; then
+      info "No guest agent detected. Stopping VM $vmid directly..."
+    else
+      warn "Graceful shutdown timed out. Stopping VM $vmid..."
+    fi
     qm stop "$vmid" 2>&1 || true
 
-    waited=0
+    local waited=0
     while vm_running "$vmid" && (( waited < 30 )); do
       printf "."
       sleep "$interval"
@@ -809,7 +817,7 @@ stop_vm_with_wait() {
     qm stop "$vmid" --forceStop 1 2>&1 || true
     sleep 5
     if vm_running "$vmid"; then
-      err "Could not stop VM $vmid after ${timeout}s."
+      err "Could not stop VM $vmid after multiple attempts."
       return 1
     fi
   fi
@@ -1129,6 +1137,7 @@ mode_bind() {
 
   # Collect all VMs that need to be stopped before we can proceed
   local vms_to_stop=()
+  local vms_were_running=()  # track which VMs to restart after changes
   local vmid
 
   # Running VMs that currently reference the GPU
@@ -1152,17 +1161,20 @@ mode_bind() {
   if [[ ${#vms_to_stop[@]} -gt 0 ]]; then
     echo
     warn "The following VM(s) must be stopped first: ${vms_to_stop[*]}"
-    info "GPU bindings cannot be changed while VMs using the GPU are running."
+    info "PCI passthrough changes require a full VM stop+start (a guest reboot won't work)."
+    info "VMs will be automatically restarted after changes are applied."
     echo
-    if prompt_yn "Stop VM(s) ${vms_to_stop[*]} now?"; then
+    if prompt_yn "Stop VM(s) ${vms_to_stop[*]}, apply changes, and restart?"; then
       for vmid in "${vms_to_stop[@]}"; do
         stop_vm_with_wait "$vmid" || die "Could not stop VM $vmid. Please stop it manually and try again."
+        vms_were_running+=("$vmid")
       done
     else
       die "Cannot proceed while VM(s) are running. Stop them manually and try again."
     fi
   fi
 
+  # ---- FREE path ----
   if [[ "$target" == "__FREE__" ]]; then
     if [[ ${#REF_VMS[@]} -eq 0 ]]; then
       say "GPU is already free (not assigned to any VM)."
@@ -1172,8 +1184,19 @@ mode_bind() {
       remove_from_vm_if_present "$vmid" "${FUNCS[@]}"
     done
     say "GPU freed (no VM references remain)."
+
+    # Restart VMs that were running (they'll now run without the GPU)
+    if [[ ${#vms_were_running[@]} -gt 0 ]]; then
+      echo
+      info "Restarting VM(s) that were running before (now without GPU)..."
+      for vmid in "${vms_were_running[@]}"; do
+        start_vm_with_wait "$vmid" || warn "Could not restart VM $vmid. Start it manually: qm start $vmid"
+      done
+    fi
     return 0
   fi
+
+  # ---- ASSIGN path ----
 
   # Optional prompts (opt-in)
   maybe_optimize_vm_for_gpu "$target"
@@ -1193,18 +1216,40 @@ mode_bind() {
   say "═══════════════════════════════════════"
   echo
 
-  # Offer to start the VM (passthrough requires a Proxmox-level start)
-  info "GPU passthrough requires starting the VM from Proxmox (not from inside the guest)."
-  info "A guest-level reboot will NOT pick up the new GPU."
-  echo
-  if prompt_yn "Start VM $target now?"; then
-    start_vm_with_wait "$target"
+  # Restart VMs that were running
+  # Target VM always gets restarted (it now has the GPU)
+  # Other VMs that were running get restarted too (without GPU)
+
+  # Start target VM
+  local target_was_running=0
+  for vmid in "${vms_were_running[@]+"${vms_were_running[@]}"}"; do
+    [[ "$vmid" == "$target" ]] && target_was_running=1
+  done
+
+  if [[ $target_was_running -eq 1 ]]; then
+    info "Restarting VM $target with GPU passthrough..."
+    start_vm_with_wait "$target" || warn "Could not start VM $target. Start it manually: qm start $target"
   else
+    info "GPU passthrough requires starting the VM from Proxmox (not from inside the guest)."
     echo
-    info "When you're ready, start the VM with:"
-    echo "  qm start $target"
-    echo "  (or use the Proxmox web UI)"
+    if prompt_yn "Start VM $target now?"; then
+      start_vm_with_wait "$target"
+    else
+      echo
+      info "When you're ready, start the VM with:"
+      echo "  qm start $target"
+      echo "  (or use the Proxmox web UI)"
+    fi
   fi
+
+  # Restart other VMs that were running (without GPU)
+  for vmid in "${vms_were_running[@]+"${vms_were_running[@]}"}"; do
+    [[ "$vmid" == "$target" ]] && continue
+    echo
+    info "Restarting VM $vmid (without GPU)..."
+    start_vm_with_wait "$vmid" || warn "Could not restart VM $vmid. Start it manually: qm start $vmid"
+  done
+
   echo
   info "Once the VM is running, install NVIDIA drivers inside the VM."
 }
