@@ -441,7 +441,11 @@ remove_vfio_module_lines_we_added() {
 # ---------------- VM selection menu ----------------
 prompt_vmid_menu() {
   local q="$1"
-  mapfile -t MENU < <(qm list | awk 'NR>1 {print $1 "|" $2 "|" $3}')
+  mapfile -t MENU < <(
+    qm list | tail -n +2 | while read -r vmid name status _; do
+      echo "$vmid|$name|$status"
+    done
+  )
   echo
   echo "$q"
   echo "Select an option:"
