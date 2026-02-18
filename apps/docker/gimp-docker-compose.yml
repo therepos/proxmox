@@ -11,7 +11,7 @@ services:
     image: lscr.io/linuxserver/gimp:latest
     container_name: gimp
     security_opt:
-      - seccomp:unconfined #optional
+      - seccomp=unconfined #optional
     environment:
       - PUID=1000
       - PGID=1000

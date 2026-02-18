@@ -18,6 +18,6 @@ services:
         - SMTP_SECURITY=starttls
       security_opt:
         - apparmor=unconfined
-        - seccomp:unconfined
+        - seccomp=unconfined
       labels:
          - "com.centurylinklabs.watchtower.enable=true"

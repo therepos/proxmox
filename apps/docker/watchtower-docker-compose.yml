@@ -1,0 +1,13 @@
+services:
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    environment:
+      - DOCKER_API_VERSION=1.53
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --label-enable --cleanup --schedule "0 0 3 * * *"
+    restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined

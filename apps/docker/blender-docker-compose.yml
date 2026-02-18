@@ -3,7 +3,7 @@ services:
     image: lscr.io/linuxserver/blender:latest
     container_name: blender
     security_opt:
-      - seccomp:unconfined #optional
+      - seccomp=unconfined #optional
     environment:
       - PUID=1000
       - PGID=1000
