@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# purpose: installs portainer docker
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-portainer.sh?$(date +%s))"
+# purpose: installs portainer docker 
 # version: pve9
 
 set -euo pipefail
@@ -18,16 +19,10 @@ BLUE="\e[34mℹ\e[0m"
 ok(){ echo -e "${GREEN} $*"; }
 info(){ echo -e "${BLUE} $*"; }
 fail(){ echo -e "${RED} $*"; exit 1; }
-
-# Read from /dev/tty if available (interactive). Otherwise read from stdin.
 asknum(){ # asknum "prompt" "min" "max" "default"
   local p="$1" min="$2" max="$3" def="$4" in
   while true; do
-    if [[ -r /dev/tty ]]; then
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
-    else
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in || in="$def"
-    fi
+    read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
     in="${in:-$def}"
     [[ "$in" =~ ^[0-9]+$ ]] || { echo "Enter a number."; continue; }
     (( in==0 || (in>=min && in<=max) )) && { echo "$in"; return; }
@@ -113,40 +108,7 @@ restore_portainer(){
   start_portainer
 }
 
-usage(){
-  cat <<'EOF'
-Usage:
-  install-portainer.sh                 # interactive menu (CLI)
-  install-portainer.sh install         # non-interactive
-  install-portainer.sh update
-  install-portainer.sh restore
-  install-portainer.sh uninstall
-  install-portainer.sh 1|2|3           # also accepted (context-sensitive)
-EOF
-}
-
-# Parse optional CLI arg (works in Webmin)
-arg="${1:-}"
-if [[ -n "$arg" ]]; then
-  if exists_container; then
-    case "$arg" in
-      update|1) update_portainer ;;
-      restore|2) restore_portainer ;;
-      uninstall|3) uninstall_portainer ;;
-      help|-h|--help) usage; exit 0 ;;
-      *) fail "Unknown action '$arg' (try: update|restore|uninstall)" ;;
-    esac
-  else
-    case "$arg" in
-      install|1) start_portainer ;;
-      help|-h|--help) usage; exit 0 ;;
-      *) fail "Unknown action '$arg' (try: install)" ;;
-    esac
-  fi
-  exit 0
-fi
-
-# Interactive menu (CLI)
+# Menu
 if exists_container; then
   echo "Portainer is already installed. What would you like to do?"
   echo "1) Update"
@@ -170,3 +132,4 @@ else
     1) start_portainer ;;
   esac
 fi
+
