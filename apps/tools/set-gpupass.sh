@@ -904,14 +904,47 @@ mode_revert() {
   warn "Reboot recommended to fully return to default host driver binding."
 }
 
+# ---------------- interactive menu ----------------
+interactive_menu() {
+  while true; do
+    clear 2>/dev/null || true
+    echo "==============================="
+    echo " set-gpupass (GPU Passthrough)"
+    echo "==============================="
+    echo
+    echo "1) Status (show current state)"
+    echo "2) Enable (prepare host for passthrough)"
+    echo "3) Bind/Switch (assign GPU to a VM / Free GPU)"
+    echo "4) Snapshot (save diagnostics to /root/)"
+    echo "5) Revert (undo changes made by set-gpupass)"
+    echo "0) Exit"
+    echo
+
+    read -r -p "Choose an option [0-5]: " choice
+    case "${choice:-}" in
+      1) mode_status;  read -r -p $'\nPress Enter to continue...' _ ;;
+      2) mode_enable;  read -r -p $'\nPress Enter to continue...' _ ;;
+      3) mode_bind;    read -r -p $'\nPress Enter to continue...' _ ;;
+      4) mode_snapshot;read -r -p $'\nPress Enter to continue...' _ ;;
+      5) mode_revert;  read -r -p $'\nPress Enter to continue...' _ ;;
+      0) exit 0 ;;
+      *) echo; echo "Invalid option."; sleep 1 ;;
+    esac
+  done
+}
+
 # ---------------- main ----------------
-MODE="${1:-status}"
+MODE="${1:-}"
+
 case "$MODE" in
-  status)    mode_status ;;
-  snapshot)  mode_snapshot ;;
-  enable)    mode_enable ;;
-  bind)      mode_bind ;;
-  revert)    mode_revert ;;
+  "" )
+    interactive_menu
+    ;;
+  status)   mode_status ;;
+  snapshot) mode_snapshot ;;
+  enable)   mode_enable ;;
+  bind)     mode_bind ;;
+  revert)   mode_revert ;;
   *)
     echo "Usage: set-gpupass {status|snapshot|enable|bind|revert}"
     exit 1
