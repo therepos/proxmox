@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/set-gpupass.sh?$(date +%s))"
-# purpose: set gpu passthrough
-# version: pve9
-#
 # set-gpupass — Safe, reversible NVIDIA GPU passthrough helper for Proxmox VE
 #
 # Core modes:
@@ -25,6 +21,7 @@ set -euo pipefail
 
 # ======================= version =======================
 SCRIPT_VERSION="1.1.0"
+
 # ======================= UI =======================
 say()  { echo -e "\033[1;32m✔\033[0m $*"; }
 warn() { echo -e "\033[1;33m⚠\033[0m $*" >&2; }
@@ -765,6 +762,61 @@ revert_vm_optimizations_if_any() {
   say "VM settings reverted."
 }
 
+# ======================= VM start helper =======================
+start_vm_with_wait() {
+  local vmid="$1"
+  local timeout=60
+  local interval=3
+
+  # Safety: if VM is somehow running, stop it first
+  if vm_running "$vmid"; then
+    warn "VM $vmid is currently running. Stopping it first..."
+    qm stop "$vmid" 2>&1 || true
+
+    # Wait for stop
+    local waited=0
+    while vm_running "$vmid" && (( waited < timeout )); do
+      sleep "$interval"
+      waited=$((waited + interval))
+    done
+    if vm_running "$vmid"; then
+      warn "VM $vmid did not stop within ${timeout}s. Forcing stop..."
+      qm stop "$vmid" --forceStop 1 2>&1 || true
+      sleep 5
+      if vm_running "$vmid"; then
+        err "Could not stop VM $vmid. Please stop it manually and then start it."
+        return 1
+      fi
+    fi
+    say "VM $vmid stopped."
+    sleep 2  # brief pause between stop and start
+  fi
+
+  info "Starting VM $vmid..."
+  local start_output
+  if ! start_output="$(qm start "$vmid" 2>&1)"; then
+    err "Failed to start VM $vmid."
+    echo "$start_output" >&2
+    echo
+    err "Common causes:"
+    echo "  • Missing EFI disk (if OVMF was enabled)"
+    echo "  • IOMMU group conflict"
+    echo "  • GPU not properly bound to vfio-pci (try rebooting host)"
+    echo
+    info "Run 'set-gpupass snapshot' and check the output for clues."
+    return 1
+  fi
+
+  # Wait briefly and verify it's actually running
+  sleep 3
+  if vm_running "$vmid"; then
+    say "VM $vmid is running with GPU passthrough!"
+  else
+    warn "VM $vmid was started but doesn't appear to be running."
+    warn "Check the Proxmox UI or run: qm status $vmid"
+  fi
+}
+
 # ======================= modes =======================
 mode_status() {
   local gpu; gpu="$(choose_gpu)"
@@ -1075,10 +1127,21 @@ mode_bind() {
   say " GPU bound to VM $target successfully!"
   say "═══════════════════════════════════════"
   echo
-  info "Next steps:"
-  echo "  1. Start VM $target from Proxmox UI or: qm start $target"
-  echo "  2. Install NVIDIA drivers inside the VM"
-  echo "  3. The GPU should appear as a device inside the VM"
+
+  # Offer to start the VM (passthrough requires a Proxmox-level start)
+  info "GPU passthrough requires starting the VM from Proxmox (not from inside the guest)."
+  info "A guest-level reboot will NOT pick up the new GPU."
+  echo
+  if prompt_yn "Start VM $target now?"; then
+    start_vm_with_wait "$target"
+  else
+    echo
+    info "When you're ready, start the VM with:"
+    echo "  qm start $target"
+    echo "  (or use the Proxmox web UI)"
+  fi
+  echo
+  info "Once the VM is running, install NVIDIA drivers inside the VM."
 }
 
 mode_revert() {
