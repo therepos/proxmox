@@ -12,41 +12,67 @@
 #   set-gpupass bind
 #   set-gpupass revert
 #
-# Design:
-# - Minimal, safe defaults (host VFIO + bind/switch GPU)
-# - Optional VM "GPU-ready" tweaks (OVMF + q35 + optional kvm=off) ONLY if user opts in
-# - No full backups; state-file tracks ONLY what this script added/changed
-# - Revert removes ONLY what this script added/changed
-# - Never edits VM conf with sed; uses qm set/--delete
-# - Refuses to change bindings while VMs are running
+# If run with no args (e.g. via wget|bash), shows an interactive menu.
+#
+# Key safety goals:
+# - Never edit VM config files directly (no sed on /etc/pve/qemu-server/*.conf)
+# - Never hide qm errors (non-technical users must see failures)
+# - Only create script-owned modprobe files (does not touch vfio.conf or other user files)
+# - IOMMU kernel flags: only add missing tokens; revert removes only tokens it added (tracked in state file)
+# - Revert removes only what this script added/changed
 #
 set -euo pipefail
 
-# ---------------- UI ----------------
+# ======================= version =======================
+SCRIPT_VERSION="1.1.0"
+# ======================= UI =======================
 say()  { echo -e "\033[1;32m✔\033[0m $*"; }
-warn() { echo -e "\033[1;33m!\033[0m $*" >&2; }
+warn() { echo -e "\033[1;33m⚠\033[0m $*" >&2; }
 err()  { echo -e "\033[1;31m✘\033[0m $*" >&2; }
 die()  { err "$*"; exit 1; }
+info() { echo -e "\033[1;36mℹ\033[0m $*"; }
 
 prompt_yn() {
-  local q="$1"
-  read -r -p "$q [y/N]: " ans
+  local q="$1" default="${2:-n}"
+  local hint="[y/N]"
+  [[ "${default,,}" == "y" ]] && hint="[Y/n]"
+  read -r -p "$q $hint: " ans
+  ans="${ans:-$default}"
   [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]]
 }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-# ---------------- prereqs (safe) ----------------
-[[ $EUID -eq 0 ]] || die "Run as root."
+run_qm() {
+  # Never suppress errors.
+  local rc=0
+  qm "$@" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    err "Command failed (exit $rc): qm $*"
+    exit 1
+  fi
+}
+
+# ======================= prereqs =======================
+[[ $EUID -eq 0 ]] || die "Run as root (use: sudo $0)"
+
+# Verify we are on Proxmox
+if [[ ! -f /etc/pve/.version ]] && ! has_cmd qm; then
+  die "This does not appear to be a Proxmox VE host."
+fi
 
 apt_install_if_missing() {
   local bin="$1" pkg="$2"
   if has_cmd "$bin"; then return 0; fi
   warn "Missing '$bin'. Installing: $pkg"
   export DEBIAN_FRONTEND=noninteractive
-  apt-get update -y
-  apt-get install -y "$pkg"
-  has_cmd "$bin" || die "Tried to install $pkg but '$bin' is still missing."
+  if ! apt-get update -y >/dev/null 2>&1; then
+    die "apt-get update failed. Check network connectivity."
+  fi
+  if ! apt-get install -y "$pkg" >/dev/null 2>&1; then
+    die "Failed to install $pkg."
+  fi
+  has_cmd "$bin" || die "Installed $pkg but '$bin' is still missing."
   say "Installed $pkg"
 }
 
@@ -54,31 +80,44 @@ apt_install_if_missing() {
 apt_install_if_missing lspci pciutils
 apt_install_if_missing update-initramfs initramfs-tools
 
-# Hard requirements for Proxmox host (do not auto-install)
-for c in qm awk grep sed tee find date lsmod lscpu cat sort paste head tail tr cut; do
+# Hard requirements on Proxmox host
+for c in qm awk grep sed tee find date lsmod lscpu cat sort paste tail tr cut readlink; do
   has_cmd "$c" || die "Missing required command '$c'. This does not look like a standard Proxmox host."
 done
-# Boot refresh tooling (systemd-boot typical on PVE9; grub possible)
+
+# Boot refresh tooling
 if [[ -f /etc/kernel/cmdline ]]; then
   has_cmd proxmox-boot-tool || die "Missing 'proxmox-boot-tool' but systemd-boot detected."
 else
-  has_cmd update-grub || warn "GRUB detected but 'update-grub' missing; enable/revert of IOMMU flags may fail."
+  has_cmd update-grub || warn "GRUB detected but 'update-grub' missing; IOMMU enable/revert may fail."
 fi
 
-# ---------------- constants/state ----------------
+# ======================= constants/state =======================
 STATE_DIR="/var/lib/set-gpupass"
 STATE_FILE="$STATE_DIR/state.env"
-mkdir -p "$STATE_DIR"
 TS="$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$STATE_DIR"
 
-# Script-owned config files (never touch user generic ones)
+# Script-owned modprobe files (do not touch user generic vfio.conf etc.)
 MODPROBE_VFIO="/etc/modprobe.d/set-gpupass-vfio.conf"
 MODPROBE_BL_NOUVEAU="/etc/modprobe.d/set-gpupass-blacklist-nouveau.conf"
 MODPROBE_BL_NVIDIA="/etc/modprobe.d/set-gpupass-blacklist-nvidia.conf"
 
-# ---------------- state helpers ----------------
-# state.env is sourced; write only simple quoted values
+# ======================= state helpers =======================
 load_state() {
+  # Reset all state vars to empty before sourcing to prevent stale data
+  STATE_VERSION=""
+  STATE_CREATED_AT=""
+  BOOT_METHOD=""
+  IOMMU_FLAGS_ADDED=""
+  VFIO_MODULE_LINES_ADDED=""
+  GPU_PCI_FUNCS=""
+  VM_OPTIMIZED_VMID=""
+  VM_PREV_BIOS=""
+  VM_PREV_MACHINE=""
+  VM_PREV_ARGS_PRESENT=""
+  VM_PREV_ARGS_VALUE=""
+
   if [[ -f "$STATE_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$STATE_FILE"
@@ -86,7 +125,6 @@ load_state() {
 }
 
 write_state() {
-  # Preserve all known keys (and allow empty)
   cat >"$STATE_FILE" <<EOF
 # set-gpupass state (auto-generated). Remove only via: set-gpupass revert
 STATE_VERSION="1"
@@ -106,18 +144,14 @@ VM_PREV_ARGS_VALUE="${VM_PREV_ARGS_VALUE:-}"
 EOF
 }
 
-ensure_state_loaded_and_initialized() {
+ensure_state() {
   load_state
   [[ -f "$STATE_FILE" ]] || { STATE_CREATED_AT="$TS"; write_state; }
 }
 
-# ---------------- detection helpers ----------------
+# ======================= detection helpers =======================
 boot_method_detect() {
   if [[ -f /etc/kernel/cmdline ]]; then echo "systemd-boot"; else echo "grub"; fi
-}
-
-iommu_active() {
-  [[ -d /sys/kernel/iommu_groups ]] && find /sys/kernel/iommu_groups -type l -maxdepth 3 >/dev/null 2>&1
 }
 
 cpu_vendor() {
@@ -133,48 +167,17 @@ iommu_flag_tokens_for_cpu() {
   esac
 }
 
+# FIX: original find returned 0 even with no symlinks; now checks output exists
+iommu_active() {
+  [[ -d /sys/kernel/iommu_groups ]] && \
+    [[ -n "$(find /sys/kernel/iommu_groups -type l -maxdepth 3 2>/dev/null | head -1)" ]]
+}
+
+# Correct for lspci -Dn numeric output
 detect_nvidia_gpu_addrs() {
-  # NVIDIA VGA or 3D controllers
-  lspci -Dn | awk '($2 ~ /^0300:/ || $2 ~ /^0302:/) && $3 ~ /^10de:/ { print $1 }'
+  lspci -Dn | awk '($2 ~ /^0300:/ || $2 ~ /^0302:/) && $3 ~ /^10de:/ {print $1}'
 }
 
-gpu_model_for_addr() {
-  local addr="$1"
-  lspci -s "${addr#0000:}" 2>/dev/null | sed -E 's/^[0-9a-fA-F:.]+ //'
-}
-
-sibling_functions() {
-  # input: 0000:01:00.0 -> outputs all functions 0000:01:00.x
-  local addr="$1"
-  local prefix="${addr%.*}"
-  lspci -Dn | awk -v pfx="$prefix" '$1 ~ ("^" pfx "\\.") {print $1}' | sort
-}
-
-driver_in_use() {
-  local addr="$1"
-  lspci -s "${addr#0000:}" -k 2>/dev/null | awk -F': ' '/Kernel driver in use:/ {print $2; exit}'
-}
-
-list_vms() {
-  qm list | awk 'NR>1 {print $1}' | sort -n
-}
-
-vm_running() {
-  local vmid="$1"
-  qm status "$vmid" 2>/dev/null | grep -q 'status: running'
-}
-
-find_vm_assignments_for_addr() {
-  local addr="$1"
-  local short="${addr#0000:}"
-  local vmid
-  for vmid in $(list_vms); do
-    qm config "$vmid" 2>/dev/null | awk -v vm="$vmid" -v a="$addr" -v s="$short" '
-      $1 ~ /^hostpci[0-9]+:/ { if (index($0,a) || index($0,s)) print vm " " $0 }'
-  done
-}
-
-# If only 1 NVIDIA GPU, auto-select; if multiple, show menu
 choose_gpu() {
   mapfile -t GPUS < <(detect_nvidia_gpu_addrs)
   [[ ${#GPUS[@]} -gt 0 ]] || die "No NVIDIA GPU found on this host."
@@ -183,11 +186,11 @@ choose_gpu() {
     return
   fi
 
-  echo
-  echo "Detected NVIDIA GPU(s):"
+  echo >&2
+  echo "Detected NVIDIA GPU(s):" >&2
   local i=1 g
   for g in "${GPUS[@]}"; do
-    echo "  [$i] ${g#0000:} ($(gpu_model_for_addr "$g")) (driver: $(driver_in_use "$g" || true))"
+    echo "  [$i] ${g#0000:} ($(lspci -s "${g#0000:}" | sed -E 's/^[0-9a-fA-F:.]+ //'))" >&2
     i=$((i+1))
   done
 
@@ -201,10 +204,103 @@ choose_gpu() {
   done
 }
 
-# ---------------- file edit helpers ----------------
-ensure_line_in_file() {
-  local file="$1" line="$2"
-  grep -qxF "$line" "$file" 2>/dev/null || echo "$line" >> "$file"
+gpu_model_for_addr() {
+  local addr="$1"
+  lspci -s "${addr#0000:}" 2>/dev/null | sed -E 's/^[0-9a-fA-F:.]+ //'
+}
+
+sibling_functions() {
+  local addr="$1"
+  local prefix="${addr%.*}"
+  lspci -Dn | awk -v pfx="$prefix" '$1 ~ ("^" pfx "\\.") {print $1}' | sort
+}
+
+driver_in_use() {
+  local addr="$1"
+  lspci -s "${addr#0000:}" -k 2>/dev/null | awk -F': ' '/Kernel driver in use:/ {print $2; exit}'
+}
+
+# FIX: tighter regex — original had operator precedence bug matching partial names
+host_has_nvidia_modules_loaded() {
+  lsmod | grep -Eq '^(nvidia|nvidia_drm|nvidia_modeset|nvidia_uvm|nouveau) '
+}
+
+list_vms() {
+  qm list 2>/dev/null | awk 'NR>1 {print $1}' | sort -n
+}
+
+vm_running() {
+  local vmid="$1"
+  qm status "$vmid" 2>/dev/null | grep -q 'status: running'
+}
+
+vm_exists() {
+  local vmid="$1"
+  qm status "$vmid" >/dev/null 2>&1
+}
+
+find_vm_assignments_for_addr() {
+  local addr="$1"
+  local short="${addr#0000:}"
+  local vmid
+  for vmid in $(list_vms); do
+    qm config "$vmid" 2>/dev/null | awk -v vm="$vmid" -v a="$addr" -v s="$short" '
+      $1 ~ /^hostpci[0-9]+:/ { if (index($0,a) || index($0,s)) print vm " " $0 }'
+  done
+}
+
+# ======================= IOMMU group isolation check =======================
+check_iommu_group_isolation() {
+  local addr="$1"
+  local group_link="/sys/bus/pci/devices/${addr}/iommu_group"
+
+  if [[ ! -L "$group_link" ]]; then
+    warn "Could not determine IOMMU group for $addr (no symlink)."
+    return 0  # non-fatal: might not be booted with IOMMU yet
+  fi
+
+  local group_path
+  group_path="$(readlink -f "$group_link")"
+  local group_num
+  group_num="$(basename "$group_path")"
+
+  local non_gpu=()
+  local dev
+  for dev in "$group_path"/devices/*; do
+    dev="$(basename "$dev")"
+    local class
+    class="$(cat /sys/bus/pci/devices/"$dev"/class 2>/dev/null || echo "0x000000")"
+    # 0x0604xx = PCI bridge — safe to share
+    [[ "$class" == 0x0604* ]] && continue
+    # Check if it's one of the GPU sibling functions
+    local prefix="${addr%.*}"
+    if [[ "$dev" == "${prefix}."* ]]; then continue; fi
+    non_gpu+=("$dev")
+  done
+
+  if [[ ${#non_gpu[@]} -gt 0 ]]; then
+    echo
+    warn "IOMMU group $group_num contains non-GPU devices alongside your GPU:"
+    local d
+    for d in "${non_gpu[@]}"; do
+      echo "  - $d ($(lspci -s "${d#0000:}" 2>/dev/null | sed -E 's/^[0-9a-fA-F:.]+ //' || echo unknown))"
+    done
+    warn "Passthrough may not work, or may require ACS override patch."
+    warn "If your VM fails to start, this is the most likely cause."
+    echo
+    if ! prompt_yn "Continue anyway?"; then
+      die "Aborted due to IOMMU group isolation concern."
+    fi
+  else
+    say "IOMMU group $group_num is clean (GPU functions + bridges only)."
+  fi
+}
+
+# ======================= file helpers =======================
+write_file_atomic() {
+  local path="$1" tmp="${path}.tmp.$$"
+  cat >"$tmp"
+  mv "$tmp" "$path"
 }
 
 remove_exact_line_from_file() {
@@ -214,13 +310,7 @@ remove_exact_line_from_file() {
   awk -v l="$line" '$0 != l' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
 }
 
-write_file_atomic() {
-  local path="$1" tmp="${path}.tmp.$$"
-  cat >"$tmp"
-  mv "$tmp" "$path"
-}
-
-# ---------------- IOMMU flag management ----------------
+# ======================= IOMMU kernel flags (tracked) =======================
 cmdline_has_token() {
   local text="$1" token="$2"
   [[ " $text " == *" $token "* ]]
@@ -229,6 +319,7 @@ cmdline_has_token() {
 enable_iommu_kernel_flags_if_missing() {
   local tokens; tokens="$(iommu_flag_tokens_for_cpu)"
   [[ -n "$tokens" ]] || die "Unsupported CPU vendor; cannot determine IOMMU flags."
+
   local method; method="$(boot_method_detect)"
   BOOT_METHOD="$method"
 
@@ -237,6 +328,7 @@ enable_iommu_kernel_flags_if_missing() {
 
   if [[ "$method" == "systemd-boot" ]]; then
     local f="/etc/kernel/cmdline"
+    [[ -f "$f" ]] || die "systemd-boot detected but /etc/kernel/cmdline not found."
     local cur; cur="$(cat "$f")"
     local t
     for t in $tokens; do
@@ -248,23 +340,26 @@ enable_iommu_kernel_flags_if_missing() {
     done
     if [[ $changed -eq 1 ]]; then
       write_file_atomic "$f" <<<"$(echo "$cur" | tr -s ' ' | sed 's/^ //;s/ $//')"
-      proxmox-boot-tool refresh >/dev/null
+      proxmox-boot-tool refresh
       IOMMU_FLAGS_ADDED="${added_tokens[*]}"
       write_state
-      say "Enabled IOMMU kernel flags (systemd-boot): ${IOMMU_FLAGS_ADDED}"
+      say "Enabled IOMMU kernel flags: ${IOMMU_FLAGS_ADDED}"
     fi
   else
     local f="/etc/default/grub"
     [[ -f "$f" ]] || die "GRUB config not found at /etc/default/grub"
-    local cur_line cur_val new_val
-    cur_line="$(grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f" || true)"
-    if [[ -z "$cur_line" ]]; then
-      cur_line="$(grep -E '^GRUB_CMDLINE_LINUX=' "$f" || true)"
+
+    local var line cur_val new_val
+    if grep -qE '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f"; then
+      var="GRUB_CMDLINE_LINUX_DEFAULT"
+      line="$(grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f")"
+    else
+      var="GRUB_CMDLINE_LINUX"
+      line="$(grep -E '^GRUB_CMDLINE_LINUX=' "$f" || true)"
+      [[ -n "$line" ]] || die "No GRUB_CMDLINE_LINUX* line found."
     fi
-    if [[ -z "$cur_line" ]]; then
-      die "Could not find GRUB_CMDLINE_LINUX_DEFAULT or GRUB_CMDLINE_LINUX in /etc/default/grub"
-    fi
-    cur_val="$(echo "$cur_line" | sed -E 's/^[A-Z0-9_]+=//;s/^"//;s/"$//')"
+
+    cur_val="$(echo "$line" | sed -E 's/^[A-Z0-9_]+=//;s/^"//;s/"$//')"
     new_val="$cur_val"
     local t
     for t in $tokens; do
@@ -274,18 +369,14 @@ enable_iommu_kernel_flags_if_missing() {
         changed=1
       fi
     done
+
     if [[ $changed -eq 1 ]]; then
       new_val="$(echo "$new_val" | tr -s ' ' | sed 's/^ //;s/ $//')"
-      # Replace only the matched variable line (prefer DEFAULT if present)
-      if grep -qE '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f"; then
-        sed -i -E "s|^GRUB_CMDLINE_LINUX_DEFAULT=\".*\"|GRUB_CMDLINE_LINUX_DEFAULT=\"${new_val//|/\\|}\"|" "$f"
-      else
-        sed -i -E "s|^GRUB_CMDLINE_LINUX=\".*\"|GRUB_CMDLINE_LINUX=\"${new_val//|/\\|}\"|" "$f"
-      fi
-      update-grub >/dev/null || warn "update-grub failed; check GRUB setup."
+      sed -i -E "s|^${var}=\".*\"|${var}=\"${new_val//|/\\|}\"|" "$f"
+      update-grub || true
       IOMMU_FLAGS_ADDED="${added_tokens[*]}"
       write_state
-      say "Enabled IOMMU kernel flags (GRUB): ${IOMMU_FLAGS_ADDED}"
+      say "Enabled IOMMU kernel flags: ${IOMMU_FLAGS_ADDED}"
     fi
   fi
 
@@ -293,19 +384,16 @@ enable_iommu_kernel_flags_if_missing() {
 }
 
 remove_iommu_kernel_flags_we_added() {
-  ensure_state_loaded_and_initialized
+  ensure_state
   load_state
-  [[ -n "${IOMMU_FLAGS_ADDED:-}" ]] || { say "No IOMMU flags to remove (none were added by set-gpupass)."; echo 0; return; }
+  [[ -n "${IOMMU_FLAGS_ADDED:-}" ]] || { echo 0; return; }
 
   local method="${BOOT_METHOD:-}"
   [[ -n "$method" ]] || method="$(boot_method_detect)"
-
-  local changed=0
   local tokens="$IOMMU_FLAGS_ADDED"
 
   if [[ "$method" == "systemd-boot" ]]; then
     local f="/etc/kernel/cmdline"
-    [[ -f "$f" ]] || die "Missing /etc/kernel/cmdline"
     local cur; cur="$(cat "$f")"
     local t
     for t in $tokens; do
@@ -313,12 +401,10 @@ remove_iommu_kernel_flags_we_added() {
     done
     cur="$(echo "$cur" | tr -s ' ')"
     write_file_atomic "$f" <<<"$cur"
-    proxmox-boot-tool refresh >/dev/null
-    changed=1
+    proxmox-boot-tool refresh
   else
     local f="/etc/default/grub"
-    [[ -f "$f" ]] || die "Missing /etc/default/grub"
-    local line var cur_val new_val
+    local var line cur_val new_val
     if grep -qE '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f"; then
       var="GRUB_CMDLINE_LINUX_DEFAULT"
       line="$(grep -E '^GRUB_CMDLINE_LINUX_DEFAULT=' "$f")"
@@ -335,22 +421,16 @@ remove_iommu_kernel_flags_we_added() {
     done
     new_val="$(echo "$new_val" | tr -s ' ' | sed 's/^ //;s/ $//')"
     sed -i -E "s|^${var}=\".*\"|${var}=\"${new_val//|/\\|}\"|" "$f"
-    update-grub >/dev/null || warn "update-grub failed; check GRUB setup."
-    changed=1
+    update-grub || true
   fi
 
-  # clear state
   IOMMU_FLAGS_ADDED=""
   BOOT_METHOD="$method"
   write_state
-  echo "$changed"
+  echo 1
 }
 
-# ---------------- VFIO host config ----------------
-host_has_nvidia_modules_loaded() {
-  lsmod | grep -Eq '(^| )nvidia|nouveau( |$)'
-}
-
+# ======================= VFIO host config (tracked) =======================
 compute_ids_csv_for_funcs() {
   local funcs=("$@")
   local ids
@@ -359,19 +439,25 @@ compute_ids_csv_for_funcs() {
       lspci -Dnns "${f#0000:}" | awk -F'[][]' '{print $3}'
     done | sort -u | paste -sd, -
   )"
-  [[ -n "$ids" ]] || die "Could not compute PCI IDs for GPU."
+  [[ -n "$ids" ]] || die "Could not compute PCI IDs for GPU functions: ${funcs[*]}"
   echo "$ids"
 }
 
 ensure_vfio_modules_boot() {
-  ensure_state_loaded_and_initialized
+  ensure_state
   load_state
-
   local f="/etc/modules"
   touch "$f"
+
+  # FIX: vfio_virqfd was merged into vfio in kernel 5.16+; only add if it exists as a module
+  local required_modules=(vfio vfio_pci vfio_iommu_type1)
+  if modinfo vfio_virqfd &>/dev/null; then
+    required_modules+=(vfio_virqfd)
+  fi
+
   local added=()
   local m
-  for m in vfio vfio_pci vfio_iommu_type1 vfio_virqfd; do
+  for m in "${required_modules[@]}"; do
     if ! grep -qxF "$m" "$f" 2>/dev/null; then
       echo "$m" >> "$f"
       added+=("$m")
@@ -381,7 +467,6 @@ ensure_vfio_modules_boot() {
   if [[ ${#added[@]} -gt 0 ]]; then
     VFIO_MODULE_LINES_ADDED="${added[*]}"
     write_state
-    say "Enabled VFIO modules at boot"
     echo 1
   else
     echo 0
@@ -389,34 +474,30 @@ ensure_vfio_modules_boot() {
 }
 
 write_vfio_and_blacklist_files() {
-  ensure_state_loaded_and_initialized
-  load_state
-
   local funcs=("$@")
   local ids_csv; ids_csv="$(compute_ids_csv_for_funcs "${funcs[@]}")"
 
-  # Write script-owned vfio binding
   write_file_atomic "$MODPROBE_VFIO" <<EOF
-# managed by set-gpupass
+# managed by set-gpupass — do not edit manually
 options vfio-pci ids=${ids_csv} disable_vga=1
 EOF
 
-  # Blacklist to prevent host claiming GPU
   write_file_atomic "$MODPROBE_BL_NOUVEAU" <<'EOF'
-# managed by set-gpupass
+# managed by set-gpupass — do not edit manually
 blacklist nouveau
 options nouveau modeset=0
 EOF
 
   write_file_atomic "$MODPROBE_BL_NVIDIA" <<'EOF'
-# managed by set-gpupass
+# managed by set-gpupass — do not edit manually
 blacklist nvidia
 blacklist nvidia_drm
 blacklist nvidia_modeset
 blacklist nvidia_uvm
 EOF
 
-  say "Configured vfio binding + driver blacklists"
+  say "VFIO binding: ids=${ids_csv}"
+  say "Blacklisted: nvidia, nvidia_drm, nvidia_modeset, nvidia_uvm, nouveau"
 }
 
 remove_vfio_and_blacklist_files() {
@@ -424,10 +505,9 @@ remove_vfio_and_blacklist_files() {
 }
 
 remove_vfio_module_lines_we_added() {
-  ensure_state_loaded_and_initialized
+  ensure_state
   load_state
-  [[ -n "${VFIO_MODULE_LINES_ADDED:-}" ]] || { say "No VFIO module lines to remove (none were added by set-gpupass)."; echo 0; return; }
-
+  [[ -n "${VFIO_MODULE_LINES_ADDED:-}" ]] || { echo 0; return; }
   local f="/etc/modules"
   local m
   for m in $VFIO_MODULE_LINES_ADDED; do
@@ -438,23 +518,61 @@ remove_vfio_module_lines_we_added() {
   echo 1
 }
 
-# ---------------- VM selection menu ----------------
+# ======================= VM menu (always prints; single-VM UX) =======================
 prompt_vmid_menu() {
   local q="$1"
-  mapfile -t MENU < <(
-    qm list | tail -n +2 | while read -r vmid name status _; do
-      echo "$vmid|$name|$status"
+  mapfile -t MENU < <(qm list 2>/dev/null | tail -n +2 | while read -r vmid name status _; do
+    [[ -n "$vmid" ]] && echo "$vmid|$name|$status"
+  done)
+
+  # FIX: filter out any empty entries from mapfile
+  local clean=()
+  local entry
+  for entry in "${MENU[@]}"; do
+    [[ -n "$entry" ]] && clean+=("$entry")
+  done
+  MENU=("${clean[@]+"${clean[@]}"}")
+
+  echo >&2
+  echo "$q" >&2
+
+  if [[ ${#MENU[@]} -eq 0 ]]; then
+    warn "No VMs found. Create a VM in Proxmox first."
+    echo "__EXIT__"
+    return
+  fi
+
+  # Single VM: explicit prompt
+  if [[ ${#MENU[@]} -eq 1 ]]; then
+    local vmid name status rest
+    vmid="${MENU[0]%%|*}"
+    rest="${MENU[0]#*|}"
+    name="${rest%%|*}"
+    status="${rest#*|}"
+    echo "Only one VM detected: $vmid ($name) [$status]" >&2
+    echo >&2
+    echo "0) Do nothing (exit)" >&2
+    echo "F) Free/Unbind GPU from any VM" >&2
+    echo "1) Assign GPU to VM $vmid ($name)" >&2
+    while true; do
+      read -r -p "Choice (0, F, or 1): " pick
+      pick="${pick:-0}"
+      case "${pick^^}" in
+        0) echo "__EXIT__"; return ;;
+        F) echo "__FREE__"; return ;;
+        1) echo "$vmid"; return ;;
+        *) warn "Enter 0, F, or 1." ;;
+      esac
     done
-  )
-  echo
-  echo "$q"
-  echo "Select an option:"
-  echo "  0) Do nothing (exit)"
-  echo "  F) Free/Unbind GPU from any VM"
-  echo
-  echo "Or select a VM:"
-  echo "  #  VMID   Status    Name"
-  echo "  -- -----  --------  -------------------------"
+  fi
+
+  echo "Select an option:" >&2
+  echo "  0) Do nothing (exit)" >&2
+  echo "  F) Free/Unbind GPU from any VM" >&2
+  echo >&2
+  echo "Or select a VM:" >&2
+  echo "  #  VMID   Status    Name" >&2
+  echo "  -- -----  --------  -------------------------" >&2
 
   local i=1 row vmid name status rest
   for row in "${MENU[@]}"; do
@@ -462,7 +580,7 @@ prompt_vmid_menu() {
     rest="${row#*|}"
     name="${rest%%|*}"
     status="${rest#*|}"
-    printf "  %-2s %-5s  %-8s  %s\n" "$i" "$vmid" "$status" "$name"
+    printf "  %-2s %-5s  %-8s  %s\n" "$i" "$vmid" "$status" "$name" >&2
     i=$((i+1))
   done
 
@@ -473,7 +591,6 @@ prompt_vmid_menu() {
       0) echo "__EXIT__"; return ;;
       F) echo "__FREE__"; return ;;
     esac
-
     [[ "$pick" =~ ^[0-9]+$ ]] || { warn "Enter 0, F, or a number."; continue; }
     (( pick >= 1 && pick <= ${#MENU[@]} )) || { warn "Out of range."; continue; }
     vmid="${MENU[$((pick-1))]%%|*}"
@@ -482,16 +599,18 @@ prompt_vmid_menu() {
   done
 }
 
-# ---------------- VM bind/switch helpers ----------------
+# ======================= VM bind/switch helpers =======================
 remove_from_vm_if_present() {
   local vmid="$1"; shift
   local addr
   for addr in "$@"; do
     while read -r _ rest; do
+      [[ -n "$rest" ]] || continue
       local key
-      key="$(echo "$rest" | awk -F: '{print $1}')" # hostpci0
-      warn "Removing $key from VM $vmid (was referencing ${addr#0000:})"
-      qm set "$vmid" --delete "$key" >/dev/null
+      key="$(echo "$rest" | awk -F: '{print $1}')"
+      [[ -n "$key" ]] || continue
+      warn "Removing $key from VM $vmid"
+      run_qm set "$vmid" --delete "$key"
     done < <(qm config "$vmid" 2>/dev/null | awk -v a="$addr" -v s="${addr#0000:}" '
       $1 ~ /^hostpci[0-9]+:/ && (index($0,a) || index($0,s)) {print "X " $0}')
   done
@@ -510,16 +629,15 @@ add_funcs_to_vm() {
 
   local idx=0 f short
   for f in "${funcs[@]}"; do
-    [[ ${#slots[@]} -gt $idx ]] || die "No free hostpci slots on VM $vmid."
+    [[ ${#slots[@]} -gt $idx ]] || die "No free hostpci slots on VM $vmid (all 10 used)."
     short="${f#0000:}"
-    warn "Adding $short to VM $vmid as hostpci${slots[$idx]} (pcie=1)"
-    qm set "$vmid" --"hostpci${slots[$idx]}" "${short},pcie=1" >/dev/null
+    info "Adding $short to VM $vmid as hostpci${slots[$idx]}"
+    run_qm set "$vmid" --"hostpci${slots[$idx]}" "${short},pcie=1"
     idx=$((idx+1))
   done
-  say "GPU added to VM $vmid"
 }
 
-# ---------------- Optional VM optimization (opt-in) ----------------
+# ======================= Optional VM optimization (opt-in, tracked) =======================
 vm_get_key_value() {
   local vmid="$1" key="$2"
   qm config "$vmid" 2>/dev/null | awk -v k="$key" '$1==k":" {sub("^"k":",""); sub(/^ /,""); print; exit}'
@@ -530,57 +648,79 @@ vm_has_args() {
   qm config "$vmid" 2>/dev/null | grep -qE '^args:'
 }
 
+vm_has_efidisk() {
+  local vmid="$1"
+  qm config "$vmid" 2>/dev/null | grep -qE '^efidisk[0-9]+:'
+}
+
 maybe_optimize_vm_for_gpu() {
   local vmid="$1"
-  [[ -n "$vmid" ]] || return 0
-  vm_running "$vmid" && return 0  # already checked elsewhere; keep safe
+  vm_running "$vmid" && return 0
 
   local bios machine
   bios="$(vm_get_key_value "$vmid" "bios")"
   machine="$(vm_get_key_value "$vmid" "machine")"
 
-  local need_reco=0
-  [[ "${bios:-}" != "ovmf" ]] && need_reco=1
-  # q35 is represented as "q35" in qm set; existing may be "pc-q35-..." or empty
+  local need=0
+  [[ "${bios:-}" != "ovmf" ]] && need=1
   if [[ -n "${machine:-}" ]]; then
-    echo "$machine" | grep -qi 'q35' || need_reco=1
+    echo "$machine" | grep -qi 'q35' || need=1
   else
-    # if empty, may default; still recommend q35 for passthrough
-    need_reco=1
+    need=1
   fi
 
-  if [[ $need_reco -eq 1 ]]; then
+  if [[ $need -eq 1 ]]; then
     echo
-    warn "VM $vmid settings may reduce GPU passthrough compatibility."
+    warn "VM $vmid may need compatibility settings for best GPU passthrough."
     echo "Current:"
-    echo "  BIOS:    ${bios:-"(default)"}"
-    echo "  Machine: ${machine:-"(default)"}"
-    echo
+    echo "  BIOS:    ${bios:-"(default/SeaBIOS)"}"
+    echo "  Machine: ${machine:-"(default/i440fx)"}"
     echo "Recommended:"
-    echo "  BIOS:    ovmf"
+    echo "  BIOS:    ovmf (UEFI)"
     echo "  Machine: q35"
-    if prompt_yn "Apply recommended VM settings now?"; then
-      ensure_state_loaded_and_initialized
-      load_state
-      # Track previous only once (first time we optimize)
+
+    # FIX: check for EFI disk before offering OVMF switch
+    if ! vm_has_efidisk "$vmid"; then
+      echo
+      warn "VM $vmid has NO EFI disk. Switching to OVMF without an EFI disk will"
+      warn "prevent the VM from booting. You should add one first via Proxmox UI:"
+      info "  VM → Hardware → Add → EFI Disk"
+      echo
+      if ! prompt_yn "I have an EFI disk or will add one. Apply settings anyway?"; then
+        info "Skipping BIOS/machine change."
+        # Still offer kvm=off below
+        _maybe_apply_kvm_off "$vmid" "$bios" "$machine"
+        return 0
+      fi
+    fi
+
+    if prompt_yn "Apply recommended VM settings (OVMF + q35)?"; then
+      ensure_state; load_state
       if [[ -z "${VM_OPTIMIZED_VMID:-}" ]]; then
         VM_OPTIMIZED_VMID="$vmid"
         VM_PREV_BIOS="${bios:-}"
         VM_PREV_MACHINE="${machine:-}"
         VM_PREV_ARGS_PRESENT="$(vm_has_args "$vmid" && echo yes || echo no)"
         VM_PREV_ARGS_VALUE="$(vm_get_key_value "$vmid" "args")"
+        write_state
       fi
-      qm set "$vmid" --bios ovmf >/dev/null || warn "Failed to set BIOS to OVMF (may require EFI disk configured in UI)."
-      qm set "$vmid" --machine q35 >/dev/null || warn "Failed to set machine to q35."
-      write_state
-      say "Applied recommended VM settings (as possible)."
+      run_qm set "$vmid" --bios ovmf
+      run_qm set "$vmid" --machine q35
+      say "Applied VM settings (OVMF + q35)."
     fi
   fi
 
+  _maybe_apply_kvm_off "$vmid" "$bios" "$machine"
+}
+
+_maybe_apply_kvm_off() {
+  local vmid="$1" bios="$2" machine="$3"
   echo
+  # FIX: updated guidance — kvm=off is rarely needed with modern NVIDIA drivers (535+)
+  info "Note: Modern NVIDIA drivers (535+) usually do NOT need the kvm=off workaround."
+  info "Only apply this if the VM fails to install NVIDIA drivers without it."
   if prompt_yn "Apply Windows/NVIDIA workaround (hide KVM: -cpu host,kvm=off)?"; then
-    ensure_state_loaded_and_initialized
-    load_state
+    ensure_state; load_state
     if [[ -z "${VM_OPTIMIZED_VMID:-}" ]]; then
       VM_OPTIMIZED_VMID="$vmid"
       VM_PREV_BIOS="${bios:-}"
@@ -588,78 +728,96 @@ maybe_optimize_vm_for_gpu() {
       VM_PREV_ARGS_PRESENT="$(vm_has_args "$vmid" && echo yes || echo no)"
       VM_PREV_ARGS_VALUE="$(vm_get_key_value "$vmid" "args")"
     fi
-    qm set "$vmid" --args "-cpu host,kvm=off" >/dev/null || warn "Failed to set args."
+    run_qm set "$vmid" --args "-cpu host,kvm=off"
     write_state
     say "Applied KVM-hiding args."
   fi
 }
 
 revert_vm_optimizations_if_any() {
-  ensure_state_loaded_and_initialized
-  load_state
+  ensure_state; load_state
   [[ -n "${VM_OPTIMIZED_VMID:-}" ]] || return 0
   local vmid="$VM_OPTIMIZED_VMID"
-  qm status "$vmid" >/dev/null 2>&1 || { warn "Optimized VM $vmid no longer exists; skipping VM revert."; return 0; }
-  vm_running "$vmid" && die "VM $vmid is running. Stop it first to revert VM settings safely."
+
+  # FIX: verify VM still exists before trying to revert
+  if ! vm_exists "$vmid"; then
+    warn "VM $vmid no longer exists. Clearing tracked optimization state."
+    VM_OPTIMIZED_VMID=""; VM_PREV_BIOS=""; VM_PREV_MACHINE=""; VM_PREV_ARGS_PRESENT=""; VM_PREV_ARGS_VALUE=""
+    write_state
+    return 0
+  fi
+
+  vm_running "$vmid" && die "VM $vmid is running. Stop it first to revert VM settings."
 
   warn "Reverting VM settings for VM $vmid (only what set-gpupass changed)."
-
-  # Restore BIOS if we had one; if empty, remove key by setting default isn't straightforward;
-  # safest: set back if non-empty, otherwise leave (still safe).
-  if [[ -n "${VM_PREV_BIOS:-}" ]]; then
-    qm set "$vmid" --bios "$VM_PREV_BIOS" >/dev/null || warn "Failed to restore BIOS."
-  fi
-
-  if [[ -n "${VM_PREV_MACHINE:-}" ]]; then
-    # If previous had explicit machine, restore it; otherwise leave.
-    qm set "$vmid" --machine "$VM_PREV_MACHINE" >/dev/null || warn "Failed to restore machine."
-  fi
+  if [[ -n "${VM_PREV_BIOS:-}" ]]; then run_qm set "$vmid" --bios "$VM_PREV_BIOS"; fi
+  if [[ -n "${VM_PREV_MACHINE:-}" ]]; then run_qm set "$vmid" --machine "$VM_PREV_MACHINE"; fi
 
   if [[ "${VM_PREV_ARGS_PRESENT:-no}" == "yes" ]]; then
-    qm set "$vmid" --args "$VM_PREV_ARGS_VALUE" >/dev/null || warn "Failed to restore args."
+    run_qm set "$vmid" --args "$VM_PREV_ARGS_VALUE"
   else
-    # args did not exist before; remove it
-    qm set "$vmid" --delete args >/dev/null || warn "Failed to remove args."
+    # FIX: --delete args can fail if args doesn't exist; suppress gracefully
+    qm set "$vmid" --delete args 2>/dev/null || true
   fi
 
-  # Clear VM optimization tracking
-  VM_OPTIMIZED_VMID=""
-  VM_PREV_BIOS=""
-  VM_PREV_MACHINE=""
-  VM_PREV_ARGS_PRESENT=""
-  VM_PREV_ARGS_VALUE=""
+  VM_OPTIMIZED_VMID=""; VM_PREV_BIOS=""; VM_PREV_MACHINE=""; VM_PREV_ARGS_PRESENT=""; VM_PREV_ARGS_VALUE=""
   write_state
-  say "VM settings reverted (where possible)."
+  say "VM settings reverted."
 }
 
-# ---------------- modes ----------------
+# ======================= modes =======================
 mode_status() {
-  local gpu vendor
-  vendor="$(cpu_vendor || true)"
-  gpu="$(choose_gpu)"
+  local gpu; gpu="$(choose_gpu)"
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   echo
-  echo "GPU Passthrough Status"
-  echo "- CPU vendor: ${vendor:-unknown}"
-  echo "- IOMMU:      $(iommu_active && echo ACTIVE || echo NOT ACTIVE)"
-  echo "- NVIDIA GPU: ${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
+  echo "═══════════════════════════════════"
+  echo " GPU Passthrough Status"
+  echo "═══════════════════════════════════"
+  echo
+  echo "  CPU vendor : $(cpu_vendor || echo unknown)"
+  echo "  Boot method: $(boot_method_detect)"
+  echo "  IOMMU      : $(iommu_active && echo "ACTIVE ✔" || echo "NOT ACTIVE ✘")"
+  echo "  NVIDIA GPU : ${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
+
   local f
   for f in "${FUNCS[@]}"; do
-    echo "  - ${f#0000:} driver: $(driver_in_use "$f" || echo unknown)"
+    local drv
+    drv="$(driver_in_use "$f" || echo "none")"
+    local marker=""
+    [[ "$drv" == "vfio-pci" ]] && marker=" (ready for passthrough)"
+    echo "    ${f#0000:} → driver: ${drv}${marker}"
   done
 
+  # Show IOMMU group info
+  if iommu_active; then
+    local group_link="/sys/bus/pci/devices/${gpu}/iommu_group"
+    if [[ -L "$group_link" ]]; then
+      local gnum
+      gnum="$(basename "$(readlink -f "$group_link")")"
+      echo "  IOMMU group: $gnum"
+    fi
+  fi
+
   echo
-  echo "VM usage:"
+  echo "  VM assignments:"
   local any=0 assigns
   for f in "${FUNCS[@]}"; do
     assigns="$(find_vm_assignments_for_addr "$f" || true)"
     if [[ -n "$assigns" ]]; then
       any=1
-      echo "$assigns" | awk '{vm=$1; $1=""; sub(/^ /,""); print "- VM " vm ": " $0}'
+      echo "$assigns" | awk '{vm=$1; $1=""; sub(/^ /,""); print "    VM " vm ": " $0}'
     fi
   done
-  [[ $any -eq 0 ]] && echo "- Not assigned to any VM"
+  [[ $any -eq 0 ]] && echo "    (not assigned to any VM)"
+
+  # Show state file status
+  echo
+  if [[ -f "$STATE_FILE" ]]; then
+    echo "  State file: $STATE_FILE (set-gpupass has been run before)"
+  else
+    echo "  State file: none (set-gpupass has not configured anything yet)"
+  fi
 }
 
 mode_snapshot() {
@@ -668,30 +826,55 @@ mode_snapshot() {
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   {
+    echo "===== set-gpupass snapshot ====="
+    echo "Version: $SCRIPT_VERSION"
+    echo
     echo "===== DATE ====="; date
-    echo; echo "===== CPU ====="; lscpu | grep -i 'Vendor ID' || true
+    echo; echo "===== KERNEL ====="; uname -r || true
+    echo; echo "===== CPU ====="; lscpu | grep -iE 'Vendor ID|Model name' || true
     echo; echo "===== BOOT METHOD ====="; boot_method_detect
     echo; echo "===== KERNEL CMDLINE ====="; cat /proc/cmdline || true
-    echo; echo "===== IOMMU GROUPS (exists => active) ====="; (find /sys/kernel/iommu_groups -type l 2>/dev/null || true)
+    echo; echo "===== IOMMU GROUPS ====="
+    if [[ -d /sys/kernel/iommu_groups ]]; then
+      find /sys/kernel/iommu_groups -type l 2>/dev/null | sort -V || true
+    else
+      echo "(no IOMMU groups directory — IOMMU likely not active)"
+    fi
     echo; echo "===== GPU ====="; echo "${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
     echo; echo "===== GPU FUNCS + DRIVER ====="
-    for f in "${FUNCS[@]}"; do
-      echo "${f#0000:} driver: $(driver_in_use "$f" || echo unknown)"
-    done
-    echo; echo "===== MODULES (vfio/nvidia/nouveau) ====="; (lsmod | egrep 'vfio|nvidia|nouveau' || true)
+    for f in "${FUNCS[@]}"; do echo "${f#0000:} driver: $(driver_in_use "$f" || echo none)"; done
+    echo; echo "===== GPU IOMMU GROUP ====="
+    local glink="/sys/bus/pci/devices/${gpu}/iommu_group"
+    if [[ -L "$glink" ]]; then
+      ls "$(readlink -f "$glink")/devices/" 2>/dev/null || true
+    else
+      echo "(not available)"
+    fi
+    echo; echo "===== LOADED NVIDIA/VFIO MODULES ====="
+    lsmod | grep -iE 'nvidia|nouveau|vfio' || echo "(none loaded)"
     echo; echo "===== SCRIPT MODPROBE FILES ====="
     for f in "$MODPROBE_VFIO" "$MODPROBE_BL_NOUVEAU" "$MODPROBE_BL_NVIDIA"; do
       [[ -f "$f" ]] && { echo "--- $f ---"; cat "$f"; } || echo "(missing) $f"
     done
     echo; echo "===== /etc/modules ====="; cat /etc/modules 2>/dev/null || true
     echo; echo "===== VM hostpci lines ====="
+    local found=0
     for vm in $(list_vms); do
-      qm config "$vm" 2>/dev/null | grep -E '^hostpci[0-9]+:' && echo "VMID $vm above"
+      local lines
+      lines="$(qm config "$vm" 2>/dev/null | grep -E '^hostpci[0-9]+:' || true)"
+      if [[ -n "$lines" ]]; then
+        echo "VMID $vm:"
+        echo "$lines"
+        found=1
+      fi
     done
+    [[ $found -eq 0 ]] && echo "(no VMs have hostpci entries)"
     echo; echo "===== STATE FILE ====="
     [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || echo "(no state file)"
-  } | tee "$out" >/dev/null
+  } >"$out" 2>&1
+
   say "Saved snapshot to: $out"
+  info "Share this file if you need help troubleshooting."
 }
 
 mode_enable() {
@@ -699,49 +882,76 @@ mode_enable() {
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   echo
-  echo "GPU Passthrough Enable"
-  say "NVIDIA GPU detected: ${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
+  echo "═══════════════════════════════════"
+  echo " GPU Passthrough — Enable"
+  echo "═══════════════════════════════════"
+  echo
+  say "NVIDIA GPU: ${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
+  info "Functions: ${FUNCS[*]}"
 
-  # Safety: if host is currently using nvidia/nouveau, do not proceed live
   if host_has_nvidia_modules_loaded; then
-    die "Host is currently using NVIDIA/nouveau drivers. Reboot and ensure host is not using the GPU, then run enable again."
+    echo
+    err "Host currently has NVIDIA or nouveau kernel modules loaded."
+    err "This means the host is using the GPU. Passthrough requires the"
+    err "host to NOT use the GPU."
+    echo
+    info "If you just installed Proxmox and haven't installed NVIDIA drivers"
+    info "on the host, try rebooting first. If the modules are still loaded"
+    info "after reboot, you may need to remove the host NVIDIA driver package."
+    die "Cannot proceed while host NVIDIA/nouveau modules are loaded."
   fi
 
+  # Pre-flight summary
+  echo
+  info "This will make the following changes:"
+  echo "  1. Add IOMMU kernel flags (if missing)"
+  echo "  2. Add VFIO modules to /etc/modules (if missing)"
+  echo "  3. Create modprobe configs to bind GPU to vfio-pci"
+  echo "  4. Blacklist nvidia/nouveau drivers on host"
+  echo "  5. Rebuild initramfs"
+  echo
+  if ! prompt_yn "Proceed?"; then
+    say "No changes made."
+    return 0
+  fi
+
+  ensure_state; load_state
+  GPU_PCI_FUNCS="${FUNCS[*]}"; write_state
+
   local changes=0
-  ensure_state_loaded_and_initialized
-  load_state
 
-  # Record which GPU funcs this state refers to (for messaging / later)
-  GPU_PCI_FUNCS="${FUNCS[*]}"
-  write_state
-
-  # Ensure kernel flags (may require reboot to activate IOMMU)
   local flags_changed
   flags_changed="$(enable_iommu_kernel_flags_if_missing)"
   [[ "$flags_changed" == "1" ]] && changes=1
 
-  # If IOMMU still not active after flag changes (expected until reboot), explain and stop here
   if ! iommu_active; then
     warn "IOMMU is not active yet."
     if [[ "$flags_changed" == "1" ]]; then
-      echo
       warn "Reboot required to activate IOMMU after adding kernel flags."
-      echo "After reboot, run:"
-      echo "  set-gpupass enable"
+      echo
+      info "After reboot, run: set-gpupass enable"
       exit 0
-    else
-      die "IOMMU is not active. Ensure VT-d/AMD-Vi is enabled in BIOS and kernel flags are present, then reboot."
     fi
+    echo
+    err "IOMMU is not active and no kernel flags were missing."
+    err "This usually means VT-d (Intel) or AMD-Vi is disabled in BIOS."
+    echo
+    info "Steps to fix:"
+    info "  1. Reboot into BIOS/UEFI setup"
+    info "  2. Enable VT-d (Intel) or IOMMU/AMD-Vi (AMD)"
+    info "  3. Save and reboot"
+    info "  4. Run: set-gpupass enable"
+    die "IOMMU is not active."
   fi
-  say "IOMMU detected"
+  say "IOMMU is active"
 
-  # Ensure VFIO boot modules
+  # Check IOMMU group isolation
+  check_iommu_group_isolation "$gpu"
+
   local mod_changed
   mod_changed="$(ensure_vfio_modules_boot)"
   [[ "$mod_changed" == "1" ]] && changes=1
 
-  # Write script-owned modprobe files (safe, deterministic)
-  # Detect if content already matches; simplest: rewrite and treat as change only if missing
   local wrote=0
   if [[ ! -f "$MODPROBE_VFIO" || ! -f "$MODPROBE_BL_NOUVEAU" || ! -f "$MODPROBE_BL_NVIDIA" ]]; then
     wrote=1
@@ -749,22 +959,23 @@ mode_enable() {
   write_vfio_and_blacklist_files "${FUNCS[@]}"
   [[ "$wrote" == "1" ]] && changes=1
 
-  update-initramfs -u >/dev/null
+  update-initramfs -u
   say "initramfs updated"
 
+  echo
   if [[ $changes -eq 1 ]]; then
+    warn "═══════════════════════════════════════════"
+    warn " REBOOT REQUIRED to complete GPU setup"
+    warn "═══════════════════════════════════════════"
     echo
-    warn "Reboot required to complete setup."
-    echo "After reboot, run:"
-    echo "  set-gpupass bind"
+    info "After reboot, run: set-gpupass bind"
   else
     say "Host is already configured for GPU passthrough."
-    say "No reboot required."
+    say "No reboot required. You can run: set-gpupass bind"
   fi
 }
 
 mode_bind() {
-  # Must be enabled first
   if ! iommu_active; then
     die "IOMMU is not active. Run: set-gpupass enable (and reboot if instructed)."
   fi
@@ -772,29 +983,52 @@ mode_bind() {
   local gpu; gpu="$(choose_gpu)"
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
-  # Check GPU is vfio-bound (best-effort)
-  local ok=1 f drv
+  echo
+  echo "═══════════════════════════════════"
+  echo " GPU Passthrough — Bind to VM"
+  echo "═══════════════════════════════════"
+  echo
+
+  # Verify GPU functions are bound to vfio-pci
+  local all_vfio=1
+  local f
   for f in "${FUNCS[@]}"; do
-    drv="$(driver_in_use "$f" || true)"
-    [[ "$drv" == "vfio-pci" ]] || ok=0
+    local drv
+    drv="$(driver_in_use "$f" || echo "none")"
+    if [[ "$drv" != "vfio-pci" ]]; then
+      all_vfio=0
+      warn "${f#0000:} is bound to '$drv' instead of 'vfio-pci'."
+    fi
   done
-  if [[ $ok -eq 0 ]]; then
-    warn "GPU is not fully bound to vfio-pci yet."
-    warn "If you just ran enable, reboot and try again."
+  if [[ $all_vfio -eq 0 ]]; then
     echo
+    warn "Not all GPU functions are bound to vfio-pci."
+    info "Did you run 'set-gpupass enable' and reboot?"
+    info "Try: set-gpupass enable → reboot → set-gpupass bind"
+    if ! prompt_yn "Continue anyway (advanced users only)?"; then
+      die "Aborted. Run 'set-gpupass enable' first."
+    fi
+  else
+    say "All GPU functions bound to vfio-pci."
   fi
 
-  # Determine which VMs reference it
-  mapfile -t REF_VMS < <(
+  # FIX: filter empty entries from REF_VMS
+  local raw_vms=()
+  mapfile -t raw_vms < <(
     for f in "${FUNCS[@]}"; do
       find_vm_assignments_for_addr "$f" | awk '{print $1}'
     done | sort -u
   )
+  local REF_VMS=()
+  local v
+  for v in "${raw_vms[@]}"; do
+    [[ -n "$v" ]] && REF_VMS+=("$v")
+  done
 
   if [[ ${#REF_VMS[@]} -gt 0 ]]; then
-    say "GPU is currently referenced by VM(s): ${REF_VMS[*]}"
+    say "GPU is currently assigned to VM(s): ${REF_VMS[*]}"
   else
-    say "GPU is not referenced by any VM."
+    info "GPU is not currently assigned to any VM."
   fi
 
   local target
@@ -802,26 +1036,29 @@ mode_bind() {
 
   if [[ "$target" == "__EXIT__" ]]; then
     say "No changes made."
-    exit 0
+    return 0
   fi
 
-  # Safety: refuse if any referencing VM is running (for FREE or SWITCH)
   local vmid
   for vmid in "${REF_VMS[@]}"; do
     vm_running "$vmid" && die "VM $vmid is running and references GPU. Stop it first to change GPU bindings safely."
   done
 
   if [[ "$target" == "__FREE__" ]]; then
+    if [[ ${#REF_VMS[@]} -eq 0 ]]; then
+      say "GPU is already free (not assigned to any VM)."
+      return 0
+    fi
     for vmid in "${REF_VMS[@]}"; do
       remove_from_vm_if_present "$vmid" "${FUNCS[@]}"
     done
     say "GPU freed (no VM references remain)."
-    exit 0
+    return 0
   fi
 
-  vm_running "$target" && die "Target VM $target is running. Stop it first (safe default)."
+  vm_running "$target" && die "Target VM $target is running. Stop it first."
 
-  # Optional VM optimization prompts (opt-in)
+  # Optional prompts (opt-in)
   maybe_optimize_vm_for_gpu "$target"
 
   # Switch: remove from other VMs, then add to target
@@ -829,41 +1066,59 @@ mode_bind() {
     [[ "$vmid" == "$target" ]] && continue
     remove_from_vm_if_present "$vmid" "${FUNCS[@]}"
   done
-  # avoid duplicates in target
+  # Avoid duplicates in target
   remove_from_vm_if_present "$target" "${FUNCS[@]}" || true
   add_funcs_to_vm "$target" "${FUNCS[@]}"
 
-  say "Bind/switch complete."
-  echo "Next: start VM $target and install NVIDIA drivers inside the VM."
+  echo
+  say "═══════════════════════════════════════"
+  say " GPU bound to VM $target successfully!"
+  say "═══════════════════════════════════════"
+  echo
+  info "Next steps:"
+  echo "  1. Start VM $target from Proxmox UI or: qm start $target"
+  echo "  2. Install NVIDIA drivers inside the VM"
+  echo "  3. The GPU should appear as a device inside the VM"
 }
 
 mode_revert() {
-  ensure_state_loaded_and_initialized
+  ensure_state
   load_state
 
   echo
+  echo "═══════════════════════════════════"
+  echo " GPU Passthrough — Revert"
+  echo "═══════════════════════════════════"
+  echo
   warn "This will undo ONLY what set-gpupass added:"
-  echo "- Remove script VFIO binding + blacklists"
-  echo "- Remove VFIO boot module lines that set-gpupass added"
-  echo "- Remove IOMMU kernel flags that set-gpupass added (if any)"
-  echo "- Rebuild initramfs"
+  echo "  • Remove script VFIO binding + blacklists"
+  echo "  • Remove VFIO boot module lines that set-gpupass added"
+  echo "  • Remove IOMMU kernel flags that set-gpupass added (if any)"
+  echo "  • Rebuild initramfs"
   echo
 
   if ! prompt_yn "Proceed with revert?"; then
     say "No changes made."
-    exit 0
+    return 0
   fi
 
-  # Optional: remove GPU from VMs first
+  # Optional: remove GPU from VMs
   if prompt_yn "Also remove GPU from all VMs (hostpci entries)?"; then
     local gpu; gpu="$(choose_gpu)"
     mapfile -t FUNCS < <(sibling_functions "$gpu")
 
-    mapfile -t REF_VMS < <(
+    # FIX: filter empties
+    local raw_vms=()
+    mapfile -t raw_vms < <(
       for f in "${FUNCS[@]}"; do
         find_vm_assignments_for_addr "$f" | awk '{print $1}'
       done | sort -u
     )
+    local REF_VMS=()
+    local v
+    for v in "${raw_vms[@]}"; do
+      [[ -n "$v" ]] && REF_VMS+=("$v")
+    done
 
     local vmid
     for vmid in "${REF_VMS[@]}"; do
@@ -872,30 +1127,32 @@ mode_revert() {
     for vmid in "${REF_VMS[@]}"; do
       remove_from_vm_if_present "$vmid" "${FUNCS[@]}"
     done
-    say "GPU removed from VMs."
+    [[ ${#REF_VMS[@]} -gt 0 ]] && say "GPU removed from VMs."
   fi
 
-  # Optional: revert VM optimization if any (only affects one VM we tracked)
+  # Optional: revert VM optimization changes (if we tracked any)
   if [[ -n "${VM_OPTIMIZED_VMID:-}" ]]; then
-    if prompt_yn "Also revert optional VM settings that set-gpupass applied?"; then
+    if prompt_yn "Also revert VM settings set-gpupass applied (OVMF/q35/kvm=off)?"; then
       revert_vm_optimizations_if_any
     fi
   fi
 
-  # Remove host config we own
   remove_vfio_and_blacklist_files
-  say "Removed script vfio binding + blacklists"
+  say "Removed script VFIO binding + blacklists"
 
-  # Remove /etc/modules lines we added
   remove_vfio_module_lines_we_added >/dev/null || true
-
-  # Remove IOMMU flags we added
   remove_iommu_kernel_flags_we_added >/dev/null || true
 
-  update-initramfs -u >/dev/null
+  update-initramfs -u
   say "initramfs updated"
 
-  # If state now contains no changes, remove it; otherwise keep for safety
+  echo
+  warn "═══════════════════════════════════════════"
+  warn " REBOOT RECOMMENDED"
+  warn "═══════════════════════════════════════════"
+  info "Reboot to fully return to default host behavior."
+
+  # Clear state dir if nothing left to track
   load_state
   if [[ -z "${IOMMU_FLAGS_ADDED:-}" && -z "${VFIO_MODULE_LINES_ADDED:-}" && -z "${VM_OPTIMIZED_VMID:-}" ]]; then
     rm -f "$STATE_FILE" || true
@@ -904,53 +1161,65 @@ mode_revert() {
   else
     warn "State retained (some tracked items remain)."
   fi
-
-  warn "Reboot recommended to fully return to default host driver binding."
 }
 
-# ---------------- interactive menu ----------------
+# ======================= interactive menu =======================
 interactive_menu() {
-  while true; do
-    clear 2>/dev/null || true
-    echo "==============================="
-    echo " set-gpupass (GPU Passthrough)"
-    echo "==============================="
-    echo
-    echo "1) Status (show current state)"
-    echo "2) Enable (prepare host for passthrough)"
-    echo "3) Bind/Switch (assign GPU to a VM / Free GPU)"
-    echo "4) Snapshot (save diagnostics to /root/)"
-    echo "5) Revert (undo changes made by set-gpupass)"
-    echo "0) Exit"
-    echo
+  echo
+  echo "═══════════════════════════════════════"
+  echo "  set-gpupass v${SCRIPT_VERSION}"
+  echo "  NVIDIA GPU Passthrough for Proxmox"
+  echo "═══════════════════════════════════════"
 
-    read -r -p "Choose an option [0-5]: " choice
+  while true; do
+    echo
+    echo "┌─────────────────────────────────────┐"
+    echo "│  1) Status    — show current state   │"
+    echo "│  2) Enable    — prepare host          │"
+    echo "│  3) Bind      — assign GPU to a VM    │"
+    echo "│  4) Snapshot  — save diagnostics       │"
+    echo "│  5) Revert    — undo all changes       │"
+    echo "│  0) Exit                               │"
+    echo "└─────────────────────────────────────┘"
+    echo
+    read -r -p "Choose [0-5]: " choice
     case "${choice:-}" in
-      1) mode_status;  read -r -p $'\nPress Enter to continue...' _ ;;
-      2) mode_enable;  read -r -p $'\nPress Enter to continue...' _ ;;
-      3) mode_bind;    read -r -p $'\nPress Enter to continue...' _ ;;
-      4) mode_snapshot;read -r -p $'\nPress Enter to continue...' _ ;;
-      5) mode_revert;  read -r -p $'\nPress Enter to continue...' _ ;;
-      0) exit 0 ;;
-      *) echo; echo "Invalid option."; sleep 1 ;;
+      1) mode_status ;;
+      2) mode_enable ;;
+      3) mode_bind ;;
+      4) mode_snapshot ;;
+      5) mode_revert ;;
+      0|q|Q|exit) say "Goodbye."; exit 0 ;;
+      *) warn "Invalid option. Enter 0-5." ;;
     esac
   done
 }
 
-# ---------------- main ----------------
+# ======================= main =======================
 MODE="${1:-}"
-
 case "$MODE" in
-  "" )
-    interactive_menu
+  "")        interactive_menu ;;
+  status)    mode_status ;;
+  snapshot)  mode_snapshot ;;
+  enable)    mode_enable ;;
+  bind)      mode_bind ;;
+  revert)    mode_revert ;;
+  --version|-v) echo "set-gpupass v${SCRIPT_VERSION}" ;;
+  --help|-h)
+    echo "Usage: set-gpupass [status|snapshot|enable|bind|revert]"
+    echo
+    echo "  status    Show current GPU passthrough state"
+    echo "  snapshot  Save full diagnostics to /root/"
+    echo "  enable    Configure host for GPU passthrough (may need reboot)"
+    echo "  bind      Assign/switch GPU to a VM"
+    echo "  revert    Undo all changes made by this script"
+    echo
+    echo "Run with no arguments for interactive menu."
     ;;
-  status)   mode_status ;;
-  snapshot) mode_snapshot ;;
-  enable)   mode_enable ;;
-  bind)     mode_bind ;;
-  revert)   mode_revert ;;
   *)
+    err "Unknown command: $MODE"
     echo "Usage: set-gpupass {status|snapshot|enable|bind|revert}"
+    echo "Run with no arguments for interactive menu."
     exit 1
     ;;
 esac
