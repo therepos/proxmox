@@ -14,7 +14,7 @@ services:
         - SMTP_PORT=587
         - SMTP_FROM=username@email.com
         - SMTP_USERNAME=username@email.com
-        - SMTP_PASSWORD=<email password>
+        - SMTP_PASSWORD=<app-password> # generate zoho-email app password
         - SMTP_SECURITY=starttls
       security_opt:
         - apparmor=unconfined
