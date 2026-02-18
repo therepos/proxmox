@@ -9,3 +9,5 @@ services:
       - apparmor=unconfined
       - seccomp:unconfined
     pull_policy: always
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

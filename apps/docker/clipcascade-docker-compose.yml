@@ -15,3 +15,5 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

@@ -18,7 +18,9 @@ services:
       - seccomp:unconfined
     volumes:
       - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+            
 volumes:
   brave-data:
     driver: local

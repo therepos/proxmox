@@ -11,7 +11,9 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+            
   metubetag:
     image: ghcr.io/therepos/metubetag:latest
     container_name: metubetag
@@ -19,3 +21,5 @@ services:
       - /mnt/sec/media/music:/music
       - /mnt/sec/apps/metube:/metube
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

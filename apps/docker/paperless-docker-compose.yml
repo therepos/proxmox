@@ -25,6 +25,31 @@
 # portainer: rename paperless-docker-compose.env to stack.env
 
 services:
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless-web
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "3019:8000"
+    volumes:
+      - /mnt/sec/apps/paperless/data:/usr/src/paperless/data
+      - /mnt/sec/media/docs:/usr/src/paperless/media
+      - /mnt/sec/apps/paperless/export:/usr/src/paperless/export
+      - /mnt/sec/apps/paperless/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+    env_file:
+      - stack.env
+    security_opt:
+      - apparmor=unconfined
+      - seccomp:unconfined
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   broker:
     image: docker.io/library/redis:8
     container_name: paperless-broker
@@ -45,29 +70,6 @@ services:
       POSTGRES_DB: paperless
       POSTGRES_USER: paperless
       POSTGRES_PASSWORD: paperless
-    security_opt:
-      - apparmor=unconfined
-      - seccomp:unconfined
-      
-  webserver:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
-    container_name: paperless-web
-    restart: unless-stopped
-    depends_on:
-      - db
-      - broker
-    ports:
-      - "3019:8000"
-    volumes:
-      - /mnt/sec/apps/paperless/data:/usr/src/paperless/data
-      - /mnt/sec/media/docs:/usr/src/paperless/media
-      - /mnt/sec/apps/paperless/export:/usr/src/paperless/export
-      - /mnt/sec/apps/paperless/consume:/usr/src/paperless/consume
-    environment:
-      PAPERLESS_REDIS: redis://broker:6379
-      PAPERLESS_DBHOST: db
-    env_file:
-      - stack.env
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined

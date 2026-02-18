@@ -16,7 +16,9 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   radarr:
     image: linuxserver/radarr
     container_name: radarr
@@ -34,7 +36,9 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   jackett:
     image: linuxserver/jackett
     container_name: jackett
@@ -51,7 +55,9 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
   qbittorrent:
     image: linuxserver/qbittorrent
     container_name: qbittorrent
@@ -71,7 +77,9 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp:unconfined
-      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+            
 networks:
   default:
     name: media-net

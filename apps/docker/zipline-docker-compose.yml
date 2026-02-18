@@ -1,16 +1,4 @@
 services:
-  postgresql:
-    image: postgres:16
-    container_name: zipline-db
-    restart: unless-stopped
-    command: ["postgres", "-c", "unix_socket_directories="]
-    environment:
-      POSTGRES_USER: zipline
-      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD}
-      POSTGRES_DB: zipline
-    volumes:
-      - /mnt/sec/apps/zipline/pgdata:/var/lib/postgresql/data
-
   zipline:
     image: ghcr.io/diced/zipline:latest
     container_name: zipline
@@ -30,4 +18,18 @@ services:
       - /mnt/sec/apps/zipline/themes:/zipline/themes
     security_opt:
       - apparmor=unconfined
-      - seccomp=unconfined    
+      - seccomp=unconfined 
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+            
+  postgresql:
+    image: postgres:16
+    container_name: zipline-db
+    restart: unless-stopped
+    command: ["postgres", "-c", "unix_socket_directories="]
+    environment:
+      POSTGRES_USER: zipline
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD}
+      POSTGRES_DB: zipline
+    volumes:
+      - /mnt/sec/apps/zipline/pgdata:/var/lib/postgresql/data   

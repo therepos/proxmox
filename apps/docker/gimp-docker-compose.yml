@@ -24,3 +24,5 @@ services:
       - 3021:3000
       - 3022:3001
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

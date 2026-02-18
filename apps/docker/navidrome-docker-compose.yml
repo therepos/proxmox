@@ -15,3 +15,5 @@ services:
       - "/mnt/sec/apps/navidrome/data:/data"
       - "/mnt/sec/media/music:/music"
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"

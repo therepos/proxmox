@@ -8,6 +8,7 @@ services:
          - 3002:80
       restart: unless-stopped
       environment:
+        - DOMAIN=https://domain.com
         - ADMIN_TOKEN=67B5C8DE5CC4956E0945E64A555155190B17219CBF925577CF9E0AD65625BF10
         - SMTP_HOST=smtp.zoho.com
         - SMTP_PORT=587
@@ -18,3 +19,5 @@ services:
       security_opt:
         - apparmor=unconfined
         - seccomp:unconfined
+      labels:
+         - "com.centurylinklabs.watchtower.enable=true"

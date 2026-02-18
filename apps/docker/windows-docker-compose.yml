@@ -31,6 +31,8 @@ services:
     stop_grace_period: 2m
     networks:                 
       - windows_default         # to share the same network
+    labels:
+        - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   windows_default:
