@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/set-gpupass.sh?$(date +%s))"
+# purpose: set gpu passthrough
+# version: pve9
+#
 # set-gpupass — Safe, reversible NVIDIA GPU passthrough helper for Proxmox VE
 #
 # Core modes:
