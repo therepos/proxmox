@@ -18,11 +18,10 @@ BLUE="\e[34mℹ\e[0m"
 ok(){ echo -e "${GREEN} $*"; }
 info(){ echo -e "${BLUE} $*"; }
 fail(){ echo -e "${RED} $*"; exit 1; }
-
-# Read from /dev/tty if available (interactive). Otherwise read from stdin.
 asknum(){ # asknum "prompt" "min" "max" "default"
   local p="$1" min="$2" max="$3" def="$4" in
   while true; do
+    # Read from /dev/tty if available (interactive) otherwise read from stdin
     if [[ -r /dev/tty ]]; then
       read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
     else
