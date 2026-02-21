@@ -1,9 +1,7 @@
 ## Usage
-
 Execute the wget command line from the selected script.
 
 ## Structure
-
 ```
 proxmox
 ├── .github
@@ -19,10 +17,8 @@ proxmox
 ```
 
 ## Notes
-
 - This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
 
 ## Resources
-
 - [Proxmox community scripts](https://community-scripts.github.io/ProxmoxVE/)
 - [Proxmox helper scripts](https://github.com/tteck/Proxmox)
