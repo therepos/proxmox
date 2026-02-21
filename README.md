@@ -9,7 +9,7 @@ proxmox
 ├── apps                
 │   ├── docker          # Ready-to-run docker compose files.
 │   ├── installers      # One-click bash installers.
-│   ├── tools           # One-click bash scripts.
+│   └── tools           # One-click bash scripts.
 ├── docs                # Documentation and notes.
 ├── scraps              # Superceded stuff.
 └── scripts             # Internal helpers.
