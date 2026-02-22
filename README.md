@@ -30,7 +30,7 @@ proxmox
 - [open-notebook](https://tinyurl.com/ms3y6rdc)
 - opencode
 - glm5
-- [bus-alert](https://opengist.threeminuteslab.com/toor/7f59698047f04f1eaa6c348925adbc8b#file-map-api-key)
+- [bus-alert](https://opengist.threeminuteslab.com/toor/7f59698047f04f1eaa6c348925adbc8b)
 - hosting-static: netlify. cloudflare. github.
 - hosting-docker: google cloud run. fly.io. render.
 
