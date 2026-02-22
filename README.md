@@ -29,6 +29,7 @@ proxmox
 - db-photos
 - [open-notebook](https://tinyurl.com/ms3y6rdc)
 - opencode
+- glm5
 - bus-alert: 20m bus 50m
 
 ## Resources
