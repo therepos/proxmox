@@ -27,6 +27,8 @@ proxmox
 - db-travel
 - db-audit
 - db-photos
+- [open-notebook](https://tinyurl.com/ms3y6rdc)
+- opencode
 
 ## Resources
 
