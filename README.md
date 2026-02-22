@@ -31,6 +31,8 @@ proxmox
 - opencode
 - glm5
 - bus-alert: 20m bus 50m
+- hosting-static: netlify. cloudflare. github.
+- hosting-docker: google cloud run. fly.io. render.
 
 ## Resources
 
