@@ -20,7 +20,13 @@ proxmox
 
 ## Notes
 
-- This work is licensed under [MIT](https://choosealicense.com/licenses/mit/). 
+- rembg
+- realesrgan upscale
+- db-japfood
+- db-korfood
+- db-travel
+- db-audit
+- db-photos
 
 ## Resources
 
