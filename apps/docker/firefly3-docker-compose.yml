@@ -19,6 +19,9 @@
 # MAIL_FROM_NAME="Firefly III"
 # MAIL_FROM=username@email.com
 #
+# =====
+# Password is mininum 16 characters
+#
 
 services:
   app:
