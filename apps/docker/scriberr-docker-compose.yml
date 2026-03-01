@@ -1,3 +1,10 @@
+# Fix Youtube download: # pip install -U yt-dlp --break-system-packages
+# Settings → Profiles → Add Profile → Whisper → medium
+# Speaker Identification: huggingface.co → Settings → Access Tokens → New token
+# Model license agreement: https://huggingface.co/pyannote/speaker-diarization-3.1
+# Model license agreement: https://huggingface.co/pyannote/segmentation-3.0
+#
+
 services:
   scriberr:
     image: ghcr.io/rishikanthc/scriberr:latest
