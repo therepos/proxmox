@@ -1,0 +1,23 @@
+services:
+  scriberr:
+    image: ghcr.io/rishikanthc/scriberr:latest
+    container_name: scriberr
+    ports:
+      - "3029:8080"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - APP_ENV=production
+      - SECURE_COOKIES=false
+      - SCRIBERR_USERNAME=admin
+      - SCRIBERR_PASSWORD=changeme
+      - HF_TOKEN=
+      - OPENAI_API_KEY=
+      - OLLAMA_BASE_URL=
+    volumes:
+      - /mnt/sec/apps/scriberr/data:/app/data
+      - /mnt/sec/apps/scriberr/whisperx-env:/app/whisperx-env
+    restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
