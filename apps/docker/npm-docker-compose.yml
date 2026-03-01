@@ -1,0 +1,19 @@
+#
+#
+#
+
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: npm
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - /mnt/sec/apps/npm/data:/data
+      - /mnt/sec/apps/npm/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
