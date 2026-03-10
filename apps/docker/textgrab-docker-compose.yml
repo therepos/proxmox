@@ -5,8 +5,7 @@ services:
     ports:
       - "3020:8000"
     volumes:
-      - /mnt/sec/apps/textgrab/uploads:/app/uploads
-      - /mnt/sec/apps/textgrab/exports:/app/exports
+      - /mnt/sec/apps/textgrab/data:/data/models
     restart: unless-stopped
     security_opt:
       - apparmor=unconfined
