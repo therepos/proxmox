@@ -10,7 +10,7 @@ services:
       - "3003:6901"
     environment:
       - VNC_PW=${VNC_PW}
-      - LAUNCH_URL=https://sites.google.com
+      - LAUNCH_URL=${LAUNCH_URL}
     shm_size: 1gb
     restart: unless-stopped
     security_opt:
