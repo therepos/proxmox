@@ -11,7 +11,6 @@
 # Time zone: Asia/Singapore
 # Resize method: Reconnect
 # Enable font smoothing (ClearType): Yes
-#
 
 services:
   guacamole:
