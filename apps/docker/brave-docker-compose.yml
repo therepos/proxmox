@@ -18,6 +18,8 @@ services:
       - seccomp=unconfined
     volumes:
       - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
+      - /mnt/sec/apps/brave/downloads:/home/seluser/Downloads
+      - /mnt/sec/media/shared:/home/seluser/shared      
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
             
