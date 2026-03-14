@@ -1,6 +1,6 @@
 # Must use https: and tls:no-verify
 # User : kasm_user
-# Password: password
+# Add environment variables VNC_PW to set password
 
 services:
   brave:
@@ -9,9 +9,9 @@ services:
     ports:
       - "3003:6901"
     environment:
-      - VNC_PW=password
+      - VNC_PW=${VNC_PW}
       - LAUNCH_URL=https://sites.google.com
-    shm_size: 1028m # Shared memory allocation
+    shm_size: 1gb
     restart: unless-stopped
     security_opt:
       - apparmor=unconfined
@@ -19,10 +19,7 @@ services:
     volumes:
       - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
       - /mnt/sec/apps/brave/downloads:/home/seluser/Downloads
-      - /mnt/sec/media/shared:/home/seluser/shared      
+      - /mnt/sec/media/shared:/home/seluser/shared
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-            
-volumes:
-  brave-data:
-    driver: local
+
