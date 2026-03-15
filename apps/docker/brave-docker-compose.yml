@@ -11,20 +11,13 @@ services:
     environment:
       - VNC_PW=${VNC_PW}
       - LAUNCH_URL=${LAUNCH_URL}
-      - VNC_RESOLUTION=1920x1080
-      - EXTRA_ARGS=--start-maximized
     shm_size: 1gb
     restart: unless-stopped
     security_opt:
       - apparmor=unconfined
       - seccomp=unconfined
     volumes:
-      - /mnt/sec/apps/brave/data:/home/kasm-user/.config/BraveSoftware
-      - /mnt/sec/apps/brave/downloads:/home/kasm-user/Downloads
-      - /mnt/sec/media/shared:/home/kasm-user/shared      
+      - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
+      - /mnt/sec/apps/brave/downloads:/home/seluser/Downloads
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-            
-volumes:
-  brave-data:
-    driver: local
