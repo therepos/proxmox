@@ -11,6 +11,7 @@ services:
     environment:
       - VNC_PW=${VNC_PW}
       - LAUNCH_URL=${LAUNCH_URL}
+      - DBUS_SESSION_BUS_ADDRESS=autolaunch:
     shm_size: 1gb
     restart: unless-stopped
     security_opt:
@@ -20,7 +21,6 @@ services:
       - /mnt/sec/apps/brave/data:/home/kasm-user/.config/BraveSoftware/Brave-Browser
       - /mnt/sec/apps/brave/downloads:/home/kasm-user/Downloads
       - /mnt/sec/media/shared:/home/kasm-user/shared
-      - DBUS_SESSION_BUS_ADDRESS=autolaunch:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
