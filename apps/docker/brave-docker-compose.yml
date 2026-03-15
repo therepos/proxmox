@@ -11,6 +11,7 @@ services:
     environment:
       - VNC_PW=${VNC_PW}
       - LAUNCH_URL=${LAUNCH_URL}
+      - EXTRA_ARGS=--start-maximized
     shm_size: 1gb
     restart: unless-stopped
     security_opt:
