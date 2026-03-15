@@ -18,9 +18,12 @@ services:
       - apparmor=unconfined
       - seccomp=unconfined
     volumes:
-      - /mnt/sec/apps/brave/profile:/home/kasm-user/.config
-      - /mnt/sec/apps/brave/downloads:/home/kasm-user/Downloads
-      - /mnt/sec/media/shared:/home/kasm-user/shared
+      - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
+      - /mnt/sec/apps/brave/downloads:/home/seluser/Downloads
+      - /mnt/sec/media/shared:/home/seluser/shared      
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-
+            
+volumes:
+  brave-data:
+    driver: local
