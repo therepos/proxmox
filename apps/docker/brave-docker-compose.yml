@@ -11,6 +11,7 @@ services:
     environment:
       - VNC_PW=${VNC_PW}
       - LAUNCH_URL=${LAUNCH_URL}
+      - VNC_RESOLUTION=1920x1080
       - EXTRA_ARGS=--start-maximized
     shm_size: 1gb
     restart: unless-stopped
