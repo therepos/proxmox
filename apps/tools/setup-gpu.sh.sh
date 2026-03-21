@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/nvidia-toolkit.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/setup-gpu.sh.sh?$(date +%s))"
 # purpose: one-stop NVIDIA toolkit for Proxmox — host driver install + GPU passthrough
 # version: pve9
 #
