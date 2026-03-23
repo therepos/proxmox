@@ -1,6 +1,9 @@
 # Must use https: and tls:no-verify
 # User : kasm_user
-# Add environment variables VNC_PW to set password
+# VNC_PW: password
+# sudo chown -R 1000:1000 /mnt/sec/apps/brave/data
+# sudo chown -R 1000:1000 /mnt/sec/apps/brave/downloads
+# sudo chown -R 1000:1000 /mnt/sec/media/shared
 
 services:
   brave:
@@ -17,9 +20,8 @@ services:
       - apparmor=unconfined
       - seccomp=unconfined
     volumes:
-      # - /mnt/sec/apps/brave/data:/home/seluser/.config/BraveSoftware/Brave-Browser
-      # - /mnt/sec/apps/brave/downloads:/home/seluser/Downloads
       - /mnt/sec/apps/brave/data:/home/kasm_user/.config/BraveSoftware/Brave-Browser
       - /mnt/sec/apps/brave/downloads:/home/kasm_user/Downloads
+      - /mnt/sec/media/shared:/home/kasm_user/shared
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
