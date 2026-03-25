@@ -22,7 +22,6 @@ services:
       - seccomp=unconfined
     volumes:
       - /mnt/sec/apps/brave/data:/home/kasm_user/.config/BraveSoftware/Brave-Browser
-      - /mnt/sec/apps/brave/downloads:/home/kasm-user/Downloads
-      - /mnt/sec/media/shared:/home/kasm_user/shared
+      - /mnt/sec/media/shared:/home/kasm-user/Downloads
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
