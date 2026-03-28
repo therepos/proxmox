@@ -1,0 +1,10 @@
+services:
+  withoutbg:
+    image: withoutbg/app:latest
+    container_name: withoutbg
+    restart: unless-stopped
+    ports:
+      - "3028:80"
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
