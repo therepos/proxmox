@@ -3,25 +3,47 @@
 # purpose: set gpu passthrough
 # version: pve9
 #
-# set-gpupass — Safe, reversible NVIDIA GPU passthrough helper for Proxmox VE
+# Usage:
+#   install-gpu                     Interactive menu
+#   install-gpu status              Show current GPU passthrough state
+#   install-gpu enable              Configure host for passthrough (may need reboot)
+#   install-gpu bind                Assign GPU to a VM (interactive selection)
+#   install-gpu bind 200            Assign GPU to VM 200
+#   install-gpu bind free           Unbind GPU from all VMs
+#   install-gpu revert              Undo all changes
+#   install-gpu snapshot            Save diagnostics to /root/
 #
-# Core modes:
-#   set-gpupass status
-#   set-gpupass snapshot
-#   set-gpupass enable
-#   set-gpupass bind
-#   set-gpupass revert
-#
-# If run with no args (e.g. via wget|bash), shows an interactive menu.
-#
-# Key safety goals:
-# - Never edit VM config files directly (no sed on /etc/pve/qemu-server/*.conf)
-# - Never hide qm errors (non-technical users must see failures)
-# - Only create script-owned modprobe files (does not touch vfio.conf or other user files)
-# - IOMMU kernel flags: only add missing tokens; revert removes only tokens it added (tracked in state file)
-# - Revert removes only what this script added/changed
+# Non-interactive (for Webmin custom commands):
+#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind 200 -y
+#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind free -y
 #
 set -euo pipefail
+
+# ======================= self-install =======================
+# When run via wget|bash, install the script locally and set up bashrc
+INSTALL_PATH="/usr/local/bin/install-gpu.sh"
+FUNC_LINE='install-gpu() { /usr/local/bin/install-gpu.sh "$@"; }'
+
+if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
+  SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh"
+  echo -e "\033[1;36mℹ\033[0m Installing install-gpu.sh to $INSTALL_PATH..."
+  wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo -e "\033[1;31m✘\033[0m Download failed." >&2; exit 1; }
+  chmod +x "$INSTALL_PATH"
+  echo -e "\033[1;32m✔\033[0m Installed to $INSTALL_PATH"
+
+  # Add install-gpu function to bashrc if not present
+  if ! grep -qF 'install-gpu()' ~/.bashrc 2>/dev/null; then
+    echo "$FUNC_LINE" >> ~/.bashrc
+    echo -e "\033[1;32m✔\033[0m Added install-gpu function to ~/.bashrc"
+  fi
+
+  echo -e "\033[1;32m✔\033[0m Done! Run: install-gpu"
+  echo "  Or with arguments: install-gpu status|enable|bind|revert"
+  echo "  Starting now..."
+  echo
+  # Run the newly installed script, passing any args
+  exec "$INSTALL_PATH" "$@"
+fi
 
 # ======================= version =======================
 SCRIPT_VERSION="1.1.0"
@@ -33,8 +55,14 @@ err()  { echo -e "\033[1;31m✘\033[0m $*" >&2; }
 die()  { err "$*"; exit 1; }
 info() { echo -e "\033[1;36mℹ\033[0m $*"; }
 
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+
 prompt_yn() {
   local q="$1" default="${2:-n}"
+  if [[ "$NONINTERACTIVE" == "1" ]]; then
+    info "(auto-yes) $q"
+    return 0
+  fi
   local hint="[y/N]"
   [[ "${default,,}" == "y" ]] && hint="[Y/n]"
   read -r -p "$q $hint: " ans
@@ -94,15 +122,15 @@ else
 fi
 
 # ======================= constants/state =======================
-STATE_DIR="/var/lib/set-gpupass"
+STATE_DIR="/var/lib/install-gpu"
 STATE_FILE="$STATE_DIR/state.env"
 TS="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$STATE_DIR"
 
 # Script-owned modprobe files (do not touch user generic vfio.conf etc.)
-MODPROBE_VFIO="/etc/modprobe.d/set-gpupass-vfio.conf"
-MODPROBE_BL_NOUVEAU="/etc/modprobe.d/set-gpupass-blacklist-nouveau.conf"
-MODPROBE_BL_NVIDIA="/etc/modprobe.d/set-gpupass-blacklist-nvidia.conf"
+MODPROBE_VFIO="/etc/modprobe.d/install-gpu-vfio.conf"
+MODPROBE_BL_NOUVEAU="/etc/modprobe.d/install-gpu-blacklist-nouveau.conf"
+MODPROBE_BL_NVIDIA="/etc/modprobe.d/install-gpu-blacklist-nvidia.conf"
 
 # ======================= state helpers =======================
 load_state() {
@@ -113,12 +141,6 @@ load_state() {
   IOMMU_FLAGS_ADDED=""
   VFIO_MODULE_LINES_ADDED=""
   GPU_PCI_FUNCS=""
-  VM_OPTIMIZED_VMID=""
-  VM_PREV_BIOS=""
-  VM_PREV_MACHINE=""
-  VM_PREV_ARGS_PRESENT=""
-  VM_PREV_ARGS_VALUE=""
-
   if [[ -f "$STATE_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$STATE_FILE"
@@ -127,7 +149,7 @@ load_state() {
 
 write_state() {
   cat >"$STATE_FILE" <<EOF
-# set-gpupass state (auto-generated). Remove only via: set-gpupass revert
+# install-gpu state (auto-generated). Remove only via: install-gpu revert
 STATE_VERSION="1"
 STATE_CREATED_AT="${STATE_CREATED_AT:-$TS}"
 
@@ -135,13 +157,6 @@ BOOT_METHOD="${BOOT_METHOD:-}"                 # systemd-boot | grub
 IOMMU_FLAGS_ADDED="${IOMMU_FLAGS_ADDED:-}"     # exact tokens added by script
 VFIO_MODULE_LINES_ADDED="${VFIO_MODULE_LINES_ADDED:-}"  # exact lines added to /etc/modules
 GPU_PCI_FUNCS="${GPU_PCI_FUNCS:-}"             # space-separated, e.g. "0000:01:00.0 0000:01:00.1"
-
-# Optional VM optimization tracking (only if user opts in)
-VM_OPTIMIZED_VMID="${VM_OPTIMIZED_VMID:-}"
-VM_PREV_BIOS="${VM_PREV_BIOS:-}"
-VM_PREV_MACHINE="${VM_PREV_MACHINE:-}"
-VM_PREV_ARGS_PRESENT="${VM_PREV_ARGS_PRESENT:-}"  # yes|no
-VM_PREV_ARGS_VALUE="${VM_PREV_ARGS_VALUE:-}"
 EOF
 }
 
@@ -182,7 +197,8 @@ detect_nvidia_gpu_addrs() {
 choose_gpu() {
   mapfile -t GPUS < <(detect_nvidia_gpu_addrs)
   [[ ${#GPUS[@]} -gt 0 ]] || die "No NVIDIA GPU found on this host."
-  if [[ ${#GPUS[@]} -eq 1 ]]; then
+  if [[ ${#GPUS[@]} -eq 1 ]] || [[ "$NONINTERACTIVE" == "1" ]]; then
+    [[ "$NONINTERACTIVE" == "1" ]] && [[ ${#GPUS[@]} -gt 1 ]] && info "(auto) Selecting first GPU: ${GPUS[0]}"
     echo "${GPUS[0]}"
     return
   fi
@@ -479,18 +495,18 @@ write_vfio_and_blacklist_files() {
   local ids_csv; ids_csv="$(compute_ids_csv_for_funcs "${funcs[@]}")"
 
   write_file_atomic "$MODPROBE_VFIO" <<EOF
-# managed by set-gpupass — do not edit manually
+# managed by install-gpu — do not edit manually
 options vfio-pci ids=${ids_csv} disable_vga=1
 EOF
 
   write_file_atomic "$MODPROBE_BL_NOUVEAU" <<'EOF'
-# managed by set-gpupass — do not edit manually
+# managed by install-gpu — do not edit manually
 blacklist nouveau
 options nouveau modeset=0
 EOF
 
   write_file_atomic "$MODPROBE_BL_NVIDIA" <<'EOF'
-# managed by set-gpupass — do not edit manually
+# managed by install-gpu — do not edit manually
 blacklist nvidia
 blacklist nvidia_drm
 blacklist nvidia_modeset
@@ -638,133 +654,6 @@ add_funcs_to_vm() {
   done
 }
 
-# ======================= Optional VM optimization (opt-in, tracked) =======================
-vm_get_key_value() {
-  local vmid="$1" key="$2"
-  qm config "$vmid" 2>/dev/null | awk -v k="$key" '$1==k":" {sub("^"k":",""); sub(/^ /,""); print; exit}'
-}
-
-vm_has_args() {
-  local vmid="$1"
-  qm config "$vmid" 2>/dev/null | grep -qE '^args:'
-}
-
-vm_has_efidisk() {
-  local vmid="$1"
-  qm config "$vmid" 2>/dev/null | grep -qE '^efidisk[0-9]+:'
-}
-
-maybe_optimize_vm_for_gpu() {
-  local vmid="$1"
-  vm_running "$vmid" && return 0
-
-  local bios machine
-  bios="$(vm_get_key_value "$vmid" "bios")"
-  machine="$(vm_get_key_value "$vmid" "machine")"
-
-  local need=0
-  [[ "${bios:-}" != "ovmf" ]] && need=1
-  if [[ -n "${machine:-}" ]]; then
-    echo "$machine" | grep -qi 'q35' || need=1
-  else
-    need=1
-  fi
-
-  if [[ $need -eq 1 ]]; then
-    echo
-    warn "VM $vmid may need compatibility settings for best GPU passthrough."
-    echo "Current:"
-    echo "  BIOS:    ${bios:-"(default/SeaBIOS)"}"
-    echo "  Machine: ${machine:-"(default/i440fx)"}"
-    echo "Recommended:"
-    echo "  BIOS:    ovmf (UEFI)"
-    echo "  Machine: q35"
-
-    # FIX: check for EFI disk before offering OVMF switch
-    if ! vm_has_efidisk "$vmid"; then
-      echo
-      warn "VM $vmid has NO EFI disk. Switching to OVMF without an EFI disk will"
-      warn "prevent the VM from booting. You should add one first via Proxmox UI:"
-      info "  VM → Hardware → Add → EFI Disk"
-      echo
-      if ! prompt_yn "I have an EFI disk or will add one. Apply settings anyway?"; then
-        info "Skipping BIOS/machine change."
-        # Still offer kvm=off below
-        _maybe_apply_kvm_off "$vmid" "$bios" "$machine"
-        return 0
-      fi
-    fi
-
-    if prompt_yn "Apply recommended VM settings (OVMF + q35)?"; then
-      ensure_state; load_state
-      if [[ -z "${VM_OPTIMIZED_VMID:-}" ]]; then
-        VM_OPTIMIZED_VMID="$vmid"
-        VM_PREV_BIOS="${bios:-}"
-        VM_PREV_MACHINE="${machine:-}"
-        VM_PREV_ARGS_PRESENT="$(vm_has_args "$vmid" && echo yes || echo no)"
-        VM_PREV_ARGS_VALUE="$(vm_get_key_value "$vmid" "args")"
-        write_state
-      fi
-      run_qm set "$vmid" --bios ovmf
-      run_qm set "$vmid" --machine q35
-      say "Applied VM settings (OVMF + q35)."
-    fi
-  fi
-
-  _maybe_apply_kvm_off "$vmid" "$bios" "$machine"
-}
-
-_maybe_apply_kvm_off() {
-  local vmid="$1" bios="$2" machine="$3"
-  echo
-  # FIX: updated guidance — kvm=off is rarely needed with modern NVIDIA drivers (535+)
-  info "Note: Modern NVIDIA drivers (535+) usually do NOT need the kvm=off workaround."
-  info "Only apply this if the VM fails to install NVIDIA drivers without it."
-  if prompt_yn "Apply Windows/NVIDIA workaround (hide KVM: -cpu host,kvm=off)?"; then
-    ensure_state; load_state
-    if [[ -z "${VM_OPTIMIZED_VMID:-}" ]]; then
-      VM_OPTIMIZED_VMID="$vmid"
-      VM_PREV_BIOS="${bios:-}"
-      VM_PREV_MACHINE="${machine:-}"
-      VM_PREV_ARGS_PRESENT="$(vm_has_args "$vmid" && echo yes || echo no)"
-      VM_PREV_ARGS_VALUE="$(vm_get_key_value "$vmid" "args")"
-    fi
-    run_qm set "$vmid" --args "-cpu host,kvm=off"
-    write_state
-    say "Applied KVM-hiding args."
-  fi
-}
-
-revert_vm_optimizations_if_any() {
-  ensure_state; load_state
-  [[ -n "${VM_OPTIMIZED_VMID:-}" ]] || return 0
-  local vmid="$VM_OPTIMIZED_VMID"
-
-  # FIX: verify VM still exists before trying to revert
-  if ! vm_exists "$vmid"; then
-    warn "VM $vmid no longer exists. Clearing tracked optimization state."
-    VM_OPTIMIZED_VMID=""; VM_PREV_BIOS=""; VM_PREV_MACHINE=""; VM_PREV_ARGS_PRESENT=""; VM_PREV_ARGS_VALUE=""
-    write_state
-    return 0
-  fi
-
-  vm_running "$vmid" && die "VM $vmid is running. Stop it first to revert VM settings."
-
-  warn "Reverting VM settings for VM $vmid (only what set-gpupass changed)."
-  if [[ -n "${VM_PREV_BIOS:-}" ]]; then run_qm set "$vmid" --bios "$VM_PREV_BIOS"; fi
-  if [[ -n "${VM_PREV_MACHINE:-}" ]]; then run_qm set "$vmid" --machine "$VM_PREV_MACHINE"; fi
-
-  if [[ "${VM_PREV_ARGS_PRESENT:-no}" == "yes" ]]; then
-    run_qm set "$vmid" --args "$VM_PREV_ARGS_VALUE"
-  else
-    # FIX: --delete args can fail if args doesn't exist; suppress gracefully
-    qm set "$vmid" --delete args 2>/dev/null || true
-  fi
-
-  VM_OPTIMIZED_VMID=""; VM_PREV_BIOS=""; VM_PREV_MACHINE=""; VM_PREV_ARGS_PRESENT=""; VM_PREV_ARGS_VALUE=""
-  write_state
-  say "VM settings reverted."
-}
 
 # ======================= VM stop/start helpers =======================
 stop_vm_with_wait() {
@@ -847,7 +736,7 @@ start_vm_with_wait() {
     echo "  • IOMMU group conflict"
     echo "  • GPU not properly bound to vfio-pci (try rebooting host)"
     echo
-    info "Run 'set-gpupass snapshot' and check the output for clues."
+    info "Run 'install-gpu snapshot' and check the output for clues."
     return 1
   fi
 
@@ -910,9 +799,9 @@ mode_status() {
   # Show state file status
   echo
   if [[ -f "$STATE_FILE" ]]; then
-    echo "  State file: $STATE_FILE (set-gpupass has been run before)"
+    echo "  State file: $STATE_FILE (install-gpu has been run before)"
   else
-    echo "  State file: none (set-gpupass has not configured anything yet)"
+    echo "  State file: none (install-gpu has not configured anything yet)"
   fi
 }
 
@@ -922,7 +811,7 @@ mode_snapshot() {
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   {
-    echo "===== set-gpupass snapshot ====="
+    echo "===== install-gpu snapshot ====="
     echo "Version: $SCRIPT_VERSION"
     echo
     echo "===== DATE ====="; date
@@ -1025,7 +914,7 @@ mode_enable() {
     if [[ "$flags_changed" == "1" ]]; then
       warn "Reboot required to activate IOMMU after adding kernel flags."
       echo
-      info "After reboot, run: set-gpupass enable"
+      info "After reboot, run: install-gpu enable"
       exit 0
     fi
     echo
@@ -1036,7 +925,7 @@ mode_enable() {
     info "  1. Reboot into BIOS/UEFI setup"
     info "  2. Enable VT-d (Intel) or IOMMU/AMD-Vi (AMD)"
     info "  3. Save and reboot"
-    info "  4. Run: set-gpupass enable"
+    info "  4. Run: install-gpu enable"
     die "IOMMU is not active."
   fi
   say "IOMMU is active"
@@ -1064,16 +953,18 @@ mode_enable() {
     warn " REBOOT REQUIRED to complete GPU setup"
     warn "═══════════════════════════════════════════"
     echo
-    info "After reboot, run: set-gpupass bind"
+    info "After reboot, run: install-gpu bind"
   else
     say "Host is already configured for GPU passthrough."
-    say "No reboot required. You can run: set-gpupass bind"
+    say "No reboot required. You can run: install-gpu bind"
   fi
 }
 
 mode_bind() {
+  local target_vmid="${1:-}"
+
   if ! iommu_active; then
-    die "IOMMU is not active. Run: set-gpupass enable (and reboot if instructed)."
+    die "IOMMU is not active. Run: install-gpu enable (and reboot if instructed)."
   fi
 
   local gpu; gpu="$(choose_gpu)"
@@ -1099,10 +990,10 @@ mode_bind() {
   if [[ $all_vfio -eq 0 ]]; then
     echo
     warn "Not all GPU functions are bound to vfio-pci."
-    info "Did you run 'set-gpupass enable' and reboot?"
-    info "Try: set-gpupass enable → reboot → set-gpupass bind"
+    info "Did you run 'install-gpu enable' and reboot?"
+    info "Try: install-gpu enable → reboot → install-gpu bind"
     if ! prompt_yn "Continue anyway (advanced users only)?"; then
-      die "Aborted. Run 'set-gpupass enable' first."
+      die "Aborted. Run 'install-gpu enable' first."
     fi
   else
     say "All GPU functions bound to vfio-pci."
@@ -1128,7 +1019,18 @@ mode_bind() {
   fi
 
   local target
-  target="$(prompt_vmid_menu "What do you want to do with the GPU?")"
+  if [[ -n "$target_vmid" ]]; then
+    # Non-interactive: VMID passed as argument
+    if [[ "$target_vmid" == "free" || "$target_vmid" == "FREE" ]]; then
+      target="__FREE__"
+    else
+      vm_exists "$target_vmid" || die "VM $target_vmid does not exist."
+      target="$target_vmid"
+    fi
+    info "Target: ${target//__FREE__/Free GPU (unbind)}"
+  else
+    target="$(prompt_vmid_menu "What do you want to do with the GPU?")"
+  fi
 
   if [[ "$target" == "__EXIT__" ]]; then
     say "No changes made."
@@ -1198,9 +1100,6 @@ mode_bind() {
 
   # ---- ASSIGN path ----
 
-  # Optional prompts (opt-in)
-  maybe_optimize_vm_for_gpu "$target"
-
   # Switch: remove from other VMs, then add to target
   for vmid in "${REF_VMS[@]}"; do
     [[ "$vmid" == "$target" ]] && continue
@@ -1263,10 +1162,10 @@ mode_revert() {
   echo " GPU Passthrough — Revert"
   echo "═══════════════════════════════════"
   echo
-  warn "This will undo ONLY what set-gpupass added:"
+  warn "This will undo ONLY what install-gpu added:"
   echo "  • Remove script VFIO binding + blacklists"
-  echo "  • Remove VFIO boot module lines that set-gpupass added"
-  echo "  • Remove IOMMU kernel flags that set-gpupass added (if any)"
+  echo "  • Remove VFIO boot module lines that install-gpu added"
+  echo "  • Remove IOMMU kernel flags that install-gpu added (if any)"
   echo "  • Rebuild initramfs"
   echo
 
@@ -1314,13 +1213,6 @@ mode_revert() {
     [[ ${#REF_VMS[@]} -gt 0 ]] && say "GPU removed from VMs."
   fi
 
-  # Optional: revert VM optimization changes (if we tracked any)
-  if [[ -n "${VM_OPTIMIZED_VMID:-}" ]]; then
-    if prompt_yn "Also revert VM settings set-gpupass applied (OVMF/q35/kvm=off)?"; then
-      revert_vm_optimizations_if_any
-    fi
-  fi
-
   remove_vfio_and_blacklist_files
   say "Removed script VFIO binding + blacklists"
 
@@ -1338,7 +1230,7 @@ mode_revert() {
 
   # Clear state dir if nothing left to track
   load_state
-  if [[ -z "${IOMMU_FLAGS_ADDED:-}" && -z "${VFIO_MODULE_LINES_ADDED:-}" && -z "${VM_OPTIMIZED_VMID:-}" ]]; then
+  if [[ -z "${IOMMU_FLAGS_ADDED:-}" && -z "${VFIO_MODULE_LINES_ADDED:-}" ]]; then
     rm -f "$STATE_FILE" || true
     rmdir "$STATE_DIR" 2>/dev/null || true
     say "State cleared."
@@ -1351,20 +1243,18 @@ mode_revert() {
 interactive_menu() {
   echo
   echo "═══════════════════════════════════════"
-  echo "  set-gpupass v${SCRIPT_VERSION}"
+  echo "  install-gpu v${SCRIPT_VERSION}"
   echo "  NVIDIA GPU Passthrough for Proxmox"
   echo "═══════════════════════════════════════"
 
   while true; do
     echo
-    echo "┌─────────────────────────────────────┐"
-    echo "│  1) Status    — show current state   │"
-    echo "│  2) Enable    — prepare host          │"
-    echo "│  3) Bind      — assign GPU to a VM    │"
-    echo "│  4) Snapshot  — save diagnostics       │"
-    echo "│  5) Revert    — undo all changes       │"
-    echo "│  0) Exit                               │"
-    echo "└─────────────────────────────────────┘"
+    echo "  1) Status    — show current state"
+    echo "  2) Enable    — prepare host"
+    echo "  3) Bind      — assign GPU to a VM"
+    echo "  4) Snapshot  — save diagnostics"
+    echo "  5) Revert    — undo all changes"
+    echo "  0) Exit"
     echo
     read -r -p "Choose [0-5]: " choice
     case "${choice:-}" in
@@ -1380,30 +1270,53 @@ interactive_menu() {
 }
 
 # ======================= main =======================
+# Parse -y/--yes flag from any position
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -y|--yes) NONINTERACTIVE=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
 MODE="${1:-}"
 case "$MODE" in
   "")        interactive_menu ;;
   status)    mode_status ;;
   snapshot)  mode_snapshot ;;
   enable)    mode_enable ;;
-  bind)      mode_bind ;;
+  bind)      mode_bind "${2:-}" ;;
   revert)    mode_revert ;;
-  --version|-v) echo "set-gpupass v${SCRIPT_VERSION}" ;;
+  --version|-v) echo "install-gpu v${SCRIPT_VERSION}" ;;
   --help|-h)
-    echo "Usage: set-gpupass [status|snapshot|enable|bind|revert]"
+    echo "Usage: install-gpu [OPTIONS] COMMAND [ARGS]"
     echo
-    echo "  status    Show current GPU passthrough state"
-    echo "  snapshot  Save full diagnostics to /root/"
-    echo "  enable    Configure host for GPU passthrough (may need reboot)"
-    echo "  bind      Assign/switch GPU to a VM"
-    echo "  revert    Undo all changes made by this script"
+    echo "Commands:"
+    echo "  status              Show current GPU passthrough state"
+    echo "  snapshot            Save full diagnostics to /root/"
+    echo "  enable              Configure host for GPU passthrough (may need reboot)"
+    echo "  bind [VMID|free]    Assign GPU to a VM (or free it)"
+    echo "  revert              Undo all changes made by this script"
+    echo
+    echo "Options:"
+    echo "  -y, --yes           Non-interactive mode (auto-confirm all prompts)"
+    echo
+    echo "Examples:"
+    echo "  install-gpu                    # Interactive menu"
+    echo "  install-gpu bind               # Interactive VM selection"
+    echo "  install-gpu bind 200           # Bind GPU to VM 200 (interactive)"
+    echo "  install-gpu bind 200 -y        # Bind GPU to VM 200 (non-interactive, for Webmin)"
+    echo "  install-gpu bind free -y       # Unbind GPU from all VMs (non-interactive)"
+    echo "  install-gpu enable -y          # Enable passthrough non-interactively"
     echo
     echo "Run with no arguments for interactive menu."
     ;;
   *)
     err "Unknown command: $MODE"
-    echo "Usage: set-gpupass {status|snapshot|enable|bind|revert}"
+    echo "Usage: install-gpu {status|snapshot|enable|bind [VMID|free]|revert}"
     echo "Run with no arguments for interactive menu."
+    echo "Add -y for non-interactive mode (Webmin custom commands)."
     exit 1
     ;;
 esac
