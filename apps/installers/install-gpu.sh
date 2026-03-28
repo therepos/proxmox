@@ -26,18 +26,18 @@ FUNC_LINE='install-gpu() { /usr/local/bin/install-gpu.sh "$@"; }'
 
 if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
   SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh"
-  echo -e "\033[1;36mℹ\033[0m Installing install-gpu.sh to $INSTALL_PATH..."
-  wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo -e "\033[1;31m✘\033[0m Download failed." >&2; exit 1; }
+  echo -e "\033[1;36m[info]\033[0m Installing install-gpu.sh to $INSTALL_PATH..."
+  wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo -e "\033[1;31m[err]\033[0m Download failed." >&2; exit 1; }
   chmod +x "$INSTALL_PATH"
-  echo -e "\033[1;32m✔\033[0m Installed to $INSTALL_PATH"
+  echo -e "\033[1;32m[ok]\033[0m Installed to $INSTALL_PATH"
 
   # Add install-gpu function to bashrc if not present
   if ! grep -qF 'install-gpu()' ~/.bashrc 2>/dev/null; then
     echo "$FUNC_LINE" >> ~/.bashrc
-    echo -e "\033[1;32m✔\033[0m Added install-gpu function to ~/.bashrc"
+    echo -e "\033[1;32m[ok]\033[0m Added install-gpu function to ~/.bashrc"
   fi
 
-  echo -e "\033[1;32m✔\033[0m Done! Run: install-gpu"
+  echo -e "\033[1;32m[ok]\033[0m Done! Run: install-gpu"
   echo "  Or with arguments: install-gpu status|enable|bind|revert"
   echo "  Starting now..."
   echo
@@ -49,11 +49,11 @@ fi
 SCRIPT_VERSION="1.1.0"
 
 # ======================= UI =======================
-say()  { echo -e "\033[1;32m✔\033[0m $*"; }
-warn() { echo -e "\033[1;33m⚠\033[0m $*" >&2; }
-err()  { echo -e "\033[1;31m✘\033[0m $*" >&2; }
+say()  { echo -e "\033[1;32m[ok]\033[0m $*"; }
+warn() { echo -e "\033[1;33m[warn]\033[0m $*" >&2; }
+err()  { echo -e "\033[1;31m[err]\033[0m $*" >&2; }
 die()  { err "$*"; exit 1; }
-info() { echo -e "\033[1;36mℹ\033[0m $*"; }
+info() { echo -e "\033[1;36m[info]\033[0m $*"; }
 
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 
@@ -762,7 +762,7 @@ mode_status() {
   echo
   echo "  CPU vendor : $(cpu_vendor || echo unknown)"
   echo "  Boot method: $(boot_method_detect)"
-  echo "  IOMMU      : $(iommu_active && echo "ACTIVE ✔" || echo "NOT ACTIVE ✘")"
+  echo "  IOMMU      : $(iommu_active && echo "ACTIVE [ok]" || echo "NOT ACTIVE [err]")"
   echo "  NVIDIA GPU : ${gpu#0000:} ($(gpu_model_for_addr "$gpu"))"
 
   local f
