@@ -4,7 +4,7 @@ services:
     container_name: imagehub
     restart: unless-stopped
     ports:
-      - "8090:80"
+      - "3030:80"
     volumes:
       - /mnt/sec/apps/imagehub/stack.env:/etc/imagehub/stack.env
     security_opt:
