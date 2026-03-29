@@ -11,16 +11,16 @@
 
 set -euo pipefail
 
-# -- Helpers ------------------------------------------------------------------
+# Helpers
 info()  { echo "[*] $*"; }
 ok()    { echo "[+] $*"; }
 warn()  { echo "[!] $*"; }
 fail()  { echo "[x] $*" >&2; exit 1; }
 
-# -- Root check ---------------------------------------------------------------
+# Root check
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# -- Proxmox check ------------------------------------------------------------
+# Proxmox check
 if [[ -f /etc/pve/.version ]] || command -v pveversion &> /dev/null; then
     echo ""
     echo "Proxmox VE detected. This script cannot run here."
@@ -45,7 +45,7 @@ echo "NVIDIA GPU Driver - Install"
 echo "================================================="
 echo ""
 
-# -- 1. Check for NVIDIA GPU --------------------------------------------------
+# Check for NVIDIA GPU
 info "Checking for NVIDIA GPU..."
 if ! lspci | grep -qi nvidia; then
     fail "No NVIDIA GPU detected. Is GPU passthrough configured?"
@@ -53,14 +53,14 @@ fi
 GPU_MODEL=$(lspci | grep -i nvidia | head -1 | sed 's/.*: //')
 ok "Found: ${GPU_MODEL}"
 
-# -- 2. Install prerequisites -------------------------------------------------
+# Install prerequisites
 info "Installing prerequisites..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq ubuntu-drivers-common curl gnupg2 ca-certificates > /dev/null 2>&1
 ok "Prerequisites installed."
 
-# -- 3. Install NVIDIA driver -------------------------------------------------
+# Install NVIDIA driver
 NEEDS_REBOOT=false
 CURRENT_DRIVER=""
 
@@ -105,7 +105,7 @@ else
     NEEDS_REBOOT=true
 fi
 
-# -- 4. Docker integration (optional) -----------------------------------------
+# Docker integration (optional)
 HAS_DOCKER=false
 HAS_CONTAINER_TK=false
 
@@ -144,7 +144,7 @@ else
     info "If you install Docker later, re-run this script to add GPU support."
 fi
 
-# -- Summary -------------------------------------------------------------------
+# Summary
 echo ""
 echo "Install Complete"
 echo "================================================="

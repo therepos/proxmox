@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-# -- Self-install ------------------------------------------------------------------
+# Self-install
 # Install the script locally and set up bashrc
 INSTALL_PATH="/usr/local/bin/install-gpupass.sh"
 FUNC_LINE='install-gpupass() { /usr/local/bin/install-gpupass.sh "$@"; }'
@@ -46,10 +46,10 @@ if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOUR
   exec "$INSTALL_PATH" "$@"
 fi
 
-# -- Version ------------------------------------------------------------------
+# Version
 SCRIPT_VERSION="1.1.0"
 
-# -- UI -----------------------------------------------------------------------
+# UI
 # Detect non-interactive mode early (full arg parsing happens in main)
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 for _arg in "$@"; do [[ "$_arg" == "-y" || "$_arg" == "--yes" ]] && NONINTERACTIVE=1; done
@@ -92,7 +92,7 @@ run_qm() {
   fi
 }
 
-# -- Pre-Requisites ------------------------------------------------------------------
+# Pre-Requisites
 [[ $EUID -eq 0 ]] || die "Run as root (use: sudo $0)"
 
 # Verify we are on Proxmox
@@ -131,7 +131,7 @@ else
   has_cmd update-grub || warn "GRUB detected but 'update-grub' missing; IOMMU enable/revert may fail."
 fi
 
-# -- Constants/State ----------------------------------------------------------
+# Constants/State
 STATE_DIR="/var/lib/install-gpupass"
 STATE_FILE="$STATE_DIR/state.env"
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -142,7 +142,7 @@ MODPROBE_VFIO="/etc/modprobe.d/install-gpupass-vfio.conf"
 MODPROBE_BL_NOUVEAU="/etc/modprobe.d/install-gpupass-blacklist-nouveau.conf"
 MODPROBE_BL_NVIDIA="/etc/modprobe.d/install-gpupass-blacklist-nvidia.conf"
 
-# -- State helpers ------------------------------------------------------------
+# State helpers
 load_state() {
   # Reset all state vars to empty before sourcing to prevent stale data
   STATE_VERSION=""
@@ -175,7 +175,7 @@ ensure_state() {
   [[ -f "$STATE_FILE" ]] || { STATE_CREATED_AT="$TS"; write_state; }
 }
 
-# -- Detection helpers --------------------------------------------------------
+# Detection helpers
 boot_method_detect() {
   if [[ -f /etc/kernel/cmdline ]]; then echo "systemd-boot"; else echo "grub"; fi
 }
@@ -276,7 +276,7 @@ find_vm_assignments_for_addr() {
   done
 }
 
-# -- IOMMU group isolation check ----------------------------------------------
+# IOMMU group isolation check
 check_iommu_group_isolation() {
   local addr="$1"
   local group_link="/sys/bus/pci/devices/${addr}/iommu_group"
@@ -323,7 +323,7 @@ check_iommu_group_isolation() {
   fi
 }
 
-# -- File helpers -------------------------------------------------------------
+# File helpers
 write_file_atomic() {
   local path="$1" tmp="${path}.tmp.$$"
   cat >"$tmp"
@@ -337,7 +337,7 @@ remove_exact_line_from_file() {
   awk -v l="$line" '$0 != l' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
 }
 
-# -- IOMMU kernel flags (tracked) --------------------------------------------
+# IOMMU kernel flags (tracked)
 cmdline_has_token() {
   local text="$1" token="$2"
   [[ " $text " == *" $token "* ]]
@@ -457,7 +457,7 @@ remove_iommu_kernel_flags_we_added() {
   echo 1
 }
 
-# -- VFIO host config (tracked) ----------------------------------------------
+# VFIO host config (tracked)
 compute_ids_csv_for_funcs() {
   local funcs=("$@")
   local ids
@@ -545,7 +545,7 @@ remove_vfio_module_lines_we_added() {
   echo 1
 }
 
-# -- VM menu ------------------------------------------------------------------
+# VM menu
 prompt_vmid_menu() {
   local q="$1"
   mapfile -t MENU < <(qm list 2>/dev/null | tail -n +2 | while read -r vmid name status _; do
@@ -626,7 +626,7 @@ prompt_vmid_menu() {
   done
 }
 
-# -- VM bind/switch helpers ----------------------------------------------------
+# VM bind/switch helpers
 remove_from_vm_if_present() {
   local vmid="$1"; shift
   local addr
@@ -665,7 +665,7 @@ add_funcs_to_vm() {
 }
 
 
-# -- VM stop/start helpers -----------------------------------------------------
+# VM stop/start helpers
 stop_vm_with_wait() {
   local vmid="$1"
   local interval=3
@@ -760,7 +760,7 @@ start_vm_with_wait() {
   fi
 }
 
-# -- Modes --------------------------------------------------------------------
+# Modes
 mode_status() {
   local gpu; gpu="$(choose_gpu)"
   mapfile -t FUNCS < <(sibling_functions "$gpu")
@@ -1249,7 +1249,7 @@ mode_revert() {
   fi
 }
 
-# -- Interactive menu ---------------------------------------------------------
+# Interactive menu
 interactive_menu() {
   echo
   echo "═══════════════════════════════════════"
@@ -1279,7 +1279,7 @@ interactive_menu() {
   done
 }
 
-# -- Main ---------------------------------------------------------------------
+# Main
 # Parse -y/--yes flag from any position
 ARGS=()
 for arg in "$@"; do

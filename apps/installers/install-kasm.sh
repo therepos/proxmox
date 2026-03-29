@@ -19,16 +19,16 @@
 
 set -euo pipefail
 
-# -- Helpers ------------------------------------------------------------------
+# Helpers
 info()  { echo "[*] $*"; }
 ok()    { echo "[+] $*"; }
 warn()  { echo "[!] $*"; }
 fail()  { echo "[x] $*" >&2; exit 1; }
 
-# -- Root check ---------------------------------------------------------------
+# Root check
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# -- Configuration ------------------------------------------------------------
+# Configuration
 KASM_VERSION="${KASM_VERSION:-1.18.1}"
 KASM_TARBALL="kasm_release_${KASM_VERSION}.tar.gz"
 KASM_URL="https://kasm-static-content.s3.amazonaws.com/${KASM_TARBALL}"
@@ -38,7 +38,7 @@ SKIP_QEMU_AGENT="${SKIP_QEMU_AGENT:-false}"
 SKIP_PERSISTENT="${SKIP_PERSISTENT:-false}"
 DEFAULT_PASS="password"
 
-# -- Auto-detect mode ---------------------------------------------------------
+# Auto-detect mode
 MODE="install"
 EXISTING_VERSION=""
 
@@ -62,19 +62,19 @@ fi
 echo "================================================="
 echo ""
 
-# -- 1. System update ---------------------------------------------------------
+# System update
 info "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
 ok "System packages updated."
 
-# -- 2. Prerequisites ---------------------------------------------------------
+# Prerequisites
 info "Installing prerequisites..."
 apt-get install -y -qq curl wget apt-transport-https ca-certificates > /dev/null 2>&1
 ok "Prerequisites installed."
 
-# -- 3. QEMU Guest Agent (install only) ---------------------------------------
+# QEMU Guest Agent (install only)
 if [[ "$MODE" == "install" && "${SKIP_QEMU_AGENT}" != "true" ]]; then
     info "Installing QEMU guest agent..."
     apt-get install -y -qq qemu-guest-agent > /dev/null 2>&1
@@ -84,7 +84,7 @@ elif [[ "${SKIP_QEMU_AGENT}" == "true" ]]; then
     warn "Skipping QEMU guest agent."
 fi
 
-# -- 4. Swap (install only) ---------------------------------------------------
+# Swap (install only)
 if [[ "$MODE" == "install" ]]; then
     SWAP_FILE="/mnt/${KASM_SWAP_GB}GiB.swap"
     if [[ ! -f "${SWAP_FILE}" ]]; then
@@ -100,7 +100,7 @@ if [[ "$MODE" == "install" ]]; then
     fi
 fi
 
-# -- 5. Download ---------------------------------------------------------------
+# Download
 info "Downloading Kasm Workspaces v${KASM_VERSION}..."
 cd /tmp
 if [[ -f "${KASM_TARBALL}" ]]; then
@@ -110,12 +110,12 @@ else
 fi
 ok "Download complete."
 
-# -- 6. Extract ----------------------------------------------------------------
+# Extract
 info "Extracting..."
 tar -xf "${KASM_TARBALL}"
 ok "Extracted."
 
-# -- 7. Install or Upgrade ----------------------------------------------------
+# Install or Upgrade
 if [[ "$MODE" == "upgrade" ]]; then
 
     info "Backing up database before upgrade..."
@@ -147,7 +147,7 @@ else
     ok "Kasm Workspaces ${KASM_VERSION} installed."
 fi
 
-# -- 8. Docker group -----------------------------------------------------------
+# Docker group
 # Kasm's installer sets up Docker. Add the invoking user to the docker group
 # so they can run docker commands without sudo.
 if [[ "$MODE" == "install" ]]; then
@@ -158,7 +158,7 @@ if [[ "$MODE" == "install" ]]; then
     fi
 fi
 
-# -- 9. Persistent storage -----------------------------------------------------
+# Persistent storage
 if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     info "Ensuring persistent storage directories exist..."
     mkdir -p /data/kasm-profiles
@@ -168,12 +168,12 @@ if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     ok "Persistent storage ready."
 fi
 
-# -- 10. Cleanup ---------------------------------------------------------------
+# Cleanup
 info "Cleaning up /tmp..."
 rm -rf /tmp/kasm_release /tmp/"${KASM_TARBALL}"
 ok "Cleanup done."
 
-# -- Summary -------------------------------------------------------------------
+# Summary
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo ""

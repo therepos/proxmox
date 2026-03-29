@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh?$(date +%s))"
-# purpose: installs filebrowser
-# version: pve9
-# username: admin
-# password: helper-scripts.com
+# Purpose: Installs Filebrowser
+# Version: Ubuntu
+# =============================================================================
+# Usage:
+#   Username: admin
+#   Password: helper-scripts.com
+# =============================================================================
 
 # Helpers
 GREEN="\e[32m✔\e[0m"
