@@ -1,0 +1,18 @@
+services:
+  comfyui:
+    image: yanwk/comfyui-boot:cu128-slim
+    container_name: comfyui
+    ports:
+      - "3030:8188"
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CLI_ARGS=--disable-xformers
+    shm_size: 2g
+    runtime: nvidia
+    restart: unless-stopped
+    volumes:
+      - /mnt/sec/media/shared/comfyui:/root
+      - /mnt/sec/media/shared/comfyui/models:/root/ComfyUI/models
+      - /mnt/sec/media/shared/comfyui/output:/root/ComfyUI/output
+      - /mnt/sec/media/shared/comfyui/input:/root/ComfyUI/input

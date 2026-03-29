@@ -1,0 +1,15 @@
+services:
+  iopaint:
+    image: uiewy/iopaint:latest
+    container_name: iopaint
+    ports:
+      - "3031:8080"
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all
+    shm_size: 1g
+    runtime: nvidia
+    restart: unless-stopped
+    command: iopaint start --model=lama --device=cuda --port=8080 --host=0.0.0.0 --model-dir=/data/models
+    volumes:
+      - /mnt/sec/media/shared/iopaint:/data
