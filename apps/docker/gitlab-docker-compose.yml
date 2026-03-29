@@ -22,6 +22,25 @@
 # 4. Restart runner
 #      docker restart gitlab-runner
 # =====
+# Update Default Email:
+# 1. Enter the Rails console
+#      docker exec -it gitlab bash
+#      gitlab-rails console
+# 2. Change username and email
+#      user = User.find_by_username('root')
+#      user.email = 'your@email.com'
+#      user.skip_reconfirmation!
+#      user.save!
+# 3. Restart GitLab
+#      docker exec -it gitlab gitlab-ctl restart
+# =====
+# Disable Auto DevOps (recommended):
+#   Settings > CI/CD > Auto DevOps : Turn Off
+# =====
+# Pull from Container Registry:
+#   docker login <HOST_IP>:5050
+#   docker pull <HOST_IP>:5050/username/project:latest
+# =====
 # Insecure registry (if not using HTTPS):
 #   nano /etc/docker/daemon.json
 #     { "insecure-registries": ["<HOST_IP>:5050"] }
@@ -42,7 +61,7 @@ services:
     environment:
       GITLAB_OMNIBUS_CONFIG: |
         # External access
-        external_url 'http://192.168.1.111:3028'
+        external_url 'http://192.168.1.100:3028'
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
 
@@ -50,12 +69,12 @@ services:
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
 
         # Container Registry
-        registry_external_url 'http://192.168.1.111:5050'
+        registry_external_url 'http://192.168.1.100:5050'
         registry_nginx['listen_port'] = 5050
         registry_nginx['listen_https'] = false
 
         # GitLab Pages
-        pages_external_url 'http://192.168.1.111:8090'
+        pages_external_url 'http://192.168.1.100:8090'
         gitlab_pages['enable'] = true
         gitlab_pages['listen_proxy'] = '0.0.0.0:8090'
         gitlab_pages['external_http'] = ['0.0.0.0:8090']
