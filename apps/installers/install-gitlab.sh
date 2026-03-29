@@ -23,7 +23,7 @@ fail()  { echo "[x] $*" >&2; exit 1; }
 
 # Config
 COMPOSE_URL="https://github.com/therepos/proxmox/raw/main/apps/docker/gitlab-docker-compose.yml"
-PLACEHOLDER_IP="192.168.1.100"
+PLACEHOLDER_IP="192.168.1.111"
 PLACEHOLDER_DIR="/mnt/sec/apps/gitlab"
 
 # Root check
@@ -148,9 +148,16 @@ echo "  The initial root password expires after 24 hours."
 echo "  Change it at: http://${GITLAB_HOST}:3028/-/user_settings/password/edit"
 echo ""
 echo "  To register a CI runner:"
-echo "    1. Go to Admin > CI/CD > Runners > New instance runner"
-echo "    2. docker exec -it gitlab-runner gitlab-runner register \\"
-echo "         --url http://gitlab:80 --token glrt-<TOKEN>"
+echo "    1. GitLab > Admin > CI/CD > Create Instance Runner"
+echo "    2. Create a tag > Create Runner, then:"
+echo "         docker exec -it gitlab-runner bash"
+echo "         gitlab-runner register --url http://gitlab:80 --token glrt-<TOKEN>"
+echo "       Prompts:  url=http://gitlab:80  executor=docker  image=docker:latest"
+echo "    3. Edit ${DATA_DIR}/runner/config/config.toml"
+echo "       Under [runners.docker] set:"
+echo "         privileged = true"
+echo "         volumes = [\"/var/run/docker.sock:/var/run/docker.sock\"]"
+echo "    4. docker restart gitlab-runner"
 echo ""
 echo "  To stop:    cd ${COMPOSE_DIR} && docker compose down"
 echo "  To restart: cd ${COMPOSE_DIR} && docker compose up -d"

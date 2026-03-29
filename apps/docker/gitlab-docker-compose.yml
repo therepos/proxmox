@@ -3,19 +3,24 @@
 # Login with username (root) and password (initial_root_password):
 #   docker exec gitlab cat /etc/gitlab/initial_root_password
 # =====
-# Register a Runner:
-#   GitLab > Admin > CI/CD > Runners > New instance runner > Create
-#   docker exec -it gitlab-runner gitlab-runner register \
-#     --url http://gitlab:80 --token glrt-<TOKEN>
-#   executor:     docker
-#   image:        docker:latest
-# =====
-# Runner config: /mnt/sec/apps/gitlab/runner/config/config.toml
-# After registration, edit config.toml and set under [runners.docker]:
-#   privileged = true
-#   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
-#   pull_policy = ["if-not-present"]
-# Then: docker restart gitlab-runner
+# Setup Runner:
+# 1. GitLab > Admin > CI/CD > Create Instance Runner
+# 2. Create a tag > Create Runner
+#      docker exec -it gitlab-runner bash
+#      gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
+#    Use default settings:
+#      url:          http://gitlab:80
+#      description:  gitlab-runner
+#      executor:     docker
+#      image:        docker:latest
+# 3. Edit configuration at /etc/gitlab-runner/config.toml
+#    (host path: /mnt/sec/apps/gitlab/runner/config/config.toml)
+#      [runners.docker]
+#        image = "docker:latest"
+#        privileged = true
+#        volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
+# 4. Restart runner
+#      docker restart gitlab-runner
 # =====
 # Insecure registry (if not using HTTPS):
 #   nano /etc/docker/daemon.json
@@ -37,7 +42,7 @@ services:
     environment:
       GITLAB_OMNIBUS_CONFIG: |
         # External access
-        external_url 'http://192.168.1.100:3028'
+        external_url 'http://192.168.1.111:3028'
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
 
@@ -45,12 +50,12 @@ services:
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
 
         # Container Registry
-        registry_external_url 'http://192.168.1.100:5050'
+        registry_external_url 'http://192.168.1.111:5050'
         registry_nginx['listen_port'] = 5050
         registry_nginx['listen_https'] = false
 
         # GitLab Pages
-        pages_external_url 'http://192.168.1.100:8090'
+        pages_external_url 'http://192.168.1.111:8090'
         gitlab_pages['enable'] = true
         gitlab_pages['listen_proxy'] = '0.0.0.0:8090'
         gitlab_pages['external_http'] = ['0.0.0.0:8090']
