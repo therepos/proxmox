@@ -1,55 +1,55 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpupass.sh?$(date +%s))"
 # Purpose: Set gpu passthrough
 # Version: PVE9
 #
 # Usage:
-#   install-gpu                     Interactive menu
-#   install-gpu status              Show current GPU passthrough state
-#   install-gpu enable              Configure host for passthrough (may need reboot)
-#   install-gpu bind                Assign GPU to a VM (interactive selection)
-#   install-gpu bind 200            Assign GPU to VM 200
-#   install-gpu bind free           Unbind GPU from all VMs
-#   install-gpu revert              Undo all changes
-#   install-gpu snapshot            Save diagnostics to /root/
+#   install-gpupass                     Interactive menu
+#   install-gpupass status              Show current GPU passthrough state
+#   install-gpupass enable              Configure host for passthrough (may need reboot)
+#   install-gpupass bind                Assign GPU to a VM (interactive selection)
+#   install-gpupass bind 200            Assign GPU to VM 200
+#   install-gpupass bind free           Unbind GPU from all VMs
+#   install-gpupass revert              Undo all changes
+#   install-gpupass snapshot            Save diagnostics to /root/
 #
 # Non-interactive (for Webmin custom commands):
-#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind 200 -y
-#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind free -y
+#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpupass.sh?$(date +%s))" -- bind 200 -y
+#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpupass.sh?$(date +%s))" -- bind free -y
 # =============================================================================
 
 set -euo pipefail
 
 # -- Self-install ------------------------------------------------------------------
 # Install the script locally and set up bashrc
-INSTALL_PATH="/usr/local/bin/install-gpu.sh"
-FUNC_LINE='install-gpu() { /usr/local/bin/install-gpu.sh "$@"; }'
+INSTALL_PATH="/usr/local/bin/install-gpupass.sh"
+FUNC_LINE='install-gpupass() { /usr/local/bin/install-gpupass.sh "$@"; }'
 
 if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
-  SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh"
-  echo "[info] Installing install-gpu.sh to $INSTALL_PATH..."
+  SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpupass.sh"
+  echo "[info] Installing install-gpupass.sh to $INSTALL_PATH..."
   wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo "[err] Download failed." >&2; exit 1; }
   chmod +x "$INSTALL_PATH"
   echo "[ok] Installed to $INSTALL_PATH"
 
-  # Add install-gpu function to bashrc if not present
-  if ! grep -qF 'install-gpu()' ~/.bashrc 2>/dev/null; then
+  # Add install-gpupass function to bashrc if not present
+  if ! grep -qF 'install-gpupass()' ~/.bashrc 2>/dev/null; then
     echo "$FUNC_LINE" >> ~/.bashrc
-    echo "[ok] Added install-gpu function to ~/.bashrc"
+    echo "[ok] Added install-gpupass function to ~/.bashrc"
   fi
 
-  echo "[ok] Done! Run: install-gpu"
-  echo "  Or with arguments: install-gpu status|enable|bind|revert"
+  echo "[ok] Done! Run: install-gpupass"
+  echo "  Or with arguments: install-gpupass status|enable|bind|revert"
   echo "  Starting now..."
   echo
   # Run the newly installed script, passing any args
   exec "$INSTALL_PATH" "$@"
 fi
 
-# ======================= version =======================
+# -- Version ------------------------------------------------------------------
 SCRIPT_VERSION="1.1.0"
 
-# ======================= UI =======================
+# -- UI -----------------------------------------------------------------------
 # Detect non-interactive mode early (full arg parsing happens in main)
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 for _arg in "$@"; do [[ "$_arg" == "-y" || "$_arg" == "--yes" ]] && NONINTERACTIVE=1; done
@@ -131,18 +131,18 @@ else
   has_cmd update-grub || warn "GRUB detected but 'update-grub' missing; IOMMU enable/revert may fail."
 fi
 
-# ======================= constants/state =======================
-STATE_DIR="/var/lib/install-gpu"
+# -- Constants/State ----------------------------------------------------------
+STATE_DIR="/var/lib/install-gpupass"
 STATE_FILE="$STATE_DIR/state.env"
 TS="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$STATE_DIR"
 
 # Script-owned modprobe files (do not touch user generic vfio.conf etc.)
-MODPROBE_VFIO="/etc/modprobe.d/install-gpu-vfio.conf"
-MODPROBE_BL_NOUVEAU="/etc/modprobe.d/install-gpu-blacklist-nouveau.conf"
-MODPROBE_BL_NVIDIA="/etc/modprobe.d/install-gpu-blacklist-nvidia.conf"
+MODPROBE_VFIO="/etc/modprobe.d/install-gpupass-vfio.conf"
+MODPROBE_BL_NOUVEAU="/etc/modprobe.d/install-gpupass-blacklist-nouveau.conf"
+MODPROBE_BL_NVIDIA="/etc/modprobe.d/install-gpupass-blacklist-nvidia.conf"
 
-# ======================= state helpers =======================
+# -- State helpers ------------------------------------------------------------
 load_state() {
   # Reset all state vars to empty before sourcing to prevent stale data
   STATE_VERSION=""
@@ -159,7 +159,7 @@ load_state() {
 
 write_state() {
   cat >"$STATE_FILE" <<EOF
-# install-gpu state (auto-generated). Remove only via: install-gpu revert
+# install-gpupass state (auto-generated). Remove only via: install-gpupass revert
 STATE_VERSION="1"
 STATE_CREATED_AT="${STATE_CREATED_AT:-$TS}"
 
@@ -175,7 +175,7 @@ ensure_state() {
   [[ -f "$STATE_FILE" ]] || { STATE_CREATED_AT="$TS"; write_state; }
 }
 
-# ======================= detection helpers =======================
+# -- Detection helpers --------------------------------------------------------
 boot_method_detect() {
   if [[ -f /etc/kernel/cmdline ]]; then echo "systemd-boot"; else echo "grub"; fi
 }
@@ -276,7 +276,7 @@ find_vm_assignments_for_addr() {
   done
 }
 
-# ======================= IOMMU group isolation check =======================
+# -- IOMMU group isolation check ----------------------------------------------
 check_iommu_group_isolation() {
   local addr="$1"
   local group_link="/sys/bus/pci/devices/${addr}/iommu_group"
@@ -323,7 +323,7 @@ check_iommu_group_isolation() {
   fi
 }
 
-# ======================= file helpers =======================
+# -- File helpers -------------------------------------------------------------
 write_file_atomic() {
   local path="$1" tmp="${path}.tmp.$$"
   cat >"$tmp"
@@ -337,7 +337,7 @@ remove_exact_line_from_file() {
   awk -v l="$line" '$0 != l' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
 }
 
-# ======================= IOMMU kernel flags (tracked) =======================
+# -- IOMMU kernel flags (tracked) --------------------------------------------
 cmdline_has_token() {
   local text="$1" token="$2"
   [[ " $text " == *" $token "* ]]
@@ -457,7 +457,7 @@ remove_iommu_kernel_flags_we_added() {
   echo 1
 }
 
-# ======================= VFIO host config (tracked) =======================
+# -- VFIO host config (tracked) ----------------------------------------------
 compute_ids_csv_for_funcs() {
   local funcs=("$@")
   local ids
@@ -505,18 +505,18 @@ write_vfio_and_blacklist_files() {
   local ids_csv; ids_csv="$(compute_ids_csv_for_funcs "${funcs[@]}")"
 
   write_file_atomic "$MODPROBE_VFIO" <<EOF
-# managed by install-gpu — do not edit manually
+# managed by install-gpupass — do not edit manually
 options vfio-pci ids=${ids_csv} disable_vga=1
 EOF
 
   write_file_atomic "$MODPROBE_BL_NOUVEAU" <<'EOF'
-# managed by install-gpu — do not edit manually
+# managed by install-gpupass — do not edit manually
 blacklist nouveau
 options nouveau modeset=0
 EOF
 
   write_file_atomic "$MODPROBE_BL_NVIDIA" <<'EOF'
-# managed by install-gpu — do not edit manually
+# managed by install-gpupass — do not edit manually
 blacklist nvidia
 blacklist nvidia_drm
 blacklist nvidia_modeset
@@ -545,7 +545,7 @@ remove_vfio_module_lines_we_added() {
   echo 1
 }
 
-# ======================= VM menu (always prints; single-VM UX) =======================
+# -- VM menu ------------------------------------------------------------------
 prompt_vmid_menu() {
   local q="$1"
   mapfile -t MENU < <(qm list 2>/dev/null | tail -n +2 | while read -r vmid name status _; do
@@ -626,7 +626,7 @@ prompt_vmid_menu() {
   done
 }
 
-# ======================= VM bind/switch helpers =======================
+# -- VM bind/switch helpers ----------------------------------------------------
 remove_from_vm_if_present() {
   local vmid="$1"; shift
   local addr
@@ -665,7 +665,7 @@ add_funcs_to_vm() {
 }
 
 
-# ======================= VM stop/start helpers =======================
+# -- VM stop/start helpers -----------------------------------------------------
 stop_vm_with_wait() {
   local vmid="$1"
   local interval=3
@@ -746,7 +746,7 @@ start_vm_with_wait() {
     echo "  • IOMMU group conflict"
     echo "  • GPU not properly bound to vfio-pci (try rebooting host)"
     echo
-    info "Run 'install-gpu snapshot' and check the output for clues."
+    info "Run 'install-gpupass snapshot' and check the output for clues."
     return 1
   fi
 
@@ -760,7 +760,7 @@ start_vm_with_wait() {
   fi
 }
 
-# ======================= modes =======================
+# -- Modes --------------------------------------------------------------------
 mode_status() {
   local gpu; gpu="$(choose_gpu)"
   mapfile -t FUNCS < <(sibling_functions "$gpu")
@@ -809,9 +809,9 @@ mode_status() {
   # Show state file status
   echo
   if [[ -f "$STATE_FILE" ]]; then
-    echo "  State file: $STATE_FILE (install-gpu has been run before)"
+    echo "  State file: $STATE_FILE (install-gpupass has been run before)"
   else
-    echo "  State file: none (install-gpu has not configured anything yet)"
+    echo "  State file: none (install-gpupass has not configured anything yet)"
   fi
 }
 
@@ -821,7 +821,7 @@ mode_snapshot() {
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   {
-    echo "===== install-gpu snapshot ====="
+    echo "===== install-gpupass snapshot ====="
     echo "Version: $SCRIPT_VERSION"
     echo
     echo "===== DATE ====="; date
@@ -924,7 +924,7 @@ mode_enable() {
     if [[ "$flags_changed" == "1" ]]; then
       warn "Reboot required to activate IOMMU after adding kernel flags."
       echo
-      info "After reboot, run: install-gpu enable"
+      info "After reboot, run: install-gpupass enable"
       exit 0
     fi
     echo
@@ -935,7 +935,7 @@ mode_enable() {
     info "  1. Reboot into BIOS/UEFI setup"
     info "  2. Enable VT-d (Intel) or IOMMU/AMD-Vi (AMD)"
     info "  3. Save and reboot"
-    info "  4. Run: install-gpu enable"
+    info "  4. Run: install-gpupass enable"
     die "IOMMU is not active."
   fi
   say "IOMMU is active"
@@ -963,10 +963,10 @@ mode_enable() {
     warn " REBOOT REQUIRED to complete GPU setup"
     warn "═══════════════════════════════════════════"
     echo
-    info "After reboot, run: install-gpu bind"
+    info "After reboot, run: install-gpupass bind"
   else
     say "Host is already configured for GPU passthrough."
-    say "No reboot required. You can run: install-gpu bind"
+    say "No reboot required. You can run: install-gpupass bind"
   fi
 }
 
@@ -974,7 +974,7 @@ mode_bind() {
   local target_vmid="${1:-}"
 
   if ! iommu_active; then
-    die "IOMMU is not active. Run: install-gpu enable (and reboot if instructed)."
+    die "IOMMU is not active. Run: install-gpupass enable (and reboot if instructed)."
   fi
 
   local gpu; gpu="$(choose_gpu)"
@@ -1000,10 +1000,10 @@ mode_bind() {
   if [[ $all_vfio -eq 0 ]]; then
     echo
     warn "Not all GPU functions are bound to vfio-pci."
-    info "Did you run 'install-gpu enable' and reboot?"
-    info "Try: install-gpu enable → reboot → install-gpu bind"
+    info "Did you run 'install-gpupass enable' and reboot?"
+    info "Try: install-gpupass enable → reboot → install-gpupass bind"
     if ! prompt_yn "Continue anyway (advanced users only)?"; then
-      die "Aborted. Run 'install-gpu enable' first."
+      die "Aborted. Run 'install-gpupass enable' first."
     fi
   else
     say "All GPU functions bound to vfio-pci."
@@ -1172,10 +1172,10 @@ mode_revert() {
   echo " GPU Passthrough — Revert"
   echo "═══════════════════════════════════"
   echo
-  warn "This will undo ONLY what install-gpu added:"
+  warn "This will undo ONLY what install-gpupass added:"
   echo "  • Remove script VFIO binding + blacklists"
-  echo "  • Remove VFIO boot module lines that install-gpu added"
-  echo "  • Remove IOMMU kernel flags that install-gpu added (if any)"
+  echo "  • Remove VFIO boot module lines that install-gpupass added"
+  echo "  • Remove IOMMU kernel flags that install-gpupass added (if any)"
   echo "  • Rebuild initramfs"
   echo
 
@@ -1249,11 +1249,11 @@ mode_revert() {
   fi
 }
 
-# ======================= interactive menu =======================
+# -- Interactive menu ---------------------------------------------------------
 interactive_menu() {
   echo
   echo "═══════════════════════════════════════"
-  echo "  install-gpu v${SCRIPT_VERSION}"
+  echo "  install-gpupass v${SCRIPT_VERSION}"
   echo "  NVIDIA GPU Passthrough for Proxmox"
   echo "═══════════════════════════════════════"
 
@@ -1279,7 +1279,7 @@ interactive_menu() {
   done
 }
 
-# ======================= main =======================
+# -- Main ---------------------------------------------------------------------
 # Parse -y/--yes flag from any position
 ARGS=()
 for arg in "$@"; do
@@ -1298,9 +1298,9 @@ case "$MODE" in
   enable)    mode_enable ;;
   bind)      mode_bind "${2:-}" ;;
   revert)    mode_revert ;;
-  --version|-v) echo "install-gpu v${SCRIPT_VERSION}" ;;
+  --version|-v) echo "install-gpupass v${SCRIPT_VERSION}" ;;
   --help|-h)
-    echo "Usage: install-gpu [OPTIONS] COMMAND [ARGS]"
+    echo "Usage: install-gpupass [OPTIONS] COMMAND [ARGS]"
     echo
     echo "Commands:"
     echo "  status              Show current GPU passthrough state"
@@ -1313,18 +1313,18 @@ case "$MODE" in
     echo "  -y, --yes           Non-interactive mode (auto-confirm all prompts)"
     echo
     echo "Examples:"
-    echo "  install-gpu                    # Interactive menu"
-    echo "  install-gpu bind               # Interactive VM selection"
-    echo "  install-gpu bind 200           # Bind GPU to VM 200 (interactive)"
-    echo "  install-gpu bind 200 -y        # Bind GPU to VM 200 (non-interactive, for Webmin)"
-    echo "  install-gpu bind free -y       # Unbind GPU from all VMs (non-interactive)"
-    echo "  install-gpu enable -y          # Enable passthrough non-interactively"
+    echo "  install-gpupass                    # Interactive menu"
+    echo "  install-gpupass bind               # Interactive VM selection"
+    echo "  install-gpupass bind 200           # Bind GPU to VM 200 (interactive)"
+    echo "  install-gpupass bind 200 -y        # Bind GPU to VM 200 (non-interactive, for Webmin)"
+    echo "  install-gpupass bind free -y       # Unbind GPU from all VMs (non-interactive)"
+    echo "  install-gpupass enable -y          # Enable passthrough non-interactively"
     echo
     echo "Run with no arguments for interactive menu."
     ;;
   *)
     err "Unknown command: $MODE"
-    echo "Usage: install-gpu {status|snapshot|enable|bind [VMID|free]|revert}"
+    echo "Usage: install-gpupass {status|snapshot|enable|bind [VMID|free]|revert}"
     echo "Run with no arguments for interactive menu."
     echo "Add -y for non-interactive mode (Webmin custom commands)."
     exit 1
