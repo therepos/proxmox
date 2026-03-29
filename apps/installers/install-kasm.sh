@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-ubuntuvm.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-kasm.sh?$(date +%s))"
 # Purpose: Install Kasm Workspaces
 # Version: Ubuntu
 # =============================================================================
