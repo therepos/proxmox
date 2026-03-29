@@ -14,11 +14,13 @@
 #   3. NVIDIA driver    — headless driver + container toolkit (via install-gpudriver.sh)
 #   4. [REBOOT]         — required to load NVIDIA kernel module
 #   5. Kasm Workspaces  — browser-based desktops/apps (via install-kasm.sh)
+#   6. SMB mount        — mounts Proxmox Samba share to /mnt/sec/media/shared
 #
 # Environment overrides (same as sub-scripts):
 #   KASM_VERSION        Kasm version           (default: 1.18.1)
 #   KASM_PORT           Kasm web UI port       (default: 443)
 #   NVIDIA_DRIVER_VERSION  Force a driver branch (default: auto-detect)
+#   SMB_PASS            Samba password          (prompted if not set)
 # =============================================================================
 
 set -euo pipefail
@@ -67,9 +69,10 @@ INNEREOF
     [[ -n "${KASM_VERSION:-}" ]]          && echo "export KASM_VERSION=\"${KASM_VERSION}\"" >> "$RESUME_SCRIPT"
     [[ -n "${KASM_PORT:-}" ]]             && echo "export KASM_PORT=\"${KASM_PORT}\"" >> "$RESUME_SCRIPT"
     [[ -n "${NVIDIA_DRIVER_VERSION:-}" ]] && echo "export NVIDIA_DRIVER_VERSION=\"${NVIDIA_DRIVER_VERSION}\"" >> "$RESUME_SCRIPT"
+    [[ -n "${SMB_PASS:-}" ]]              && echo "export SMB_PASS=\"${SMB_PASS}\"" >> "$RESUME_SCRIPT"
 
     cat >> "$RESUME_SCRIPT" <<INNEREOF
-bash -c "\$(wget -qLO- '${GITHUB_BASE}/setup-vm.sh?\$(date +%s)')"
+bash -c "\$(wget -qLO- '${GITHUB_BASE}/install-vmubuntu.sh?\$(date +%s)')"
 INNEREOF
     chmod +x "$RESUME_SCRIPT"
 
@@ -203,7 +206,67 @@ step_kasm() {
     bash -c "$(wget -qLO- "${GITHUB_BASE}/install-kasm.sh?$(date +%s)")"
 }
 
-# --- Main -------------------------------------------------------------------
+step_samba() {
+    local SMB_HOST="192.168.1.111"
+    local SMB_SHARE="sharename"
+    local SMB_MOUNT="/mnt/sec/media/shared"
+    local SMB_USER="toor"
+    local SMB_CREDS="/root/.smbcredentials"
+
+    # Check if already mounted
+    if mountpoint -q "$SMB_MOUNT" 2>/dev/null; then
+        ok "SMB share already mounted at ${SMB_MOUNT}. Skipping."
+        return 0
+    fi
+
+    # Check if already in fstab (previous run but not mounted)
+    if grep -qs "//${SMB_HOST}/${SMB_SHARE}" /etc/fstab; then
+        info "fstab entry exists. Attempting to mount..."
+        mount "$SMB_MOUNT" 2>/dev/null && { ok "Mounted ${SMB_MOUNT}."; return 0; }
+        warn "Mount failed. Reconfiguring..."
+    fi
+
+    # Install cifs-utils
+    if ! command -v mount.cifs &>/dev/null; then
+        info "Installing cifs-utils..."
+        apt-get install -y -qq cifs-utils > /dev/null 2>&1
+        ok "cifs-utils installed."
+    fi
+
+    # Get password
+    if [[ -z "${SMB_PASS:-}" ]]; then
+        echo ""
+        echo "  Samba share: //${SMB_HOST}/${SMB_SHARE}"
+        echo "  Username:    ${SMB_USER}"
+        echo ""
+        read -r -s -p "  Enter Samba password for '${SMB_USER}': " SMB_PASS
+        echo ""
+        [[ -n "$SMB_PASS" ]] || fail "No password entered. Cannot mount SMB share."
+    fi
+
+    # Create mount point
+    mkdir -p "$SMB_MOUNT"
+
+    # Store credentials securely
+    cat > "$SMB_CREDS" <<EOF
+username=${SMB_USER}
+password=${SMB_PASS}
+EOF
+    chmod 600 "$SMB_CREDS"
+    ok "Credentials stored in ${SMB_CREDS}."
+
+    # Mount
+    mount -t cifs "//${SMB_HOST}/${SMB_SHARE}" "$SMB_MOUNT" \
+        -o "credentials=${SMB_CREDS},uid=1000,gid=1000,_netdev" \
+        || fail "Failed to mount //${SMB_HOST}/${SMB_SHARE}. Check password and network."
+    ok "Mounted //${SMB_HOST}/${SMB_SHARE} at ${SMB_MOUNT}."
+
+    # Add to fstab for persistence
+    if ! grep -qs "//${SMB_HOST}/${SMB_SHARE}" /etc/fstab; then
+        echo "//${SMB_HOST}/${SMB_SHARE} ${SMB_MOUNT} cifs credentials=${SMB_CREDS},uid=1000,gid=1000,_netdev 0 0" >> /etc/fstab
+        ok "Added to /etc/fstab (persistent across reboots)."
+    fi
+}
 
 echo ""
 echo "================================================="
@@ -216,17 +279,17 @@ STATE=$(get_state)
 case "$STATE" in
     start)
         info "Starting fresh setup..."
-        run_step "1/4  Webmin"        step_webmin
+        run_step "1/5  Webmin"        step_webmin
         set_state "docker"
         ;&  # fall through
 
     docker)
-        run_step "2/4  Docker"        step_docker
+        run_step "2/5  Docker"        step_docker
         set_state "gpudriver"
         ;&
 
     gpudriver)
-        run_step "3/4  NVIDIA Driver" step_gpudriver
+        run_step "3/5  NVIDIA Driver" step_gpudriver
         # If step_gpudriver triggers a reboot, we never reach here.
         # If we do reach here, driver is loaded — continue.
         set_state "kasm"
@@ -258,7 +321,12 @@ case "$STATE" in
         fi
 
         set_state "kasm"
-        run_step "4/4  Kasm Workspaces" step_kasm
+        run_step "4/5  Kasm Workspaces" step_kasm
+        set_state "samba"
+        ;&
+
+    samba)
+        run_step "5/5  SMB Mount"     step_samba
         set_state "done"
         ;&
 
@@ -301,6 +369,13 @@ echo "    User:   user@kasm.local  / password"
 echo "    CHANGE BOTH PASSWORDS IMMEDIATELY."
 echo ""
 echo "  A self-signed certificate warning is expected for both."
+echo ""
+echo "  SMB Share"
+if mountpoint -q /mnt/sec/media/shared 2>/dev/null; then
+    echo "    //192.168.1.111/sharename -> /mnt/sec/media/shared (mounted)"
+else
+    echo "    /mnt/sec/media/shared (not mounted — check credentials)"
+fi
 echo ""
 
 # Cleanup state
