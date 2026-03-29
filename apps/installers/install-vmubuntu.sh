@@ -208,7 +208,7 @@ step_kasm() {
 
 step_samba() {
     local SMB_HOST="192.168.1.111"
-    local SMB_SHARE="sharename"
+    local SMB_SHARE="mediadb"
     local SMB_MOUNT="/mnt/sec/media/shared"
     local SMB_USER="toor"
     local SMB_CREDS="/root/.smbcredentials"
