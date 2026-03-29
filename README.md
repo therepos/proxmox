@@ -20,8 +20,6 @@ proxmox
 
 ## Notes
 
-- rembg
-- realesrgan upscale
 - db-japfood
 - db-korfood
 - db-travel
@@ -29,7 +27,6 @@ proxmox
 - db-photos
 - [open-notebook](https://tinyurl.com/ms3y6rdc)
 - opencode
-- glm5
 - hosting-static: netlify. cloudflare. github.
 - hosting-docker: google cloud run. fly.io. render.
 
