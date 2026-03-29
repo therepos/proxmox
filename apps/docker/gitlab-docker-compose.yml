@@ -1,67 +1,96 @@
-# https://docs.gitlab.com/user/get_started/
-# post deploying compose, wait 3-5 minutes for database setup (important)
-# login with username (root) and password (initial_root_password)
+# https://docs.gitlab.com/install/docker/installation/
+# Post-deploy: wait 3-5 minutes for database initialisation (important)
+# Login with username (root) and password (initial_root_password):
 #   docker exec gitlab cat /etc/gitlab/initial_root_password
 # =====
-# GitLab > Admin > CI/CD > Create Instance Runner
-# Create a tag > Create Runner
-#   docker exec -it gitlab-runner bash
-#   gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
-# url:          http://ip:3028
-# description:  gitlab-runner
-# executor:     docker
-# image:        docker:latest
+# Register a Runner:
+#   GitLab > Admin > CI/CD > Runners > New instance runner > Create
+#   docker exec -it gitlab-runner gitlab-runner register \
+#     --url http://gitlab:80 --token glrt-<TOKEN>
+#   executor:     docker
+#   image:        docker:latest
 # =====
-# config files: /etc/gitlab-runner/config.toml
-# [runners.docker]
-#   url = "http://ip:3028"
-#   image = "docker:latest"
+# Runner config: /mnt/sec/apps/gitlab/runner/config/config.toml
+# After registration, edit config.toml and set under [runners.docker]:
 #   privileged = true
-#   volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
+#   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+#   pull_policy = ["if-not-present"]
+# Then: docker restart gitlab-runner
 # =====
+# Insecure registry (if not using HTTPS):
 #   nano /etc/docker/daemon.json
-#     "insecure-registries": ["gitlabregistry.domain.com"]
+#     { "insecure-registries": ["<HOST_IP>:5050"] }
 #   systemctl restart docker
+# =====
+# Edit defaults below to match your environment:
+#   HOST_IP   - your server's LAN IP or hostname
+#   Ports     - 3028 (web), 2224 (ssh), 5050 (registry), 8090 (pages)
+#   Data      - /mnt/sec/apps/gitlab (persistent storage root)
+# =====
 
 services:
   gitlab:
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
-    restart: always
-    hostname: 'gitlab.domain.com'
+    restart: unless-stopped
+    hostname: gitlab
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.domain.com'
-        registry_external_url 'http://ip:5001'
+        # External access
+        external_url 'http://192.168.1.100:3028'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+
+        # SSH
         gitlab_rails['gitlab_shell_ssh_port'] = 2224
-        gitlab_rails['gitlab_https'] = true
-        gitlab_rails['registry_https'] = true
-        gitlab_rails['registry_enabled'] = true
+
+        # Container Registry
+        registry_external_url 'http://192.168.1.100:5050'
+        registry_nginx['listen_port'] = 5050
+        registry_nginx['listen_https'] = false
+
+        # GitLab Pages
+        pages_external_url 'http://192.168.1.100:8090'
+        gitlab_pages['enable'] = true
+        gitlab_pages['listen_proxy'] = '0.0.0.0:8090'
+        gitlab_pages['external_http'] = ['0.0.0.0:8090']
+        pages_nginx['enable'] = false
+
+        # Performance tuning (reduce memory for small instances)
+        puma['workers'] = 2
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
     ports:
       - '3028:80'
       - '2224:22'
-      - '5001:5001'
+      - '5050:5050'
       - '8090:8090'
     volumes:
       - /mnt/sec/apps/gitlab/config:/etc/gitlab
       - /mnt/sec/apps/gitlab/logs:/var/log/gitlab
       - /mnt/sec/apps/gitlab/data:/var/opt/gitlab
     shm_size: '256m'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
     networks:
       - gitlab-net
 
   gitlab-runner:
     image: gitlab/gitlab-runner:latest
     container_name: gitlab-runner
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - gitlab
+      gitlab:
+        condition: service_healthy
     volumes:
-      - ./gitlab-runner/config:/etc/gitlab-runner
+      - /mnt/sec/apps/gitlab/runner/config:/etc/gitlab-runner
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - gitlab-net
 
 networks:
   gitlab-net:
-
