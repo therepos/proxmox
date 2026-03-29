@@ -2,7 +2,7 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpupass.sh?$(date +%s))"
 # Purpose: Set gpu passthrough
 # Version: PVE9
-#
+# =============================================================================
 # Usage:
 #   install-gpupass                     Interactive menu
 #   install-gpupass status              Show current GPU passthrough state

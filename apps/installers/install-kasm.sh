@@ -1,14 +1,9 @@
 #!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-kasm.sh?$(date +%s))"
+# Purpose: Install Kasm Workspaces
+# Version: Ubuntu
 # =============================================================================
-# Kasm Workspaces - Fully Automated Install & Upgrade Script
-# Target: Ubuntu 22.04 / 24.04 (amd64) - Single Server
-#
 # Usage:
-#   wget -qO- https://raw.githubusercontent.com/<YOU>/<REPO>/main/install-kasm.sh | sudo bash
-#
-# Fully non-interactive. No prompts, no pauses.
-#
-# Auto-detection:
 #   - No existing install       -> fresh install
 #   - Existing install found    -> upgrade (with database backup)
 #   - Already on target version -> skip, nothing to do

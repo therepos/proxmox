@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Webmin - Automated Install Script
-# Target: Ubuntu 22.04 / 24.04
-#
-# Usage:
-#   wget -qO- https://raw.githubusercontent.com/<YOU>/<REPO>/main/install-webmin.sh | sudo bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-webmin.sh?$(date +%s))"
+# Purpose: Install webmin
+# Version: Ubuntu, PVE9
 # =============================================================================
 
 set -euo pipefail
