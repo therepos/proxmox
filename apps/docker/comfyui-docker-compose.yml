@@ -1,3 +1,6 @@
+# docker pull yanwk/comfyui-boot:cu128-slim
+# deploy via portainer stack
+
 services:
   comfyui:
     image: yanwk/comfyui-boot:cu128-slim
@@ -12,7 +15,7 @@ services:
     runtime: nvidia
     restart: unless-stopped
     volumes:
-      - /mnt/sec/media/shared/comfyui:/root
-      - /mnt/sec/media/shared/comfyui/models:/root/ComfyUI/models
-      - /mnt/sec/media/shared/comfyui/output:/root/ComfyUI/output
-      - /mnt/sec/media/shared/comfyui/input:/root/ComfyUI/input
+      - /mnt/sec/apps/comfyui:/root
+      - /mnt/sec/apps/comfyui/models:/root/ComfyUI/models
+      - /mnt/sec/media/shared:/root/ComfyUI/output
+      - /mnt/sec/media/shared:/root/ComfyUI/input
