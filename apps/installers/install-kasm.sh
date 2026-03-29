@@ -13,12 +13,13 @@
 #   - Existing install found    -> upgrade (with database backup)
 #   - Already on target version -> skip, nothing to do
 #
-# Optional environment variables:
-#   KASM_VERSION        Target version                (default: 1.18.1)
-#   KASM_SWAP_GB        Swap size in GB               (default: 4)
-#   KASM_PORT           Web UI port                   (default: 443)
-#   SKIP_QEMU_AGENT     Set "true" to skip             (default: false)
-#   SKIP_PERSISTENT     Set "true" to skip dirs        (default: false)
+# Defaults:
+#   Password                                            (default: password)
+#   KASM_VERSION        Target version                  (default: 1.18.1)
+#   KASM_SWAP_GB        Swap size in GB                 (default: 4)
+#   KASM_PORT           Web UI port                     (default: 443)
+#   SKIP_QEMU_AGENT     Set "true" to skip              (default: false)
+#   SKIP_PERSISTENT     Set "true" to skip dirs         (default: false)
 # =============================================================================
 
 set -euo pipefail
@@ -151,7 +152,18 @@ else
     ok "Kasm Workspaces ${KASM_VERSION} installed."
 fi
 
-# -- 8. Persistent storage -----------------------------------------------------
+# -- 8. Docker group -----------------------------------------------------------
+# Kasm's installer sets up Docker. Add the invoking user to the docker group
+# so they can run docker commands without sudo.
+if [[ "$MODE" == "install" ]]; then
+    REAL_USER="${SUDO_USER:-root}"
+    if getent group docker > /dev/null 2>&1; then
+        usermod -aG docker "${REAL_USER}" 2>/dev/null || true
+        ok "User '${REAL_USER}' added to docker group (log out and back in to take effect)."
+    fi
+fi
+
+# -- 9. Persistent storage -----------------------------------------------------
 if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     info "Ensuring persistent storage directories exist..."
     mkdir -p /data/kasm-profiles
@@ -161,7 +173,7 @@ if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     ok "Persistent storage ready."
 fi
 
-# -- 9. Cleanup ----------------------------------------------------------------
+# -- 10. Cleanup ---------------------------------------------------------------
 info "Cleaning up /tmp..."
 rm -rf /tmp/kasm_release /tmp/"${KASM_TARBALL}"
 ok "Cleanup done."
@@ -220,7 +232,6 @@ echo ""
 echo "       Examples:"
 echo "       /data/kasm-profiles/brave/{user_id}"
 echo "       /data/kasm-profiles/desktop/{user_id}"
-echo "       /data/kasm-profiles/vscode/{user_id}"
 echo ""
 echo "       Use any name that identifies the workspace. Kasm creates"
 echo "       the subdirectories automatically on first session launch."

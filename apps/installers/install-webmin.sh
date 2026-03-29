@@ -1,13 +1,46 @@
-#!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-webmin.sh?$(date +%s))"
-# purpose: installs webmin
+#!/usr/bin/env bash
+# =============================================================================
+# Webmin - Automated Install Script
+# Target: Ubuntu 22.04 / 24.04
+#
+# Usage:
+#   wget -qO- https://raw.githubusercontent.com/<YOU>/<REPO>/main/install-webmin.sh | sudo bash
+# =============================================================================
 
-# Setup Webmin repo and install
-bash <(curl -fsSL https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh)
-apt-get install webmin --install-recommends -y
+set -euo pipefail
 
-# Add current user to docker group
-usermod -aG docker $(whoami)
+info()  { echo "[*] $*"; }
+ok()    { echo "[+] $*"; }
+fail()  { echo "[x] $*" >&2; exit 1; }
 
-echo "Done! Webmin is at https://$(hostname -I | awk '{print $1}'):10000"
-echo "User '$(whoami)' added to docker group. Log out and back in for it to take effect."
+[[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
+
+echo ""
+echo "Webmin - Automated Install"
+echo "================================================="
+echo ""
+
+info "Updating package index..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+ok "Package index updated."
+
+info "Setting up Webmin repository..."
+bash <(curl -fsSL https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh) || fail "Failed to add Webmin repo."
+ok "Webmin repository added."
+
+info "Installing Webmin..."
+apt-get install -y -qq webmin --install-recommends > /dev/null 2>&1 || fail "Webmin install failed."
+ok "Webmin installed."
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
+
+echo ""
+echo "Install Complete"
+echo "================================================="
+echo ""
+echo "  Web UI        https://${SERVER_IP}:10000"
+echo "  Login         Use your system root credentials."
+echo ""
+echo "  A self-signed certificate warning is expected."
+echo ""
