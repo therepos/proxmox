@@ -372,7 +372,7 @@ echo "  A self-signed certificate warning is expected for both."
 echo ""
 echo "  SMB Share"
 if mountpoint -q /mnt/sec/media/shared 2>/dev/null; then
-    echo "    //192.168.1.111/sharename -> /mnt/sec/media/shared (mounted)"
+    echo "    //192.168.1.111/mediadb -> /mnt/sec/media/shared (mounted)"
 else
     echo "    /mnt/sec/media/shared (not mounted — check credentials)"
 fi
