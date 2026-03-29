@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))"
-# purpose: set gpu passthrough
-# version: pve9
+# Purpose: Set gpu passthrough
+# Version: PVE9
 #
 # Usage:
 #   install-gpu                     Interactive menu
@@ -16,11 +16,12 @@
 # Non-interactive (for Webmin custom commands):
 #   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind 200 -y
 #   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpu.sh?$(date +%s))" -- bind free -y
-#
+# =============================================================================
+
 set -euo pipefail
 
-# ======================= self-install =======================
-# When run via wget|bash, install the script locally and set up bashrc
+# -- Self-install ------------------------------------------------------------------
+# Install the script locally and set up bashrc
 INSTALL_PATH="/usr/local/bin/install-gpu.sh"
 FUNC_LINE='install-gpu() { /usr/local/bin/install-gpu.sh "$@"; }'
 
@@ -91,7 +92,7 @@ run_qm() {
   fi
 }
 
-# ======================= prereqs =======================
+# -- Pre-Requisites ------------------------------------------------------------------
 [[ $EUID -eq 0 ]] || die "Run as root (use: sudo $0)"
 
 # Verify we are on Proxmox
