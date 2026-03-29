@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-vmubuntu.sh?$(date +%s))"
-# Purpose: One-click Ubuntu VM setup (Webmin + Docker + NVIDIA driver + Kasm)
+# Purpose: One-click Ubuntu VM setup (Webmin + Docker + NVIDIA driver + Kasm + SMB mount)
 # Version: Ubuntu
 # =============================================================================
 # Usage:
@@ -41,6 +41,13 @@ fi
 # --- State tracking ---------------------------------------------------------
 STATE_FILE="/var/lib/setup-vm/state"
 GITHUB_BASE="https://github.com/therepos/proxmox/raw/main/apps/installers"
+
+# --- SMB config -------------------------------------------------------------
+SMB_HOST="192.168.1.111"
+SMB_SHARE="mediadb"
+SMB_MOUNT="/mnt/sec/media/shared"
+SMB_USER="toor"
+SMB_CREDS="/root/.smbcredentials"
 
 mkdir -p "$(dirname "$STATE_FILE")"
 
@@ -207,12 +214,6 @@ step_kasm() {
 }
 
 step_samba() {
-    local SMB_HOST="192.168.1.111"
-    local SMB_SHARE="mediadb"
-    local SMB_MOUNT="/mnt/sec/media/shared"
-    local SMB_USER="toor"
-    local SMB_CREDS="/root/.smbcredentials"
-
     # Check if already mounted
     if mountpoint -q "$SMB_MOUNT" 2>/dev/null; then
         ok "SMB share already mounted at ${SMB_MOUNT}. Skipping."
@@ -371,10 +372,10 @@ echo ""
 echo "  A self-signed certificate warning is expected for both."
 echo ""
 echo "  SMB Share"
-if mountpoint -q /mnt/sec/media/shared 2>/dev/null; then
-    echo "    //192.168.1.111/mediadb -> /mnt/sec/media/shared (mounted)"
+if mountpoint -q "$SMB_MOUNT" 2>/dev/null; then
+    echo "    //${SMB_HOST}/${SMB_SHARE} -> ${SMB_MOUNT} (mounted)"
 else
-    echo "    /mnt/sec/media/shared (not mounted — check credentials)"
+    echo "    ${SMB_MOUNT} (not mounted — check credentials)"
 fi
 echo ""
 
