@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/setup-vm.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-ubuntuvm.sh?$(date +%s))"
 # Purpose: One-click Ubuntu VM setup (Webmin + Docker + NVIDIA driver + Kasm)
 # Version: Ubuntu
 # =============================================================================
