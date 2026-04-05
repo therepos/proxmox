@@ -3,7 +3,7 @@
 
 services:
   upscayl:
-    image: ghcr.io/therepos/kasm-images/upscayl:latest
+    image: ghcr.io/therepos/kasm/upscayl:latest
     container_name: upscayl
     ports:
       - "3029:6901"

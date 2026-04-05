@@ -23,6 +23,7 @@ proxmox
 
 - db-travel-food
 - db-audit
+- [Phr00t/Qwen-Image-Edit-Rapid-AIO](https://huggingface.co/Phr00t/Qwen-Image-Edit-Rapid-AIO/blob/main/v23/Qwen-Rapid-AIO-NSFW-v23.safetensors
 
 ## Resources
 
