@@ -17,7 +17,6 @@ proxmox
 ├── docs                # Documentation and notes.
 ├── scraps              # Superceded stuff.
 └── scripts             # Internal helpers.
-
 ```
 
 ## Notes
