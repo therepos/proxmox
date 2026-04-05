@@ -41,10 +41,10 @@ uninstall() {
             sudo umount "$MOUNT_PATH"
         fi
 
-        # Remove fstab entries
-        if grep -qF "$MOUNT_PATH" /etc/fstab; then
-            echo "Removing fstab entry for $MOUNT_PATH..."
-            sudo sed -i "\|$MOUNT_PATH|d" /etc/fstab
+        # Remove SMB/CIFS fstab entries only
+        if grep -q "//$HOST_IP/$SHARE_NAME.*cifs" /etc/fstab; then
+            echo "Removing SMB fstab entry for $MOUNT_PATH..."
+            sudo sed -i "\|//$HOST_IP/$SHARE_NAME.*cifs|d" /etc/fstab
         fi
     done
 

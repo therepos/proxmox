@@ -1,6 +1,6 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/nfs-vmmount.sh?$(date +%s))"
-# Purpose: Setup NFS mounts from Proxmox host to VM
+# Purpose: Setup or uninstall NFS mounts from Proxmox host to VM
 # Usage:
 #   bash -c "$(wget -qLO- ...)"
 #   bash -c "$(wget -qLO- ...)" --install
@@ -36,17 +36,17 @@ uninstall() {
             sudo umount "$MOUNT_PATH"
         fi
 
-        # Remove fstab entries (both NFS and SMB/CIFS)
-        if grep -qF "$MOUNT_PATH" /etc/fstab; then
-            echo "Removing fstab entry for $MOUNT_PATH..."
-            sudo sed -i "\|$MOUNT_PATH|d" /etc/fstab
+        # Remove NFS fstab entries only
+        if grep -q "$HOST_IP:.*$MOUNT_PATH.*nfs" /etc/fstab; then
+            echo "Removing NFS fstab entry for $MOUNT_PATH..."
+            sudo sed -i "\|$HOST_IP:.*$MOUNT_PATH.*nfs|d" /etc/fstab
         fi
     done
 
-    # Remove packages if no other mounts depend on them
-    if dpkg -s cifs-utils &>/dev/null; then
-        echo "Removing cifs-utils..."
-        sudo apt remove -y cifs-utils
+    # Remove nfs-common if installed
+    if dpkg -s nfs-common &>/dev/null; then
+        echo "Removing nfs-common..."
+        sudo apt remove -y nfs-common
     fi
 
     sudo systemctl daemon-reload
