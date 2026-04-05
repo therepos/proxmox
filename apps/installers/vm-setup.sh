@@ -76,7 +76,7 @@ INNEREOF
     [[ -n "${NVIDIA_DRIVER_VERSION:-}" ]] && echo "export NVIDIA_DRIVER_VERSION=\"${NVIDIA_DRIVER_VERSION}\"" >> "$RESUME_SCRIPT"
 
     cat >> "$RESUME_SCRIPT" <<INNEREOF
-bash -c "\$(wget -qLO- '${GITHUB_BASE}/install-vmubuntu.sh?\$(date +%s)')"
+bash -c "\$(wget -qLO- '${GITHUB_BASE}/vm-setup.sh?\$(date +%s)')"
 INNEREOF
     chmod +x "$RESUME_SCRIPT"
 
@@ -267,32 +267,7 @@ step_nfs() {
         return 0
     fi
 
-    # Install nfs-common
-    if ! dpkg -s nfs-common &>/dev/null; then
-        info "Installing nfs-common..."
-        apt-get update -qq
-        apt-get install -y -qq nfs-common > /dev/null 2>&1
-        ok "nfs-common installed."
-    fi
-
-    for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
-        if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
-            ok "$MOUNT_PATH already mounted. Skipping."
-            continue
-        fi
-
-        mkdir -p "$MOUNT_PATH"
-
-        mount -t nfs "$NFS_HOST:$MOUNT_PATH" "$MOUNT_PATH" \
-            || fail "Failed to mount $NFS_HOST:$MOUNT_PATH. Check NFS exports on host."
-        ok "Mounted $NFS_HOST:$MOUNT_PATH at $MOUNT_PATH."
-
-        # Add to fstab for persistence
-        if ! grep -qF "$NFS_HOST:$MOUNT_PATH" /etc/fstab; then
-            echo "$NFS_HOST:$MOUNT_PATH $MOUNT_PATH nfs defaults,_netdev,nofail 0 0" >> /etc/fstab
-            ok "Added to /etc/fstab (persistent across reboots)."
-        fi
-    done
+    bash -c "$(wget -qLO- "https://github.com/therepos/proxmox/raw/main/apps/tools/vm-mountnfs.sh?$(date +%s)")" --install
 }
 
 echo ""
