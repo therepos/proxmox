@@ -1,3 +1,6 @@
+# docker pull uiewy/iopaint:latest
+# deploy via portainer stack
+
 services:
   iopaint:
     image: uiewy/iopaint:latest
@@ -8,8 +11,34 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - NVIDIA_VISIBLE_DEVICES=all
     shm_size: 1g
-    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
     command: iopaint start --model=lama --device=cuda --port=8080 --host=0.0.0.0 --model-dir=/data/models
     volumes:
       - /mnt/sec/media/shared/iopaint:/data
+
+
+# services:
+#   iopaint:
+#     image: cwq1913/lama-cleaner:gpu-0.26.1
+#     container_name: iopaint
+#     ports:
+#       - "3031:8080"
+#     volumes:
+#       - ./torch_cache:/root/.cache/torch
+#       - ./huggingface_cache:/root/.cache/huggingface
+#     command: lama-cleaner --device=cuda --port=8080 --host=0.0.0.0
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: 1
+#               capabilities: [gpu]
+#     restart: unless-stopped
