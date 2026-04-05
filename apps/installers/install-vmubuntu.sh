@@ -168,6 +168,48 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_C
     fi
 }
 
+step_lvm_expand() {
+    # Auto-expand the root LV to use all free space in the VG.
+    # Skips if free space is less than 1 GiB (nothing meaningful to claim).
+
+    local lv
+    lv=$(findmnt -n -o SOURCE / 2>/dev/null || true)
+
+    if [[ -z "$lv" ]]; then
+        warn "Could not detect root LV device. Skipping LVM expansion."
+        return 0
+    fi
+
+    # Check if it's actually an LVM device
+    if ! lvdisplay "$lv" &>/dev/null 2>&1; then
+        info "Root filesystem is not on LVM. Skipping LVM expansion."
+        return 0
+    fi
+
+    # Get free PE count in the VG
+    local vg free_pe
+    vg=$(lvs --noheadings -o vg_name "$lv" 2>/dev/null | tr -d ' ')
+    free_pe=$(vgs --noheadings --units b -o vg_free "$vg" 2>/dev/null | tr -d ' B' || echo 0)
+
+    # Convert to GiB for comparison (1 GiB = 1073741824 bytes)
+    local free_gib=$(( free_pe / 1073741824 ))
+
+    if (( free_gib < 1 )); then
+        ok "LVM: No significant free space in VG '${vg}' (${free_gib} GiB free). Skipping."
+        return 0
+    fi
+
+    info "LVM: ${free_gib} GiB free in VG '${vg}'. Expanding root LV to use all available space..."
+
+    lvextend -l +100%FREE "$lv" \
+        && ok "Logical volume extended." \
+        || { warn "lvextend failed (may already be at max). Continuing."; return 0; }
+
+    resize2fs "$lv" \
+        && ok "Filesystem resized. Root partition is now $(df -h / | awk 'NR==2{print $2}')." \
+        || warn "resize2fs failed. You may need to resize manually."
+}
+
 step_gpudriver() {
     # If nvidia-smi works, driver is loaded — skip
     if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
@@ -280,17 +322,22 @@ STATE=$(get_state)
 case "$STATE" in
     start)
         info "Starting fresh setup..."
-        run_step "1/5  Webmin"        step_webmin
+        run_step "1/6  Webmin"        step_webmin
         set_state "docker"
         ;&  # fall through
 
     docker)
-        run_step "2/5  Docker"        step_docker
+        run_step "2/6  Docker"        step_docker
+        set_state "lvm_expand"
+        ;&
+
+    lvm_expand)
+        run_step "3/6  LVM Expand"    step_lvm_expand
         set_state "gpudriver"
         ;&
 
     gpudriver)
-        run_step "3/5  NVIDIA Driver" step_gpudriver
+        run_step "4/6  NVIDIA Driver" step_gpudriver
         # If step_gpudriver triggers a reboot, we never reach here.
         # If we do reach here, driver is loaded — continue.
         set_state "kasm"
@@ -322,12 +369,12 @@ case "$STATE" in
         fi
 
         set_state "kasm"
-        run_step "4/5  Kasm Workspaces" step_kasm
+        run_step "5/6  Kasm Workspaces" step_kasm
         set_state "samba"
         ;&
 
     samba)
-        run_step "5/5  SMB Mount"     step_samba
+        run_step "6/6  SMB Mount"     step_samba
         set_state "done"
         ;&
 
