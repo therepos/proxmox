@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-portainer.sh?$(date +%s))"
-# purpose: installs portainer docker
-# version: pve9
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/portainer-setup.sh?$(date +%s))"
+# Purpose: Installs portainer docker (PVE9)
+# =============================================================================
 
 set -euo pipefail
 

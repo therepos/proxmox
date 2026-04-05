@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-webmin.sh?$(date +%s))"
-# Purpose: Install webmin
-# Version: Ubuntu, PVE9
+# Purpose: Install webmin on PVE9
 # =============================================================================
 
 set -euo pipefail

@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-vmubuntu.sh?$(date +%s))"
-# Purpose: One-click Ubuntu VM setup (Webmin + Docker + NVIDIA driver + Kasm + SMB mount)
-# Version: Ubuntu
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/vm-setup.sh?$(date +%s))"
+# Purpose: Ubuntu VM setup
 # =============================================================================
 # Usage:
 #   Run once on a fresh Ubuntu Server VM with GPU passthrough.
 #   The script will reboot automatically after the NVIDIA driver install,
 #   then resume on next login to complete the remaining steps.
 #
-# What it installs (in order):
-#   1. Webmin           — web-based system admin (makes the rest easier)
+# Features:
+#   1. Webmin           — web-based system admin (via webmin-setup.sh)
 #   2. Docker           — container runtime (from official Docker repo)
-#   3. NVIDIA driver    — headless driver + container toolkit (via install-gpudriver.sh)
+#   3. NVIDIA driver    — headless driver + container toolkit (via gpu-driver.sh)
 #   4. [REBOOT]         — required to load NVIDIA kernel module
-#   5. Kasm Workspaces  — browser-based desktops/apps (via install-kasm.sh)
-#   6. SMB mount        — mounts Proxmox Samba share to /mnt/sec/media/shared
+#   5. Kasm Workspaces  — browser-based desktops/apps (via kasm-setup.sh)
+#   6. NFS mount        — mounts Proxmox shared drive to /mnt/sec/media/shared
 #
 # Environment overrides (same as sub-scripts):
-#   KASM_VERSION        Kasm version           (default: 1.18.1)
-#   KASM_PORT           Kasm web UI port       (default: 443)
-#   NVIDIA_DRIVER_VERSION  Force a driver branch (default: auto-detect)
-#   SMB_PASS            Samba password          (prompted if not set)
+#   KASM_VERSION           Kasm version             (default: 1.18.1)
+#   KASM_PORT              Kasm web UI port         (default: 443)
+#   NVIDIA_DRIVER_VERSION  Force a driver branch    (default: auto-detect)
+#   SMB_PASS               Samba password           (prompted if not set)
 # =============================================================================
 
 set -euo pipefail
@@ -128,7 +127,7 @@ step_webmin() {
         ok "Webmin is already installed. Skipping."
         return 0
     fi
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/install-webmin.sh?$(date +%s)")"
+    bash -c "$(wget -qLO- "${GITHUB_BASE}/webmin-setup.sh?$(date +%s)")"
 }
 
 step_docker() {
@@ -217,12 +216,12 @@ step_gpudriver() {
         # Still run the script to pick up container toolkit if Docker was added
         if command -v docker &>/dev/null && ! docker info 2>/dev/null | grep -q "nvidia"; then
             info "Re-running GPU driver script to configure Docker NVIDIA runtime..."
-            bash -c "$(wget -qLO- "${GITHUB_BASE}/install-gpudriver.sh?$(date +%s)")"
+            bash -c "$(wget -qLO- "${GITHUB_BASE}/gpu-driver.sh?$(date +%s)")"
         fi
         return 0
     fi
 
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/install-gpudriver.sh?$(date +%s)")"
+    bash -c "$(wget -qLO- "${GITHUB_BASE}/gpu-driver.sh?$(date +%s)")"
 
     # If driver was freshly installed, we need to reboot
     if ! nvidia-smi &>/dev/null 2>&1; then
@@ -252,7 +251,7 @@ step_kasm() {
             return 0
         fi
     fi
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/install-kasm.sh?$(date +%s)")"
+    bash -c "$(wget -qLO- "${GITHUB_BASE}/kasm-setup.sh?$(date +%s)")"
 }
 
 step_samba() {

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gpudriver.sh?$(date +%s))"
 # Purpose: Installs the recommended NVIDIA headless driver in Ubuntu
-# Version: Ubuntu
 # =============================================================================
 # Usage:
 #   Installs the recommended NVIDIA headless driver

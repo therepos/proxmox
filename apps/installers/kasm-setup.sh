@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-kasm.sh?$(date +%s))"
-# Purpose: Install Kasm Workspaces
-# Version: Ubuntu
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/kasm-setup.sh?$(date +%s))"
+# Purpose: Install Kasm Workspaces (Ubuntu)
 # =============================================================================
 # Usage:
 #   - No existing install       -> fresh install

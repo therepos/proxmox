@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-dockerhost.sh?$(date +%s))"
-# Purpose: Installs docker engine and docker compose 
-# Version: Ubuntu, PVE9
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/docker-setup.sh?$(date +%s))"
+# Purpose: Installs docker engine and docker compose (Ubuntu/PVE9)
 # =============================================================================
 
 set -euo pipefail

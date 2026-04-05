@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-samba.sh?$(date +%s))"
-# purpose: installs samba
-# version: pve 9
-# =====
-# Refined Samba installer for Proxmox (Debian 12 / PVE 9)
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/smb-setup.sh?$(date +%s))"
+# Purpose: Installs Samba on PVE9
+# =============================================================================
+# Features: 
 # - Windows-friendly ACLs (acl_xattr)
 # - Group-based write access
 # - SMB2/3 only
 # - Multi-user support
+# =============================================================================
 
 set -euo pipefail
 

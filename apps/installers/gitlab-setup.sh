@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-gitlab.sh?$(date +%s))"
-# Purpose: Deploys and manages GitLab CE with Runner, Container Registry and Pages
-# Version: Docker (Ubuntu/Debian host)
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/gitlab-setup.sh?$(date +%s))"
+# Purpose: Deploys and manages GitLab CE with Runner, Container Registry and Pages (Ubuntu/PVE9)
 # =============================================================================
 # Usage:
 #   Interactive menu to install and configure GitLab CE

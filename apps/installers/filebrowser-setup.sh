@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-filebrowser.sh?$(date +%s))"
-# Purpose: Installs Filebrowser
-# Version: Ubuntu
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-setup.sh?$(date +%s))"
+# Purpose: Installs Filebrowser (Ubuntu/PVE9)
 # =============================================================================
 # Usage:
 #   Username: admin
