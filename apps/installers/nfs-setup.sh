@@ -1,5 +1,5 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/nfs-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/nfs-setup.sh?$(date +%s))"
 # Purpose: Setup NFS server on Proxmox host or mount NFS shares in VM (PVE9/Ubuntu)
 # =============================================================================
 # Usage:

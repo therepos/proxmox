@@ -267,7 +267,7 @@ step_nfs() {
         return 0
     fi
 
-    bash -c "$(wget -qLO- "https://github.com/therepos/proxmox/raw/main/apps/tools/vm-mountnfs.sh?$(date +%s)")" --install
+    bash -c "$(wget -qLO- "https://github.com/therepos/proxmox/raw/main/apps/installers/nfs-setup.sh?$(date +%s)")" --client-install
 }
 
 echo ""
