@@ -1,10 +1,12 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/vm-mountsmb.sh?$(date +%s))"
 # Purpose: Setup or uninstall SMB/CIFS mounts from remote host to VM
+# =============================================================================
 # Usage:
 #   bash -c "$(wget -qLO- ...)"
 #   bash -c "$(wget -qLO- ...)" --install
 #   bash -c "$(wget -qLO- ...)" --uninstall
+# =============================================================================
 
 set -e
 

@@ -1,10 +1,12 @@
 #!/bin/bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/vm-mountnfs.sh?$(date +%s))"
 # Purpose: Setup or uninstall NFS mounts from Proxmox host to VM
+# =============================================================================
 # Usage:
 #   bash -c "$(wget -qLO- ...)"
 #   bash -c "$(wget -qLO- ...)" --install
 #   bash -c "$(wget -qLO- ...)" --uninstall
+# =============================================================================
 
 set -e
 
