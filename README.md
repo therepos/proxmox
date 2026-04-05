@@ -21,15 +21,8 @@ proxmox
 
 ## Notes
 
-- db-japfood
-- db-korfood
-- db-travel
+- db-travel-food
 - db-audit
-- db-photos
-- [open-notebook](https://tinyurl.com/ms3y6rdc)
-- opencode
-- hosting-static: netlify. cloudflare. github.
-- hosting-docker: google cloud run. fly.io. render.
 
 ## Resources
 
