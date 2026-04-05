@@ -21,5 +21,5 @@ services:
     restart: unless-stopped
     command: iopaint start --model=lama --device=cuda --port=8080 --host=0.0.0.0 --model-dir=/data/models
     volumes:
-      - /mnt/sec/media/shared/iopaint:/data
-
+      - /mnt/sec/app/iopaint:/data
+      - /mnt/sec/media/shared:/shared
