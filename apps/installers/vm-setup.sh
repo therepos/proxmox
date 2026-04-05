@@ -13,13 +13,12 @@
 #   3. NVIDIA driver    — headless driver + container toolkit (via gpu-driver.sh)
 #   4. [REBOOT]         — required to load NVIDIA kernel module
 #   5. Kasm Workspaces  — browser-based desktops/apps (via kasm-setup.sh)
-#   6. NFS mount        — mounts Proxmox shared drive to /mnt/sec/media/shared
+#   6. NFS mount        — mounts Proxmox shared drives via NFS
 #
 # Environment overrides (same as sub-scripts):
 #   KASM_VERSION           Kasm version             (default: 1.18.1)
 #   KASM_PORT              Kasm web UI port         (default: 443)
 #   NVIDIA_DRIVER_VERSION  Force a driver branch    (default: auto-detect)
-#   SMB_PASS               Samba password           (prompted if not set)
 # =============================================================================
 
 set -euo pipefail
@@ -41,12 +40,12 @@ fi
 STATE_FILE="/var/lib/setup-vm/state"
 GITHUB_BASE="https://github.com/therepos/proxmox/raw/main/apps/installers"
 
-# --- SMB config -------------------------------------------------------------
-SMB_HOST="192.168.1.111"
-SMB_SHARE="mediadb"
-SMB_MOUNT="/mnt/sec/media/shared"
-SMB_USER="toor"
-SMB_CREDS="/root/.smbcredentials"
+# --- NFS config -------------------------------------------------------------
+NFS_HOST="192.168.1.111"
+NFS_MOUNTS=(
+    "/mnt/sec/apps"
+    "/mnt/sec/media"
+)
 
 mkdir -p "$(dirname "$STATE_FILE")"
 
@@ -75,7 +74,6 @@ INNEREOF
     [[ -n "${KASM_VERSION:-}" ]]          && echo "export KASM_VERSION=\"${KASM_VERSION}\"" >> "$RESUME_SCRIPT"
     [[ -n "${KASM_PORT:-}" ]]             && echo "export KASM_PORT=\"${KASM_PORT}\"" >> "$RESUME_SCRIPT"
     [[ -n "${NVIDIA_DRIVER_VERSION:-}" ]] && echo "export NVIDIA_DRIVER_VERSION=\"${NVIDIA_DRIVER_VERSION}\"" >> "$RESUME_SCRIPT"
-    [[ -n "${SMB_PASS:-}" ]]              && echo "export SMB_PASS=\"${SMB_PASS}\"" >> "$RESUME_SCRIPT"
 
     cat >> "$RESUME_SCRIPT" <<INNEREOF
 bash -c "\$(wget -qLO- '${GITHUB_BASE}/install-vmubuntu.sh?\$(date +%s)')"
@@ -254,60 +252,47 @@ step_kasm() {
     bash -c "$(wget -qLO- "${GITHUB_BASE}/kasm-setup.sh?$(date +%s)")"
 }
 
-step_samba() {
-    # Check if already mounted
-    if mountpoint -q "$SMB_MOUNT" 2>/dev/null; then
-        ok "SMB share already mounted at ${SMB_MOUNT}. Skipping."
+step_nfs() {
+    # Check if all mounts are already established
+    local all_mounted=true
+    for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
+        if ! mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
+            all_mounted=false
+            break
+        fi
+    done
+
+    if $all_mounted; then
+        ok "All NFS mounts already established. Skipping."
         return 0
     fi
 
-    # Check if already in fstab (previous run but not mounted)
-    if grep -qs "//${SMB_HOST}/${SMB_SHARE}" /etc/fstab; then
-        info "fstab entry exists. Attempting to mount..."
-        mount "$SMB_MOUNT" 2>/dev/null && { ok "Mounted ${SMB_MOUNT}."; return 0; }
-        warn "Mount failed. Reconfiguring..."
+    # Install nfs-common
+    if ! dpkg -s nfs-common &>/dev/null; then
+        info "Installing nfs-common..."
+        apt-get update -qq
+        apt-get install -y -qq nfs-common > /dev/null 2>&1
+        ok "nfs-common installed."
     fi
 
-    # Install cifs-utils
-    if ! command -v mount.cifs &>/dev/null; then
-        info "Installing cifs-utils..."
-        apt-get install -y -qq cifs-utils > /dev/null 2>&1
-        ok "cifs-utils installed."
-    fi
+    for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
+        if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
+            ok "$MOUNT_PATH already mounted. Skipping."
+            continue
+        fi
 
-    # Get password
-    if [[ -z "${SMB_PASS:-}" ]]; then
-        echo ""
-        echo "  Samba share: //${SMB_HOST}/${SMB_SHARE}"
-        echo "  Username:    ${SMB_USER}"
-        echo ""
-        read -r -s -p "  Enter Samba password for '${SMB_USER}': " SMB_PASS
-        echo ""
-        [[ -n "$SMB_PASS" ]] || fail "No password entered. Cannot mount SMB share."
-    fi
+        mkdir -p "$MOUNT_PATH"
 
-    # Create mount point
-    mkdir -p "$SMB_MOUNT"
+        mount -t nfs "$NFS_HOST:$MOUNT_PATH" "$MOUNT_PATH" \
+            || fail "Failed to mount $NFS_HOST:$MOUNT_PATH. Check NFS exports on host."
+        ok "Mounted $NFS_HOST:$MOUNT_PATH at $MOUNT_PATH."
 
-    # Store credentials securely
-    cat > "$SMB_CREDS" <<EOF
-username=${SMB_USER}
-password=${SMB_PASS}
-EOF
-    chmod 600 "$SMB_CREDS"
-    ok "Credentials stored in ${SMB_CREDS}."
-
-    # Mount
-    mount -t cifs "//${SMB_HOST}/${SMB_SHARE}" "$SMB_MOUNT" \
-        -o "credentials=${SMB_CREDS},uid=1000,gid=1000,_netdev" \
-        || fail "Failed to mount //${SMB_HOST}/${SMB_SHARE}. Check password and network."
-    ok "Mounted //${SMB_HOST}/${SMB_SHARE} at ${SMB_MOUNT}."
-
-    # Add to fstab for persistence
-    if ! grep -qs "//${SMB_HOST}/${SMB_SHARE}" /etc/fstab; then
-        echo "//${SMB_HOST}/${SMB_SHARE} ${SMB_MOUNT} cifs credentials=${SMB_CREDS},uid=1000,gid=1000,_netdev 0 0" >> /etc/fstab
-        ok "Added to /etc/fstab (persistent across reboots)."
-    fi
+        # Add to fstab for persistence
+        if ! grep -qF "$NFS_HOST:$MOUNT_PATH" /etc/fstab; then
+            echo "$NFS_HOST:$MOUNT_PATH $MOUNT_PATH nfs defaults,_netdev,nofail 0 0" >> /etc/fstab
+            ok "Added to /etc/fstab (persistent across reboots)."
+        fi
+    done
 }
 
 echo ""
@@ -355,7 +340,7 @@ case "$STATE" in
                 fail "NVIDIA driver failed to load after reboot. Check dmesg for errors."
             fi
 
-            # Ensure container toolkit is configured (gpudriver.sh does this,
+            # Ensure container toolkit is configured (gpu-driver.sh does this,
             # but we rebooted so let's make sure Docker picked it up)
             if command -v docker &>/dev/null; then
                 if command -v nvidia-ctk &>/dev/null; then
@@ -369,11 +354,11 @@ case "$STATE" in
 
         set_state "kasm"
         run_step "5/6  Kasm Workspaces" step_kasm
-        set_state "samba"
+        set_state "nfs"
         ;&
 
-    samba)
-        run_step "6/6  SMB Mount"     step_samba
+    nfs)
+        run_step "6/6  NFS Mount"     step_nfs
         set_state "done"
         ;&
 
@@ -417,12 +402,14 @@ echo "    CHANGE BOTH PASSWORDS IMMEDIATELY."
 echo ""
 echo "  A self-signed certificate warning is expected for both."
 echo ""
-echo "  SMB Share"
-if mountpoint -q "$SMB_MOUNT" 2>/dev/null; then
-    echo "    //${SMB_HOST}/${SMB_SHARE} -> ${SMB_MOUNT} (mounted)"
-else
-    echo "    ${SMB_MOUNT} (not mounted — check credentials)"
-fi
+echo "  NFS Mounts"
+for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
+    if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
+        echo "    ${NFS_HOST}:${MOUNT_PATH} -> ${MOUNT_PATH} (mounted)"
+    else
+        echo "    ${MOUNT_PATH} (not mounted — check NFS exports on host)"
+    fi
+done
 echo ""
 
 # Cleanup state

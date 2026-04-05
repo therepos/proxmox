@@ -1,6 +1,6 @@
 #!/bin/bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/nfs-vmmount.sh?$(date +%s))"
-# Purpose: Setup or uninstall NFS mounts from Proxmox host to VM
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/vm-mountsmb.sh?$(date +%s))"
+# Purpose: Setup or uninstall SMB/CIFS mounts from remote host to VM
 # Usage:
 #   bash -c "$(wget -qLO- ...)"
 #   bash -c "$(wget -qLO- ...)" --install
@@ -9,14 +9,16 @@
 set -e
 
 HOST_IP="192.168.1.111"
+SMB_USER="username"
+SMB_PASS="password"
 MOUNTS=(
-    "/mnt/sec/apps"
-    "/mnt/sec/media"
+    "mediadb:/mnt/sec/media"
 )
 
 check_mounts() {
     local found=0
-    for MOUNT_PATH in "${MOUNTS[@]}"; do
+    for ENTRY in "${MOUNTS[@]}"; do
+        local MOUNT_PATH="${ENTRY#*:}"
         if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
             local fstype
             fstype=$(findmnt -n -o FSTYPE "$MOUNT_PATH" 2>/dev/null)
@@ -29,24 +31,27 @@ check_mounts() {
 
 uninstall() {
     echo "=== Uninstalling mounts ==="
-    for MOUNT_PATH in "${MOUNTS[@]}"; do
+    for ENTRY in "${MOUNTS[@]}"; do
+        local SHARE_NAME="${ENTRY%%:*}"
+        local MOUNT_PATH="${ENTRY#*:}"
+
         # Unmount if mounted
         if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
             echo "Unmounting $MOUNT_PATH..."
             sudo umount "$MOUNT_PATH"
         fi
 
-        # Remove NFS fstab entries only
-        if grep -q "$HOST_IP:.*$MOUNT_PATH.*nfs" /etc/fstab; then
-            echo "Removing NFS fstab entry for $MOUNT_PATH..."
-            sudo sed -i "\|$HOST_IP:.*$MOUNT_PATH.*nfs|d" /etc/fstab
+        # Remove SMB/CIFS fstab entries only
+        if grep -q "//$HOST_IP/$SHARE_NAME.*cifs" /etc/fstab; then
+            echo "Removing SMB fstab entry for $MOUNT_PATH..."
+            sudo sed -i "\|//$HOST_IP/$SHARE_NAME.*cifs|d" /etc/fstab
         fi
     done
 
-    # Remove nfs-common if installed
-    if dpkg -s nfs-common &>/dev/null; then
-        echo "Removing nfs-common..."
-        sudo apt remove -y nfs-common
+    # Remove cifs-utils if installed
+    if dpkg -s cifs-utils &>/dev/null; then
+        echo "Removing cifs-utils..."
+        sudo apt remove -y cifs-utils
     fi
 
     sudo systemctl daemon-reload
@@ -56,19 +61,22 @@ uninstall() {
 }
 
 install() {
-    echo "=== Setting up NFS mounts ==="
+    echo "=== Setting up SMB mounts ==="
 
-    # Install nfs-common if not present
-    if ! dpkg -s nfs-common &>/dev/null; then
-        echo "Installing nfs-common..."
-        sudo apt update && sudo apt install -y nfs-common
+    # Install cifs-utils if not present
+    if ! dpkg -s cifs-utils &>/dev/null; then
+        echo "Installing cifs-utils..."
+        sudo apt update && sudo apt install -y cifs-utils
     else
-        echo "nfs-common already installed"
+        echo "cifs-utils already installed"
     fi
 
-    for MOUNT_PATH in "${MOUNTS[@]}"; do
+    for ENTRY in "${MOUNTS[@]}"; do
+        local SHARE_NAME="${ENTRY%%:*}"
+        local MOUNT_PATH="${ENTRY#*:}"
+
         echo ""
-        echo "--- $HOST_IP:$MOUNT_PATH ---"
+        echo "--- //$HOST_IP/$SHARE_NAME -> $MOUNT_PATH ---"
 
         # Create mount point
         sudo mkdir -p "$MOUNT_PATH"
@@ -79,9 +87,10 @@ install() {
             sudo umount "$MOUNT_PATH"
         fi
 
-        # Mount the NFS share
-        echo "Mounting $HOST_IP:$MOUNT_PATH to $MOUNT_PATH..."
-        sudo mount -t nfs "$HOST_IP:$MOUNT_PATH" "$MOUNT_PATH"
+        # Mount the SMB share
+        echo "Mounting //$HOST_IP/$SHARE_NAME to $MOUNT_PATH..."
+        sudo mount -t cifs "//$HOST_IP/$SHARE_NAME" "$MOUNT_PATH" \
+            -o username="$SMB_USER",password="$SMB_PASS",uid=1000,gid=1000,file_mode=0777,dir_mode=0777
 
         # Verify mount
         if mountpoint -q "$MOUNT_PATH"; then
@@ -93,11 +102,11 @@ install() {
         fi
 
         # Add to fstab if not already there
-        FSTAB_ENTRY="$HOST_IP:$MOUNT_PATH $MOUNT_PATH nfs defaults,_netdev,nofail 0 0"
+        FSTAB_ENTRY="//$HOST_IP/$SHARE_NAME $MOUNT_PATH cifs username=$SMB_USER,password=$SMB_PASS,uid=1000,gid=1000,file_mode=0777,dir_mode=0777,_netdev,nofail 0 0"
 
-        if grep -qF "$HOST_IP:$MOUNT_PATH" /etc/fstab; then
+        if grep -qF "//$HOST_IP/$SHARE_NAME" /etc/fstab; then
             echo "Updating existing fstab entry..."
-            sudo sed -i "\|$HOST_IP:$MOUNT_PATH|c\\$FSTAB_ENTRY" /etc/fstab
+            sudo sed -i "\|//$HOST_IP/$SHARE_NAME|c\\$FSTAB_ENTRY" /etc/fstab
         else
             echo "Adding to fstab for persistence..."
             echo "$FSTAB_ENTRY" | sudo tee -a /etc/fstab
@@ -112,7 +121,7 @@ install() {
 }
 
 # --- Main ---
-echo "=== NFS Mount Manager ==="
+echo "=== SMB Mount Manager ==="
 echo ""
 
 # Non-interactive mode via flags (checks both $0 and $1 for compatibility)
@@ -146,7 +155,7 @@ if check_mounts; then
     esac
 else
     echo "No existing mounts found."
-    read -rp "Do you want to set up NFS mounts? (y/n): " choice
+    read -rp "Do you want to set up SMB mounts? (y/n): " choice
     case "$choice" in
         y|Y)
             install
