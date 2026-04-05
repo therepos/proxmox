@@ -23,22 +23,3 @@ services:
     volumes:
       - /mnt/sec/media/shared/iopaint:/data
 
-
-# services:
-#   iopaint:
-#     image: cwq1913/lama-cleaner:gpu-0.26.1
-#     container_name: iopaint
-#     ports:
-#       - "3031:8080"
-#     volumes:
-#       - ./torch_cache:/root/.cache/torch
-#       - ./huggingface_cache:/root/.cache/huggingface
-#     command: lama-cleaner --device=cuda --port=8080 --host=0.0.0.0
-#     deploy:
-#       resources:
-#         reservations:
-#           devices:
-#             - driver: nvidia
-#               count: 1
-#               capabilities: [gpu]
-#     restart: unless-stopped
