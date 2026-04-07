@@ -15,7 +15,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "if ($start -ge 0) { [IO.File]::WriteAllLines('%PS_TEMP%', $lines[$start..($lines.Count-1)]) }"
 
 :: Run it, passing the folder where this .bat lives
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_TEMP%" "%~dp0"
+:: Note: trailing \ in %~dp0 can escape the closing quote, so we append a dot
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_TEMP%" "%~dp0."
 set "RC=%ERRORLEVEL%"
 
 :: Clean up
@@ -28,7 +29,7 @@ exit /b %RC%
 # =============================================================
 
 param([string]$ScriptDir)
-$ScriptDir = $ScriptDir.TrimEnd('\')
+$ScriptDir = $ScriptDir.TrimEnd('.').TrimEnd('\').TrimEnd('"').TrimEnd("'")
 
 $ErrorActionPreference = 'SilentlyContinue'
 $Host.UI.RawUI.WindowTitle = 'Office Add-in Manager'
