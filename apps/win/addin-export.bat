@@ -2,6 +2,7 @@
 setlocal EnableDelayedExpansion
 :: ============================================================
 ::  Office Add-in Export (XML + VBA + file copy)
+::  Scans installed paths AND the script's own folder.
 ::  Double-click to run. No Python needed.
 :: ============================================================
 
@@ -46,6 +47,8 @@ $scanPaths = @(
     @{ Folder = "$appdata\Microsoft\Excel\XLSTART";     Exts = @('.xlam','.xla') }
 )
 
+$addinExts = @('.xlam','.xla','.ppam','.ppa','.dotm','.dot')
+
 $appLabels = @{
     '.xlam'='Excel'; '.xla'='Excel'
     '.dotm'='Word';  '.dot'='Word'
@@ -74,14 +77,18 @@ $vbaPaths = @{
     'PowerPoint' = 'ppt/vbaProject.bin'
 }
 
-# -- Scan files -----------------------------------------------
+# -- Scan installed add-in paths ------------------------------
 $allItems = [System.Collections.ArrayList]::new()
+$seen = [System.Collections.Generic.HashSet[string]]::new()
 
 foreach ($sp in $scanPaths) {
     if (-not (Test-Path $sp.Folder)) { continue }
     foreach ($f in Get-ChildItem -Path $sp.Folder -File) {
         $ext = $f.Extension.ToLower()
         if ($sp.Exts -contains $ext) {
+            $resolved = $f.FullName.ToLower()
+            if ($seen.Contains($resolved)) { continue }
+            [void]$seen.Add($resolved)
             $app = if ($appLabels[$ext]) { $appLabels[$ext] } else { 'Office' }
             [void]$allItems.Add(@{
                 Name = $f.BaseName
@@ -89,6 +96,28 @@ foreach ($sp in $scanPaths) {
                 Path = $f.FullName
                 Ext  = $ext
                 App  = $app
+                Tag  = $app
+            })
+        }
+    }
+}
+
+# -- Scan local folder (where script lives) -------------------
+if (Test-Path $ScriptDir) {
+    foreach ($f in Get-ChildItem -Path $ScriptDir -File) {
+        $ext = $f.Extension.ToLower()
+        if ($addinExts -contains $ext) {
+            $resolved = $f.FullName.ToLower()
+            if ($seen.Contains($resolved)) { continue }
+            [void]$seen.Add($resolved)
+            $app = if ($appLabels[$ext]) { $appLabels[$ext] } else { 'Office' }
+            [void]$allItems.Add(@{
+                Name = $f.BaseName
+                File = $f.Name
+                Path = $f.FullName
+                Ext  = $ext
+                App  = $app
+                Tag  = "$app / local"
             })
         }
     }
@@ -103,7 +132,7 @@ Write-Host '  Office Add-in Export' -ForegroundColor Cyan
 Write-Host '====================================================' -ForegroundColor Cyan
 
 if ($allItems.Count -eq 0) {
-    Write-Host "`nNo add-ins found.`n" -ForegroundColor Yellow
+    Write-Host "`nNo add-ins found (installed or local).`n" -ForegroundColor Yellow
     Read-Host 'Press Enter to exit'
     exit
 }
@@ -112,7 +141,7 @@ Write-Host "`nFound add-ins:`n"
 for ($i = 0; $i -lt $allItems.Count; $i++) {
     $a = $allItems[$i]
     $num = ($i + 1).ToString().PadLeft(2)
-    Write-Host "  [$num]  $($a.File)  ($($a.App))"
+    Write-Host "  [$num]  $($a.File)  ($($a.Tag))"
 }
 
 Write-Host ''
@@ -137,7 +166,7 @@ $addinPath = $selected.Path
 $outputDir = Join-Path $ScriptDir $selected.Name
 
 Write-Host ''
-Write-Host "  Exporting: $($selected.File)  ($($selected.App))"
+Write-Host "  Exporting: $($selected.File)  ($($selected.Tag))"
 Write-Host "  From:      $addinPath"
 Write-Host "  To:        $outputDir"
 

@@ -1,7 +1,8 @@
 """
 Purpose: Export VBA modules, ribbon XML, and .xlam from your Excel add-in.
 Usage: Double-click to run.
-Note: Bypass Excel trust setting.
+Note: Scans installed add-in paths AND the script's own folder.
+      Bypass Excel trust setting.
 """
 
 import os
@@ -35,13 +36,18 @@ SCAN_PATHS = [
     (Path(APPDATA) / "Microsoft" / "PowerPoint" / "AddIns", [".ppam"]),
 ]
 
+ADDIN_EXTENSIONS = [".xlam", ".xla", ".ppam", ".ppa", ".dotm", ".dot"]
+
 # ═════════════════════════════════════════════════════════════════════════════
 
 
 APP_LABELS = {
     ".xlam": "Excel",
+    ".xla":  "Excel",
     ".dotm": "Word",
+    ".dot":  "Word",
     ".ppam": "PowerPoint",
+    ".ppa":  "PowerPoint",
 }
 
 
@@ -50,22 +56,37 @@ def script_dir() -> Path:
 
 
 def scan_addins() -> list[dict]:
-    """Scan all configured paths for Office add-in files."""
+    """Scan installed paths and script's own folder for Office add-in files."""
     found = []
     seen = set()
 
+    # Scan installed add-in paths
     for folder, extensions in SCAN_PATHS:
         if not folder.exists():
             continue
         for f in folder.iterdir():
-            if f.suffix.lower() in extensions and f.resolve() not in seen:
+            if f.is_file() and f.suffix.lower() in extensions and f.resolve() not in seen:
                 seen.add(f.resolve())
                 found.append({
                     "path": f,
                     "name": f.stem,
                     "ext": f.suffix.lower(),
                     "app": APP_LABELS.get(f.suffix.lower(), "Office"),
+                    "tag": APP_LABELS.get(f.suffix.lower(), "Office"),
                 })
+
+    # Scan local folder (where this script lives)
+    local = script_dir()
+    for f in local.iterdir():
+        if f.is_file() and f.suffix.lower() in ADDIN_EXTENSIONS and f.resolve() not in seen:
+            seen.add(f.resolve())
+            found.append({
+                "path": f,
+                "name": f.stem,
+                "ext": f.suffix.lower(),
+                "app": APP_LABELS.get(f.suffix.lower(), "Office"),
+                "tag": APP_LABELS.get(f.suffix.lower(), "Office") + " / local",
+            })
 
     # Sort by app type then name
     found.sort(key=lambda x: (x["app"], x["name"].lower()))
@@ -194,16 +215,14 @@ def main():
     addins = scan_addins()
 
     if not addins:
-        print("\nNo add-ins found in the scanned folders:")
-        for folder, exts in SCAN_PATHS:
-            print(f"  {folder}  ({', '.join(exts)})")
+        print("\nNo add-ins found in installed paths or script folder.")
         print()
         input("Press Enter to exit...")
         return
 
     print("\nFound add-ins:\n")
     for idx, a in enumerate(addins, 1):
-        print(f"  [{idx}] {a['name']}{a['ext']}  ({a['app']})")
+        print(f"  [{idx}] {a['name']}{a['ext']}  ({a['tag']})")
 
     print()
     choice = input("Enter number to export (or q to quit): ").strip()
@@ -228,7 +247,7 @@ def main():
     output_dir = root / selected["name"]
 
     print()
-    print(f"  Exporting: {selected['name']}{selected['ext']}  ({selected['app']})")
+    print(f"  Exporting: {selected['name']}{selected['ext']}  ({selected['tag']})")
     print(f"  From:      {addin_path}")
     print(f"  To:        {output_dir}")
 
