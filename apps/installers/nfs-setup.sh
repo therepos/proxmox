@@ -77,6 +77,12 @@ server_install() {
         echo "nfs-kernel-server already installed"
     fi
 
+    # Install acl package if not present (needed for setfacl)
+    if ! command -v setfacl &>/dev/null; then
+        echo "Installing acl package..."
+        apt install -y acl
+    fi
+
     for EXPORT_PATH in "${EXPORTS[@]}"; do
         echo ""
         echo "--- $EXPORT_PATH ---"
@@ -93,6 +99,16 @@ server_install() {
             echo "Adding export entry..."
             echo "$EXPORT_ENTRY" >> /etc/exports
         fi
+
+        # Fix ACLs so NFS clients (e.g. Docker containers with non-root users)
+        # can write to exported directories and their subdirectories
+        echo "Setting ACLs for $EXPORT_PATH..."
+        setfacl -m m::rwx "$EXPORT_PATH"
+        setfacl -m d:o::rwx "$EXPORT_PATH"
+
+        # Apply recursively to existing subdirectories
+        find "$EXPORT_PATH" -type d -exec setfacl -m m::rwx {} \;
+        find "$EXPORT_PATH" -type d -exec setfacl -m d:o::rwx {} \;
     done
 
     # Apply exports
