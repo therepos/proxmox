@@ -28,8 +28,9 @@ MOUNTS=(
     "mediadb:/mnt/sec/media"
 )
 
-SMB_USER="username"
-SMB_PASS="password"
+SMB_USER="toor"
+SMB_PASS="toor"
+SMB_CREDS_FILE="/etc/samba/.smbcreds"
 
 # =============================================================================
 # Server functions (run on Proxmox host)
@@ -345,6 +346,16 @@ client_install() {
         echo "cifs-utils already installed"
     fi
 
+    # Create credentials file
+    echo "Setting up credentials file at $SMB_CREDS_FILE..."
+    sudo mkdir -p "$(dirname "$SMB_CREDS_FILE")"
+    cat <<EOF | sudo tee "$SMB_CREDS_FILE" >/dev/null
+username=$SMB_USER
+password=$SMB_PASS
+EOF
+    sudo chmod 600 "$SMB_CREDS_FILE"
+    echo "Credentials file created (root-only readable)."
+
     # Clean up any existing cifs entries for this host first
     if grep -q "//$HOST_IP/.*cifs" /etc/fstab 2>/dev/null; then
         echo "Cleaning existing fstab entries for $HOST_IP..."
@@ -380,7 +391,7 @@ client_install() {
         # Mount the SMB share
         echo "Mounting //$HOST_IP/$SHARE_NAME to $MOUNT_PATH..."
         sudo mount -t cifs "//$HOST_IP/$SHARE_NAME" "$MOUNT_PATH" \
-            -o username="$SMB_USER",password="$SMB_PASS",uid=1000,gid=1000,file_mode=0777,dir_mode=0777
+            -o credentials="$SMB_CREDS_FILE",uid=1000,gid=1000,file_mode=0777,dir_mode=0777
 
         # Verify mount
         if mountpoint -q "$MOUNT_PATH"; then
@@ -392,7 +403,7 @@ client_install() {
         fi
 
         # Add to fstab
-        FSTAB_ENTRY="//$HOST_IP/$SHARE_NAME $MOUNT_PATH cifs username=$SMB_USER,password=$SMB_PASS,uid=1000,gid=1000,file_mode=0777,dir_mode=0777,_netdev,nofail 0 0"
+        FSTAB_ENTRY="//$HOST_IP/$SHARE_NAME $MOUNT_PATH cifs credentials=$SMB_CREDS_FILE,uid=1000,gid=1000,file_mode=0777,dir_mode=0777,_netdev,nofail 0 0"
         echo "Adding to fstab for persistence..."
         echo "$FSTAB_ENTRY" | sudo tee -a /etc/fstab
     done
@@ -521,9 +532,15 @@ client_uninstall() {
 
     sudo systemctl daemon-reload
 
-    # Remove cifs-utils only if all entries were removed
+    # Remove cifs-utils and credentials file only if all entries were removed
     if ! grep -q "//$HOST_IP/.*cifs" /etc/fstab 2>/dev/null && \
        ! mount | grep -q "//$HOST_IP/" 2>/dev/null; then
+        # Remove credentials file
+        if [[ -f "$SMB_CREDS_FILE" ]]; then
+            echo "Removing credentials file $SMB_CREDS_FILE..."
+            sudo rm -f "$SMB_CREDS_FILE"
+        fi
+
         if dpkg -s cifs-utils &>/dev/null; then
             echo "No SMB mounts remaining. Removing cifs-utils..."
             sudo apt remove -y cifs-utils
