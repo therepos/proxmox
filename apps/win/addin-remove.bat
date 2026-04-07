@@ -116,7 +116,7 @@ foreach ($rk in $regKeys) {
         foreach ($pn in $props.PSObject.Properties.Name) {
             if ($pn -match '^OPEN\d*$') {
                 $val = $props.$pn
-                $display = $val -replace '^\s*/R\s*"?', '' -replace '"$', ''
+                $display = $val.Trim() -replace '^\s*/R\s*', '' -replace '^"', '' -replace '"$', ''
                 $leaf = Split-Path $display -Leaf -ErrorAction SilentlyContinue
                 if (-not $leaf) { $leaf = $val }
                 [void]$regItems.Add(@{
