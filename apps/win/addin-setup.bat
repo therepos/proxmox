@@ -404,7 +404,7 @@ function Invoke-Remove {
                     Manifest = $manifest
                     App      = $rk.App
                     Source   = 'reg_subkey'
-                    Tag      = "$($rk.App) / registry"
+                    Tag      = "$($rk.App) / COM add-in"
                 })
             }
         }
@@ -419,20 +419,24 @@ function Invoke-Remove {
                     $leaf = Split-Path $display -Leaf -ErrorAction SilentlyContinue
                     if (-not $leaf) { $leaf = $val }
                     [void]$regItems.Add(@{
-                        Name    = "$pn = $leaf"
+                        Name    = $leaf
                         RegPath = $rk.Path
                         RegVal  = $pn
                         RegData = $val
                         App     = $rk.App
                         Source  = 'reg_value'
-                        Tag     = "$($rk.App) / registry"
+                        Tag     = "$($rk.App) / registry-only"
                     })
                 }
             }
         }
     }
 
-    # Merge (skip registry dups matching a file)
+    # Merge registry-only items (skip those matching a file on disk)
+    # Also deduplicate OPEN values: if multiple Office versions reference
+    # the same filename, show it once but track all for cleanup
+    $openSeen = [System.Collections.Generic.HashSet[string]]::new()
+
     foreach ($ri in $regItems) {
         $dominated = $false
         foreach ($fn in $fileNames) {
@@ -440,7 +444,19 @@ function Invoke-Remove {
             if ($ri.Source -eq 'reg_subkey' -and $ri.Manifest -and $ri.Manifest.ToLower().Contains($fn)) { $dominated = $true; break }
             if ($ri.Name.ToLower() -eq $fn) { $dominated = $true; break }
         }
-        if (-not $dominated) { [void]$allItems.Add($ri) }
+        if ($dominated) { continue }
+
+        # Deduplicate OPEN values by displayed filename
+        if ($ri.Source -eq 'reg_value') {
+            $key = "$($ri.App)|$($ri.Name.ToLower())"
+            if ($openSeen.Contains($key)) {
+                # Already shown — skip display but it's still in $regItems for cleanup
+                continue
+            }
+            [void]$openSeen.Add($key)
+        }
+
+        [void]$allItems.Add($ri)
     }
 
     if ($allItems.Count -eq 0) {
@@ -550,7 +566,18 @@ function Invoke-Remove {
         }
 
         if ($s.Source -eq 'reg_value') {
-            if (Remove-RegValue $s) { $okCount++ } else { $errCount++ }
+            # Remove this entry AND all other OPEN entries referencing the same file
+            # (covers duplicates across Office 16.0, 15.0, 14.0 etc.)
+            $targetName = $s.Name.ToLower()
+            $cleaned = [System.Collections.Generic.HashSet[string]]::new()
+            foreach ($ri in $regItems) {
+                if ($ri.Source -ne 'reg_value') { continue }
+                if ($ri.Name.ToLower() -ne $targetName) { continue }
+                $cleanKey = "$($ri.RegPath)|$($ri.RegVal)"
+                if ($cleaned.Contains($cleanKey)) { continue }
+                [void]$cleaned.Add($cleanKey)
+                if (Remove-RegValue $ri) { $okCount++ } else { $errCount++ }
+            }
         }
     }
 
