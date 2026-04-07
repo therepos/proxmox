@@ -7,14 +7,12 @@ setlocal EnableDelayedExpansion
 
 set "PS_TEMP=%TEMP%\addin-mgr-%RANDOM%.ps1"
 
-:: Extract everything after the __PS_BEGIN__ marker into a temp .ps1
-set "FOUND="
-(
-    for /f "usebackq delims=" %%L in ("%~f0") do (
-        if defined FOUND echo(%%L
-        if "%%L"=="::__PS_BEGIN__" set "FOUND=1"
-    )
-) > "%PS_TEMP%"
+:: Use PowerShell to extract everything after ::__PS_BEGIN__ from this file
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$lines = [IO.File]::ReadAllLines('%~f0');" ^
+  "$start = -1;" ^
+  "for ($i=0; $i -lt $lines.Count; $i++) { if ($lines[$i] -eq '::__PS_BEGIN__') { $start = $i + 1; break } };" ^
+  "if ($start -ge 0) { [IO.File]::WriteAllLines('%PS_TEMP%', $lines[$start..($lines.Count-1)]) }"
 
 :: Run it, passing the folder where this .bat lives
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_TEMP%" "%~dp0"

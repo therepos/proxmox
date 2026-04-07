@@ -1,5 +1,4 @@
 @echo off
-setlocal EnableDelayedExpansion
 :: ============================================================
 ::  Office Add-in Export (XML + VBA + file copy)
 ::  Scans installed paths AND the script's own folder.
@@ -8,14 +7,12 @@ setlocal EnableDelayedExpansion
 
 set "PS_TEMP=%TEMP%\addin-export-%RANDOM%.ps1"
 
-:: Extract everything after the __PS_BEGIN__ marker into a temp .ps1
-set "FOUND="
-(
-    for /f "usebackq delims=" %%L in ("%~f0") do (
-        if defined FOUND echo(%%L
-        if "%%L"=="::__PS_BEGIN__" set "FOUND=1"
-    )
-) > "%PS_TEMP%"
+:: Use PowerShell to extract everything after ::__PS_BEGIN__ from this file
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$lines = [IO.File]::ReadAllLines('%~f0');" ^
+  "$start = -1;" ^
+  "for ($i=0; $i -lt $lines.Count; $i++) { if ($lines[$i] -eq '::__PS_BEGIN__') { $start = $i + 1; break } };" ^
+  "if ($start -ge 0) { [IO.File]::WriteAllLines('%PS_TEMP%', $lines[$start..($lines.Count-1)]) }"
 
 :: Run it, passing the folder where this .bat lives as arg
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_TEMP%" "%~dp0"
@@ -298,11 +295,7 @@ function Export-VBA-COM {
 }
 
 # ----- Strategy B: Raw OLE binary parsing ---------------------
-# Reads vbaProject.bin from the ZIP, parses the Compound File Binary
-# (CFB/OLE2) format, finds MODULE streams, decompresses VBA source.
-
 function Decompress-VBA {
-    # MS-OVBA 2.4.1 - RLE decompression
     param([byte[]]$data, [int]$offset)
 
     $result = [System.IO.MemoryStream]::new()
@@ -314,7 +307,6 @@ function Decompress-VBA {
     if ($sigByte -ne 0x01) { return $result.ToArray() }
 
     while ($pos -lt $data.Length) {
-        # Each chunk: 2-byte header + compressed data
         if (($pos + 1) -ge $data.Length) { break }
         $header = [BitConverter]::ToUInt16($data, $pos); $pos += 2
         $chunkSize = ($header -band 0x0FFF) + 3
@@ -340,10 +332,8 @@ function Decompress-VBA {
                 if ($pos -ge $chunkEnd) { break }
 
                 if (($flagByte -band (1 -shl $bit)) -eq 0) {
-                    # Literal byte
                     $result.WriteByte($data[$pos]); $pos++
                 } else {
-                    # Copy token
                     if (($pos + 1) -ge $data.Length) { $pos += 2; break }
                     $token = [BitConverter]::ToUInt16($data, $pos); $pos += 2
 
@@ -386,7 +376,6 @@ function Export-VBA-Raw {
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-    # Find vbaProject.bin in ZIP
     $vbaPath = $vbaPaths[$selected.App]
     if (-not $vbaPath) { return $false }
 
@@ -397,7 +386,6 @@ function Export-VBA-Raw {
         $zip = [System.IO.Compression.ZipFile]::OpenRead($selected.Path)
         $entry = $zip.Entries | Where-Object { $_.FullName -eq $vbaPath } | Select-Object -First 1
         if (-not $entry) {
-            # Try alternate casings
             $entry = $zip.Entries | Where-Object { $_.FullName -ieq $vbaPath } | Select-Object -First 1
         }
         if (-not $entry) {
@@ -418,8 +406,6 @@ function Export-VBA-Raw {
         if ($zip) { $zip.Dispose() }
     }
 
-    # Parse CFB (Compound File Binary Format) / OLE2
-    # Header: first 512 bytes
     if ($binBytes.Length -lt 512) {
         Write-Host '  -> vbaProject.bin too small' -ForegroundColor Yellow
         return $false
@@ -438,10 +424,8 @@ function Export-VBA-Raw {
     $miniCutoff = Read-UInt32LE $binBytes 56
     $miniFatStart = Read-UInt32LE $binBytes 60
 
-    # Helper: sector offset
     function SectorOffset([int]$sector) { return (($sector + 1) * $sectorSize) }
 
-    # Build FAT (sector allocation table)
     $fat = [System.Collections.ArrayList]::new()
     $difatEntries = @()
     for ($i = 0; $i -lt [Math]::Min(109, $fatSectors); $i++) {
@@ -457,7 +441,6 @@ function Export-VBA-Raw {
         }
     }
 
-    # Read a chain of sectors
     function Read-SectorChain([int]$startSector) {
         $ms = [System.IO.MemoryStream]::new()
         $sec = $startSector
@@ -474,7 +457,6 @@ function Export-VBA-Raw {
         return $ms.ToArray()
     }
 
-    # Read directory entries
     $dirData = Read-SectorChain $dirStart
     $entries = @()
     for ($i = 0; ($i * 128) + 127 -lt $dirData.Length; $i++) {
@@ -489,21 +471,19 @@ function Export-VBA-Raw {
 
         $entries += @{
             Name      = $entryName
-            Type      = $entryType  # 1=storage, 2=stream, 5=root
+            Type      = $entryType
             Start     = $entryStart
             Size      = $entrySize
             Index     = $i
         }
     }
 
-    # Build mini-FAT and mini-stream if needed
     $rootEntry = $entries | Where-Object { $_.Type -eq 5 } | Select-Object -First 1
     $miniStreamData = $null
     $miniFat = @()
 
     if ($rootEntry -and $miniFatStart -lt 0xFFFFFFFE) {
         $miniStreamData = Read-SectorChain $rootEntry.Start
-
         $miniFatData = Read-SectorChain $miniFatStart
         for ($i = 0; ($i * 4 + 3) -lt $miniFatData.Length; $i++) {
             $miniFat += (Read-UInt32LE $miniFatData ($i * 4))
@@ -541,7 +521,6 @@ function Export-VBA-Raw {
         }
     }
 
-    # Find VBA/dir stream to get module names and offsets
     $dirEntry = $entries | Where-Object { $_.Name -eq 'dir' } | Select-Object -First 1
     if (-not $dirEntry) {
         Write-Host '  -> No dir stream found in vbaProject.bin' -ForegroundColor Yellow
@@ -556,8 +535,6 @@ function Export-VBA-Raw {
         return $false
     }
 
-    # Parse dir stream to find module names and code offsets
-    # MS-OVBA 2.3.4.2 - dir stream records
     $modules = @()
     $pos = 0
     $dd = $dirDecompressed
@@ -569,18 +546,18 @@ function Export-VBA-Raw {
         $dataStart = $pos + 6
 
         switch ($recordId) {
-            0x0019 { # MODULENAME
+            0x0019 {
                 if ($currentModule) { $modules += $currentModule }
                 $nameBytes = $dd[$dataStart..($dataStart + $recordSize - 1)]
                 $moduleName = [System.Text.Encoding]::ASCII.GetString($nameBytes).TrimEnd("`0")
                 $currentModule = @{ Name = $moduleName; Offset = 0; StreamName = $moduleName }
             }
-            0x0031 { # MODULEOFFSET
+            0x0031 {
                 if ($currentModule -and $recordSize -ge 4) {
                     $currentModule.Offset = Read-UInt32LE $dd $dataStart
                 }
             }
-            0x002B { # MODULE terminator
+            0x002B {
                 if ($currentModule) {
                     $modules += $currentModule
                     $currentModule = $null
@@ -592,20 +569,17 @@ function Export-VBA-Raw {
     }
     if ($currentModule) { $modules += $currentModule }
 
-    # Export each module
     $exportCount = 0
 
     foreach ($mod in $modules) {
         $modName = $mod.Name
 
-        # Skip document modules
         $skip = $false
         foreach ($pat in $skipPatterns) {
             if ($modName -like "$pat*") { $skip = $true; break }
         }
         if ($skip) { continue }
 
-        # Find the stream in the CFB
         $streamEntry = $entries | Where-Object { $_.Name -eq $mod.StreamName } | Select-Object -First 1
         if (-not $streamEntry) { continue }
 
@@ -619,7 +593,6 @@ function Export-VBA-Raw {
             $source = [System.Text.Encoding]::UTF8.GetString($sourceBytes)
             if ([string]::IsNullOrWhiteSpace($source)) { continue }
 
-            # Clean up source
             $source = $source -replace "`r`n", "`n" -replace "`r", "`n"
 
             $dest = Join-Path $outputDir "$modName.bas"
