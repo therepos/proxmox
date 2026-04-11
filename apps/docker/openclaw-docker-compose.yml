@@ -1,0 +1,20 @@
+services:
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18789:18789"
+    volumes:
+      - /mnt/sec/apps/opt/openclaw/config:/home/node/.openclaw
+      - /mnt/sec/apps/opt/openclaw/workspace:/home/node/.openclaw/workspace
+    environment:
+      - OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - OPENCLAW_API_PROVIDER=anthropic
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    mem_limit: 2g
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+      - apparmor=unconfined
+      - seccomp=unconfined
