@@ -1,0 +1,14 @@
+services:
+  travel:
+    image: ghcr.io/therepos/travel:latest
+    container_name: travel
+    restart: unless-stopped
+    ports:
+      - "3050:8000"
+    volumes:
+      - /mnt/sec/apps/travel/data:/data
+    environment:
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
