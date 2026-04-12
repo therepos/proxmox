@@ -10,7 +10,7 @@ services:
       - |
         mkdir -p /home/node/.openclaw/workspace
         if [ ! -f /home/node/.openclaw/openclaw.json ]; then
-          printf '{\n  agents: {\n    defaults: {\n      model: {\n        primary: "anthropic/claude-sonnet-4-20250514"\n      }\n    }\n  },\n  models: {\n    providers: {\n      anthropic: {\n        apiKey: "$${ANTHROPIC_API_KEY}"\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json
+          printf '{\n  gateway: {\n    controlUi: {\n      allowedOrigins: ["https://openclaw.threeminuteslab.com"]\n    }\n  },\n  agents: {\n    defaults: {\n      model: {\n        primary: "anthropic/claude-sonnet-4-20250514"\n      }\n    }\n  },\n  models: {\n    providers: {\n      anthropic: {\n        apiKey: "$${ANTHROPIC_API_KEY}"\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json
         fi
         chown -R 1000:1000 /home/node/.openclaw
     restart: "no"
