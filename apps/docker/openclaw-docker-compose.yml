@@ -5,31 +5,14 @@ services:
     volumes:
       - /mnt/sec/apps/openclaw/config:/home/node/.openclaw
       - /mnt/sec/apps/openclaw/workspace:/home/node/.openclaw/workspace
-    command: >
-      sh -c '
-      mkdir -p /home/node/.openclaw/workspace &&
-      if [ ! -f /home/node/.openclaw/openclaw.json ]; then
-        cat > /home/node/.openclaw/openclaw.json << "CONF"
-      {
-        agents: {
-          defaults: {
-            model: {
-              primary: "anthropic/claude-sonnet-4-20250514"
-            }
-          }
-        },
-        models: {
-          providers: {
-            anthropic: {
-              apiKey: "${ANTHROPIC_API_KEY}"
-            }
-          }
-        }
-      }
-      CONF
-      fi &&
-      chown -R 1000:1000 /home/node/.openclaw
-      '
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /home/node/.openclaw/workspace
+        if [ ! -f /home/node/.openclaw/openclaw.json ]; then
+          printf '{\n  agents: {\n    defaults: {\n      model: {\n        primary: "anthropic/claude-sonnet-4-20250514"\n      }\n    }\n  },\n  models: {\n    providers: {\n      anthropic: {\n        apiKey: "$${ANTHROPIC_API_KEY}"\n      }\n    }\n  }\n}\n' > /home/node/.openclaw/openclaw.json
+        fi
+        chown -R 1000:1000 /home/node/.openclaw
     restart: "no"
 
   openclaw:
@@ -46,7 +29,6 @@ services:
       - /mnt/sec/apps/openclaw/workspace:/home/node/.openclaw/workspace
     environment:
       - OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
-      - OPENCLAW_API_PROVIDER=anthropic
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     mem_limit: 2g
     pids_limit: 256
