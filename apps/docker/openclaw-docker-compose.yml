@@ -1,8 +1,44 @@
 services:
-  openclaw-gateway:
+  openclaw-init:
+    image: busybox
+    container_name: openclaw-init
+    volumes:
+      - /mnt/sec/apps/openclaw/config:/home/node/.openclaw
+      - /mnt/sec/apps/openclaw/workspace:/home/node/.openclaw/workspace
+    command: >
+      sh -c '
+      mkdir -p /home/node/.openclaw/workspace &&
+      if [ ! -f /home/node/.openclaw/openclaw.json ]; then
+        cat > /home/node/.openclaw/openclaw.json << "CONF"
+      {
+        agents: {
+          defaults: {
+            model: {
+              primary: "anthropic/claude-sonnet-4-20250514"
+            }
+          }
+        },
+        models: {
+          providers: {
+            anthropic: {
+              apiKey: "${ANTHROPIC_API_KEY}"
+            }
+          }
+        }
+      }
+      CONF
+      fi &&
+      chown -R 1000:1000 /home/node/.openclaw
+      '
+    restart: "no"
+
+  openclaw:
     image: ghcr.io/openclaw/openclaw:latest
-    container_name: openclaw-gateway
+    container_name: openclaw
     restart: unless-stopped
+    depends_on:
+      openclaw-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:18789:18789"
     volumes:
