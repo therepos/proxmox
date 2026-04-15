@@ -29,7 +29,7 @@ MOUNTS=(
 )
 
 SMB_USER="toor"
-SMB_PASS="toor"
+SMB_PASS="password"
 SMB_CREDS_FILE="/etc/samba/.smbcreds"
 
 # =============================================================================
