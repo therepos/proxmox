@@ -108,13 +108,16 @@ GLOBAL_EOF
     for ENTRY in "${SHARES[@]}"; do
         local SHARE_NAME="${ENTRY%%:*}"
         local SHARE_PATH="${ENTRY#*:}"
+        # FIX: use first samba user as owner to match force user in smb.conf
+        local SHARE_OWNER="${SAMBA_USERS[0]}"
 
         echo ""
         echo "--- [$SHARE_NAME] -> $SHARE_PATH ---"
 
         # Create share directory with permissions
         mkdir -p "$SHARE_PATH"
-        chown -R root:"$SAMBA_GROUP" "$SHARE_PATH"
+        # FIX: chown to SAMBA_USERS[0] instead of root so ownership matches force user
+        chown -R "$SHARE_OWNER":"$SAMBA_GROUP" "$SHARE_PATH"
         chmod -R 2775 "$SHARE_PATH"
         chmod g+s "$SHARE_PATH"
 
@@ -125,6 +128,7 @@ GLOBAL_EOF
         echo "Permissions and ACLs set on '$SHARE_PATH'."
 
         # Append share config
+        # FIX: added force user to match filesystem ownership set above
         cat >>/etc/samba/smb.conf <<SHARE_EOF
 
 [$SHARE_NAME]
@@ -138,6 +142,7 @@ GLOBAL_EOF
    force directory mode = 2775
    inherit permissions = yes
    force group = $SAMBA_GROUP
+   force user = $SHARE_OWNER
    valid users = @${SAMBA_GROUP}
    write list = @${SAMBA_GROUP}
 SHARE_EOF
