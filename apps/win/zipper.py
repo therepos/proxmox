@@ -2,13 +2,13 @@
 """
 zip_to_7z.py
 ------------
-Compresses a file OR folder into a password-protected 7z archive.
+Compresses one or more files/folders into a password-protected 7z archive.
 Auto-installs 7-Zip if not present (Windows / macOS / Linux).
 
-Output filename : log-YYYYMMDD-HHMM   (no extension, placed next to input)
+Output filename : log-YYYYMMDD-HHMM   (no extension, placed next to script)
 Password        : 123
-Usage           : python zip_to_7z.py <file_or_folder_path>
-           or   : python zip_to_7z.py        (prompts for path)
+Usage           : python zip_to_7z.py <file_or_folder> [file_or_folder ...]
+           or   : python zip_to_7z.py        (prompts for paths interactively)
 """
 
 import sys
@@ -139,14 +139,82 @@ def ensure_7z() -> str:
 
 
 # ──────────────────────────────────────────────
-# 3.  COMPRESS
+# 3.  COLLECT & VALIDATE TARGETS
 # ──────────────────────────────────────────────
 
-def make_archive(target: Path, seven_z: str) -> Path:
+def collect_targets(raw_paths: list[str]) -> list[Path]:
+    """
+    Resolve and validate a list of raw path strings.
+    Skips duplicates (by resolved path). Exits if any path is invalid.
+    """
+    seen:    set[Path]  = set()
+    targets: list[Path] = []
+    errors:  list[str]  = []
+
+    for raw in raw_paths:
+        p = Path(raw.strip().strip('"').strip("'")).expanduser().resolve()
+        if not p.exists():
+            errors.append(f"  [!] Not found     : {p}")
+        elif not p.is_file() and not p.is_dir():
+            errors.append(f"  [!] Not a file/dir: {p}")
+        elif p in seen:
+            print(f"  [-] Duplicate skip: {p}")
+        else:
+            seen.add(p)
+            targets.append(p)
+
+    if errors:
+        print("\n[!] Some paths could not be resolved:")
+        for e in errors:
+            print(e)
+        sys.exit(1)
+
+    return targets
+
+
+def prompt_targets() -> list[Path]:
+    """
+    Interactive mode: ask the user to enter paths one by one.
+    An empty line (or 'done') finishes input.
+    """
+    print("Enter file/folder paths to archive (one per line).")
+    print("Press Enter on an empty line when done.\n")
+
+    raw_paths: list[str] = []
+    while True:
+        try:
+            line = input(f"  Path {len(raw_paths) + 1}: ").strip()
+        except EOFError:
+            break
+        if line.lower() in ("", "done", "q", "quit"):
+            break
+        raw_paths.append(line)
+
+    if not raw_paths:
+        print("[!] No paths provided. Exiting.")
+        sys.exit(0)
+
+    return collect_targets(raw_paths)
+
+
+# ──────────────────────────────────────────────
+# 4.  COMPRESS
+# ──────────────────────────────────────────────
+
+def make_archive(targets: list[Path], seven_z: str) -> Path:
     timestamp   = datetime.now().strftime("%Y%m%d-%H%M")
     output_name = f"{PREFIX}-{timestamp}"      # no extension
     script_dir  = Path(__file__).resolve().parent
     output_path = script_dir / output_name     # sits next to the script
+
+    # Print a summary of what will be archived
+    print(f"[*] Items to archive : {len(targets)}")
+    for t in targets:
+        kind = "Folder" if t.is_dir() else "File"
+        print(f"    {kind:<8} : {t}")
+    print(f"[*] Output           : {output_path}")
+    print(f"[*] Password         : {PASSWORD}")
+    print()
 
     cmd = [
         seven_z,
@@ -156,14 +224,8 @@ def make_archive(target: Path, seven_z: str) -> Path:
         "-mhe=on",         # encrypt file headers too
         "-mx=5",           # compression level 0-9
         str(output_path),  # destination (no .7z suffix -- intentional)
-        str(target),       # source: file or folder
+        *[str(t) for t in targets],   # ← all sources
     ]
-
-    kind = "Folder" if target.is_dir() else "File"
-    print(f"[*] {kind:<8}     : {target}")
-    print(f"[*] Output       : {output_path}")
-    print(f"[*] Password     : {PASSWORD}")
-    print()
 
     result = subprocess.run(cmd, capture_output=False, text=True)
 
@@ -180,33 +242,28 @@ def make_archive(target: Path, seven_z: str) -> Path:
 
 
 # ──────────────────────────────────────────────
-# 4.  ENTRY POINT
+# 5.  ENTRY POINT
 # ──────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) < 2:
-        print("Drag-and-drop a file or folder onto this script, or enter the path below.")
-        raw = input("  Path: ").strip().strip('"').strip("'")
+    # --- Gather raw paths from argv or interactive prompt ---
+    if len(sys.argv) >= 2:
+        # All extra argv items are treated as paths (supports drag-and-drop of
+        # multiple files onto the script icon on Windows/macOS)
+        targets = collect_targets(sys.argv[1:])
     else:
-        raw = sys.argv[1].strip().strip('"').strip("'")
+        targets = prompt_targets()
 
-    target = Path(raw).expanduser().resolve()
-
-    if not target.exists():
-        print(f"[!] Path does not exist: {target}")
-        sys.exit(1)
-    if not target.is_file() and not target.is_dir():
-        print(f"[!] Not a file or folder: {target}")
-        sys.exit(1)
-
+    # --- Ensure 7-Zip is available ---
     try:
         seven_z = ensure_7z()
     except RuntimeError as e:
         print(f"\n[!] Could not obtain 7-Zip: {e}")
         sys.exit(1)
 
+    # --- Compress ---
     try:
-        out = make_archive(target, seven_z)
+        out = make_archive(targets, seven_z)
         print(f"\n[✓] Done -> {out}")
     except RuntimeError as e:
         print(f"\n[!] Compression failed: {e}")
