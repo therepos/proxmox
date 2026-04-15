@@ -9,12 +9,12 @@ services:
       restart: unless-stopped
       environment:
         - DOMAIN=https://domain.com
-        - ADMIN_TOKEN=67B5C8DE5CC4956E0945E64A555155190B17219CBF925577CF9E0AD65625BF10
+        - ADMIN_TOKEN=${ADMIN_TOKEN}                # 64-char
         - SMTP_HOST=smtp.zoho.com
         - SMTP_PORT=587
-        - SMTP_FROM=username@email.com
-        - SMTP_USERNAME=username@email.com
-        - SMTP_PASSWORD=<app-password> # generate zoho-email app password
+        - SMTP_FROM=${SMTP_FROM}                    # email address
+        - SMTP_USERNAME=${SMTP_USERNAME}            # email address
+        - SMTP_PASSWORD=${SMTP_PASSWORD}            # generate zoho-email app password
         - SMTP_SECURITY=starttls
       security_opt:
         - apparmor=unconfined
