@@ -184,10 +184,12 @@ fi
 
 # ── Check if HEIC conversion tools needed ────────────────────────────────────
 HAS_HEIC=0
-for i in "${!APPLE_STILLS[@]+"${!APPLE_STILLS[@]}"}"; do
-  ext="${APPLE_STILLS[$i]##*.}"
-  if [[ "${ext,,}" == "heic" ]]; then HAS_HEIC=1; break; fi
-done
+if [[ "$APPLE_COUNT" -gt 0 ]]; then
+  for i in "${!APPLE_STILLS[@]}"; do
+    ext="${APPLE_STILLS[$i]##*.}"
+    if [[ "${ext,,}" == "heic" ]]; then HAS_HEIC=1; break; fi
+  done
+fi
 
 HAS_CONVERT=0; HAS_FFMPEG=0
 if [[ "$HAS_HEIC" = "1" ]]; then
@@ -205,13 +207,17 @@ info "Backing up ${TOTAL} live photo file(s)..."
 if [[ "$DRY_RUN" = "0" ]]; then
   mkdir -p "$BACKUP_DIR"
   declare -a ALL_BACKUP_FILES=()
-  for f in "${SAMSUNG_PHOTOS[@]+"${SAMSUNG_PHOTOS[@]}"}"; do
-    ALL_BACKUP_FILES+=("${f#$ORIGINALS_DIR/}")
-  done
-  for i in "${!APPLE_MOVS[@]+"${!APPLE_MOVS[@]}"}"; do
-    ALL_BACKUP_FILES+=("${APPLE_STILLS[$i]#$ORIGINALS_DIR/}")
-    ALL_BACKUP_FILES+=("${APPLE_MOVS[$i]#$ORIGINALS_DIR/}")
-  done
+  if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
+    for f in "${SAMSUNG_PHOTOS[@]}"; do
+      ALL_BACKUP_FILES+=("${f#$ORIGINALS_DIR/}")
+    done
+  fi
+  if [[ "$APPLE_COUNT" -gt 0 ]]; then
+    for i in "${!APPLE_MOVS[@]}"; do
+      ALL_BACKUP_FILES+=("${APPLE_STILLS[$i]#$ORIGINALS_DIR/}")
+      ALL_BACKUP_FILES+=("${APPLE_MOVS[$i]#$ORIGINALS_DIR/}")
+    done
+  fi
   (cd "$ORIGINALS_DIR" && zip -r "$BACKUP_ZIP" "${ALL_BACKUP_FILES[@]}" -q)
   BACKUP_SIZE="$(du -sh "$BACKUP_ZIP" | cut -f1)"
   success "Backup created: $BACKUP_ZIP (${BACKUP_SIZE})"
