@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/livephoto-convert.sh?$(date +%s))"
+#!/bin/bash
 # =============================================================================
 # PhotoPrism Live Photo → Still Converter
 # =============================================================================
