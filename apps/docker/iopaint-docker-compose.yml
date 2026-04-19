@@ -1,5 +1,4 @@
 # docker pull uiewy/iopaint:latest
-# deploy via portainer stack
 
 services:
   iopaint:
