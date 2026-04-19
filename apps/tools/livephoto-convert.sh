@@ -68,14 +68,11 @@ fi
 install_pkg() {
   local pkg="$1"
   info "Installing ${pkg}..."
-  if [[ "$DRY_RUN" = "0" ]]; then
-    apt-get install -y "$pkg" -qq >/dev/null 2>&1 && success "Installed: ${pkg}" || {
-      error "Failed to install ${pkg}. Try manually: apt-get install ${pkg}"
-      return 1
-    }
-  else
-    warn "[DRY RUN] Would install: ${pkg}"
-  fi
+  # Always install deps — they are prerequisites, not destructive actions
+  apt-get install -y "$pkg" -qq >/dev/null 2>&1 && success "Installed: ${pkg}" || {
+    error "Failed to install ${pkg}. Try manually: apt-get install ${pkg}"
+    return 1
+  }
 }
 
 ensure_cmd() {
