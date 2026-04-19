@@ -3,21 +3,25 @@
 # =============================================================================
 # PhotoPrism Live Photo → Still Converter
 # =============================================================================
-# What it does:
-#   1. Scans your originals directory for live photo pairs (JPEG/HEIC + MOV/MP4)
+# Handles two formats:
+#   1. Samsung Motion Photos — video embedded inside the JPEG (XMP tags)
+#   2. Apple Live Photos     — separate .mov sidecar alongside JPEG/HEIC
+#
+# What this script does:
+#   1. Scans for both types of live photos
 #   2. Backs them all up into a timestamped zip archive
-#   3. Converts HEIC stills to JPEG if needed (requires ImageMagick or ffmpeg)
-#   4. Deletes the video sidecar files, leaving only the still images
+#   3. Samsung: strips embedded video using exiftool
+#   4. Apple:   deletes the .mov sidecar; converts HEIC→JPEG if needed
 #   5. Prints a summary report
 #
-# Requirements: zip, find (standard). For HEIC→JPEG: ImageMagick (convert) or ffmpeg
+# Requirements: exiftool, zip (auto-installed if missing)
+#               imagemagick or ffmpeg (for HEIC→JPEG, auto-installed)
 #
 # Usage:
-#   chmod +x convert_live_photos.sh
-#   ./convert_live_photos.sh /path/to/photoprism/originals
+#   bash convert_live_photos.sh /mnt/sec/media/photos/chiult
 #
-#   Dry run (no changes made):
-#   DRY_RUN=1 ./convert_live_photos.sh /path/to/photoprism/originals
+# Dry run (no changes made):
+#   DRY_RUN=1 bash convert_live_photos.sh /mnt/sec/media/photos/chiult
 # =============================================================================
 
 set -euo pipefail
@@ -35,11 +39,10 @@ error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; }
 ORIGINALS_DIR="${1:-}"
 DRY_RUN="${DRY_RUN:-0}"
 BACKUP_DIR="${BACKUP_DIR:-$(dirname "${ORIGINALS_DIR:-/tmp}")/live_photo_backups}"
-CONVERT_HEIC="${CONVERT_HEIC:-1}"   # Set to 0 to skip HEIC→JPEG conversion
 
 if [[ -z "$ORIGINALS_DIR" ]]; then
-  error "Usage: $0 /path/to/photoprism/originals"
-  error "       DRY_RUN=1 $0 /path/to/photoprism/originals"
+  error "Usage: $0 /path/to/photos"
+  error "       DRY_RUN=1 $0 /path/to/photos"
   exit 1
 fi
 
@@ -54,21 +57,19 @@ BACKUP_ZIP="${BACKUP_DIR}/live_photos_backup_${TIMESTAMP}.zip"
 
 echo -e "\n${BOLD}════════════════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  PhotoPrism Live Photo Converter${RESET}"
+echo -e "${BOLD}  (Samsung Motion Photos + Apple Live Photos)${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
 echo -e "  Originals : ${ORIGINALS_DIR}"
 echo -e "  Backup zip: ${BACKUP_ZIP}"
 echo -e "  Dry run   : $([ "$DRY_RUN" = "1" ] && echo 'YES — no changes will be made' || echo 'NO — files will be modified')"
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}\n"
 
-if [[ "$DRY_RUN" = "1" ]]; then
-  warn "DRY RUN MODE — listing actions only, nothing will be changed.\n"
-fi
+[[ "$DRY_RUN" = "1" ]] && warn "DRY RUN MODE — listing actions only, nothing will be changed.\n"
 
-# ── Check & auto-install dependencies ────────────────────────────────────────
+# ── Auto-install dependencies ─────────────────────────────────────────────────
 install_pkg() {
   local pkg="$1"
   info "Installing ${pkg}..."
-  # Always install deps — they are prerequisites, not destructive actions
   apt-get install -y "$pkg" -qq >/dev/null 2>&1 && success "Installed: ${pkg}" || {
     error "Failed to install ${pkg}. Try manually: apt-get install ${pkg}"
     return 1
@@ -86,180 +87,224 @@ ensure_cmd() {
 }
 
 info "Checking dependencies..."
-
-# zip — required
+ensure_cmd exiftool libimage-exiftool-perl
 ensure_cmd zip zip
-# ImageMagick (convert) — for HEIC→JPEG
 ensure_cmd convert imagemagick
-# ffmpeg — fallback for HEIC→JPEG
 ensure_cmd ffmpeg ffmpeg
 echo ""
 
-# Re-check after installs
-HAS_ZIP=0;     command -v zip     &>/dev/null && HAS_ZIP=1
+command -v exiftool &>/dev/null || { error "exiftool could not be installed. Cannot continue."; exit 1; }
+command -v zip      &>/dev/null || { error "zip could not be installed. Cannot continue."; exit 1; }
+
 HAS_CONVERT=0; command -v convert &>/dev/null && HAS_CONVERT=1
 HAS_FFMPEG=0;  command -v ffmpeg  &>/dev/null && HAS_FFMPEG=1
 
-if [[ "$HAS_ZIP" = "0" ]]; then
-  error "'zip' could not be installed. Cannot continue."
-  exit 1
+# ── Step 1a: Find Samsung Motion Photos ──────────────────────────────────────
+info "Scanning for Samsung Motion Photos (embedded video in JPEG)..."
+
+declare -a SAMSUNG_PHOTOS=()
+
+while IFS= read -r -d '' jpg; do
+  if exiftool -q -q -MicroVideo -MotionPhoto "$jpg" 2>/dev/null | grep -qiE "^(Micro Video|Motion Photo)\s*:\s*1"; then
+    SAMSUNG_PHOTOS+=("$jpg")
+  fi
+done < <(find "$ORIGINALS_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -print0)
+
+SAMSUNG_COUNT="${#SAMSUNG_PHOTOS[@]}"
+success "Samsung Motion Photos found: ${SAMSUNG_COUNT}"
+
+if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
+  for f in "${SAMSUNG_PHOTOS[@]}"; do
+    echo -e "    ${CYAN}→${RESET} $f"
+  done
 fi
+echo ""
 
-if [[ "$CONVERT_HEIC" = "1" && "$HAS_CONVERT" = "0" && "$HAS_FFMPEG" = "0" ]]; then
-  warn "Neither ImageMagick nor ffmpeg available — HEIC files will NOT be converted to JPEG."
-  CONVERT_HEIC=0
-fi
+# ── Step 1b: Find Apple Live Photos ──────────────────────────────────────────
+info "Scanning for Apple Live Photos (.mov sidecar alongside JPEG/HEIC)..."
 
-# ── Step 1: Find live photo pairs ─────────────────────────────────────────────
-info "Scanning for live photo pairs in: $ORIGINALS_DIR"
+declare -a APPLE_STILLS=()
+declare -a APPLE_MOVS=()
 
-declare -a LIVE_PAIRS_STILL=()   # still image paths
-declare -a LIVE_PAIRS_VIDEO=()   # matching video paths
-
-while IFS= read -r -d '' video_file; do
-  base="${video_file%.*}"
+while IFS= read -r -d '' mov; do
+  base="${mov%.*}"
   still=""
-
-  # Check for matching still in order of preference
   for ext in jpg JPG jpeg JPEG heic HEIC; do
-    candidate="${base}.${ext}"
-    if [[ -f "$candidate" ]]; then
-      still="$candidate"
+    if [[ -f "${base}.${ext}" ]]; then
+      still="${base}.${ext}"
       break
     fi
   done
-
   if [[ -n "$still" ]]; then
-    LIVE_PAIRS_STILL+=("$still")
-    LIVE_PAIRS_VIDEO+=("$video_file")
+    # Extra check: verify it's an Apple Live Photo via exiftool ContentIdentifier
+    if exiftool -q -q -ContentIdentifier -LivePhotoVideoIndex "$still" 2>/dev/null | grep -qiE "^(Content Identifier|Live Photo Video Index)\s*:"; then
+      APPLE_STILLS+=("$still")
+      APPLE_MOVS+=("$mov")
+    else
+      # Fallback: if .mov matches a JPEG/HEIC by name, treat as live photo pair anyway
+      APPLE_STILLS+=("$still")
+      APPLE_MOVS+=("$mov")
+    fi
   fi
-done < <(find "$ORIGINALS_DIR" -type f \( -iname "*.mov" -o -iname "*.mp4" \) -print0)
+done < <(find "$ORIGINALS_DIR" -type f -iname "*.mov" -print0)
 
-PAIR_COUNT="${#LIVE_PAIRS_VIDEO[@]}"
+APPLE_COUNT="${#APPLE_MOVS[@]}"
+success "Apple Live Photos found: ${APPLE_COUNT}"
 
-if [[ "$PAIR_COUNT" -eq 0 ]]; then
-  info "No live photo pairs found. Nothing to do."
+if [[ "$APPLE_COUNT" -gt 0 ]]; then
+  for i in "${!APPLE_MOVS[@]}"; do
+    echo -e "    ${CYAN}Still:${RESET} ${APPLE_STILLS[$i]}"
+    echo -e "    ${RED}Video:${RESET} ${APPLE_MOVS[$i]}"
+  done
+fi
+echo ""
+
+TOTAL=$((SAMSUNG_COUNT + APPLE_COUNT))
+
+if [[ "$TOTAL" -eq 0 ]]; then
+  info "No live photos found. Nothing to do."
   exit 0
 fi
 
-success "Found ${PAIR_COUNT} live photo pair(s)."
-echo ""
-
-# Print the pairs
-for i in "${!LIVE_PAIRS_VIDEO[@]}"; do
-  echo -e "  ${CYAN}Still:${RESET} ${LIVE_PAIRS_STILL[$i]}"
-  echo -e "  ${RED}Video:${RESET} ${LIVE_PAIRS_VIDEO[$i]}"
-  echo ""
-done
-
 # ── Step 2: Backup ────────────────────────────────────────────────────────────
-info "Step 1/3 — Backing up live photo pairs to zip..."
+info "Step 1/3 — Backing up all live photo files..."
 
 if [[ "$DRY_RUN" = "0" ]]; then
   mkdir -p "$BACKUP_DIR"
+  declare -a ALL_BACKUP_FILES=()
 
-  # Build list of all files to back up
-  ALL_FILES=()
-  for i in "${!LIVE_PAIRS_VIDEO[@]}"; do
-    ALL_FILES+=("${LIVE_PAIRS_STILL[$i]}" "${LIVE_PAIRS_VIDEO[$i]}")
+  for f in "${SAMSUNG_PHOTOS[@]+"${SAMSUNG_PHOTOS[@]}"}"; do
+    ALL_BACKUP_FILES+=("${f#$ORIGINALS_DIR/}")
+  done
+  for i in "${!APPLE_MOVS[@]+"${!APPLE_MOVS[@]}"}"; do
+    ALL_BACKUP_FILES+=("${APPLE_STILLS[$i]#$ORIGINALS_DIR/}")
+    ALL_BACKUP_FILES+=("${APPLE_MOVS[$i]#$ORIGINALS_DIR/}")
   done
 
-  # Zip with relative paths
   (
     cd "$ORIGINALS_DIR"
-    zip_args=()
-    for f in "${ALL_FILES[@]}"; do
-      rel="${f#$ORIGINALS_DIR/}"
-      zip_args+=("$rel")
-    done
-    zip -r "$BACKUP_ZIP" "${zip_args[@]}" -x "*.DS_Store"
+    zip -r "$BACKUP_ZIP" "${ALL_BACKUP_FILES[@]}"
   )
-
   BACKUP_SIZE="$(du -sh "$BACKUP_ZIP" | cut -f1)"
   success "Backup created: $BACKUP_ZIP (${BACKUP_SIZE})"
 else
-  warn "[DRY RUN] Would create backup zip: $BACKUP_ZIP"
+  warn "[DRY RUN] Would backup ${TOTAL} live photo file(s) to: $BACKUP_ZIP"
 fi
 echo ""
 
-# ── Step 3: Convert HEIC → JPEG (if applicable) ───────────────────────────────
-info "Step 2/3 — Converting HEIC stills to JPEG where needed..."
+# ── Step 3: Process Samsung Motion Photos ────────────────────────────────────
+if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
+  info "Step 2/3 — Stripping embedded video from Samsung Motion Photos..."
 
-HEIC_CONVERTED=0
-HEIC_SKIPPED=0
+  SAMSUNG_CONVERTED=0
+  SAMSUNG_FAILED=0
 
-for i in "${!LIVE_PAIRS_STILL[@]}"; do
-  still="${LIVE_PAIRS_STILL[$i]}"
-  ext="${still##*.}"
-
-  if [[ "${ext,,}" == "heic" ]]; then
-    new_still="${still%.*}.jpg"
-
-    if [[ "$DRY_RUN" = "0" && "$CONVERT_HEIC" = "1" ]]; then
-      if [[ "$HAS_CONVERT" = "1" ]]; then
-        convert "$still" "$new_still" 2>/dev/null && {
-          rm "$still"
-          LIVE_PAIRS_STILL[$i]="$new_still"
-          success "Converted: $(basename "$still") → $(basename "$new_still")"
-          ((HEIC_CONVERTED++)) || true
-        }
-      elif [[ "$HAS_FFMPEG" = "1" ]]; then
-        ffmpeg -i "$still" "$new_still" -loglevel quiet && {
-          rm "$still"
-          LIVE_PAIRS_STILL[$i]="$new_still"
-          success "Converted: $(basename "$still") → $(basename "$new_still")"
-          ((HEIC_CONVERTED++)) || true
-        }
+  for jpg in "${SAMSUNG_PHOTOS[@]}"; do
+    if [[ "$DRY_RUN" = "0" ]]; then
+      if exiftool -overwrite_original \
+          -MicroVideo= \
+          -MicroVideoOffset= \
+          -MicroVideoLength= \
+          -MicroVideoPresentationTimestampUs= \
+          -MotionPhoto= \
+          -MotionPhotoVersion= \
+          -MotionPhotoPresentationTimestampUs= \
+          -EmbeddedVideoType= \
+          -EmbeddedVideoFile= \
+          -q "$jpg" 2>/dev/null; then
+        success "Stripped: $(basename "$jpg")"
+        ((SAMSUNG_CONVERTED++)) || true
+      else
+        error "Failed: $jpg"
+        ((SAMSUNG_FAILED++)) || true
       fi
-    elif [[ "$DRY_RUN" = "1" ]]; then
-      warn "[DRY RUN] Would convert HEIC → JPEG: $still"
-      ((HEIC_CONVERTED++)) || true
     else
-      warn "Skipping HEIC conversion (CONVERT_HEIC=0): $(basename "$still")"
-      ((HEIC_SKIPPED++)) || true
+      warn "[DRY RUN] Would strip motion video from: $(basename "$jpg")"
+      ((SAMSUNG_CONVERTED++)) || true
     fi
-  fi
-done
-
-if [[ "$HEIC_CONVERTED" -eq 0 && "$HEIC_SKIPPED" -eq 0 ]]; then
-  info "No HEIC files found — all stills are already JPEG."
+  done
+  echo ""
+else
+  SAMSUNG_CONVERTED=0; SAMSUNG_FAILED=0
+  info "Step 2/3 — No Samsung Motion Photos to process, skipping."
+  echo ""
 fi
-echo ""
 
-# ── Step 4: Remove video sidecars ─────────────────────────────────────────────
-info "Step 3/3 — Removing video sidecar files..."
+# ── Step 4: Process Apple Live Photos ────────────────────────────────────────
+if [[ "$APPLE_COUNT" -gt 0 ]]; then
+  info "Step 3/3 — Processing Apple Live Photos..."
 
-DELETED=0
-FAILED=0
+  APPLE_CONVERTED=0
+  APPLE_FAILED=0
+  HEIC_CONVERTED=0
 
-for video in "${LIVE_PAIRS_VIDEO[@]}"; do
-  if [[ "$DRY_RUN" = "0" ]]; then
-    if rm "$video" 2>/dev/null; then
-      success "Deleted: $video"
-      ((DELETED++)) || true
-    else
-      error "Failed to delete: $video"
-      ((FAILED++)) || true
+  for i in "${!APPLE_MOVS[@]}"; do
+    still="${APPLE_STILLS[$i]}"
+    mov="${APPLE_MOVS[$i]}"
+    ext="${still##*.}"
+
+    # Convert HEIC → JPEG if needed
+    if [[ "${ext,,}" == "heic" ]]; then
+      new_still="${still%.*}.jpg"
+      if [[ "$DRY_RUN" = "0" ]]; then
+        converted=0
+        if [[ "$HAS_CONVERT" = "1" ]]; then
+          convert "$still" "$new_still" 2>/dev/null && converted=1
+        elif [[ "$HAS_FFMPEG" = "1" ]]; then
+          ffmpeg -i "$still" "$new_still" -loglevel quiet 2>/dev/null && converted=1
+        fi
+        if [[ "$converted" = "1" ]]; then
+          rm "$still"
+          success "HEIC→JPEG: $(basename "$still") → $(basename "$new_still")"
+          ((HEIC_CONVERTED++)) || true
+        else
+          warn "Could not convert HEIC: $(basename "$still") — keeping as-is"
+        fi
+      else
+        warn "[DRY RUN] Would convert HEIC→JPEG: $(basename "$still")"
+        ((HEIC_CONVERTED++)) || true
+      fi
     fi
-  else
-    warn "[DRY RUN] Would delete: $video"
-    ((DELETED++)) || true
-  fi
-done
-echo ""
+
+    # Delete the .mov sidecar
+    if [[ "$DRY_RUN" = "0" ]]; then
+      if rm "$mov" 2>/dev/null; then
+        success "Deleted sidecar: $(basename "$mov")"
+        ((APPLE_CONVERTED++)) || true
+      else
+        error "Failed to delete: $mov"
+        ((APPLE_FAILED++)) || true
+      fi
+    else
+      warn "[DRY RUN] Would delete sidecar: $(basename "$mov")"
+      ((APPLE_CONVERTED++)) || true
+    fi
+  done
+  echo ""
+else
+  APPLE_CONVERTED=0; APPLE_FAILED=0; HEIC_CONVERTED=0
+  info "Step 3/3 — No Apple Live Photos to process, skipping."
+  echo ""
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
+TOTAL_CONVERTED=$((SAMSUNG_CONVERTED + APPLE_CONVERTED))
+TOTAL_FAILED=$((SAMSUNG_FAILED + APPLE_FAILED))
+
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  Summary${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
-echo -e "  Live pairs found    : ${PAIR_COUNT}"
-echo -e "  HEIC→JPEG converted : ${HEIC_CONVERTED}"
-echo -e "  Videos removed      : ${DELETED}"
-[[ "$FAILED" -gt 0 ]] && echo -e "  ${RED}Failures            : ${FAILED}${RESET}"
-[[ "$DRY_RUN" = "0" ]] && echo -e "  Backup saved to     : ${BACKUP_ZIP}"
+echo -e "  Samsung Motion Photos   : ${SAMSUNG_COUNT} found, ${SAMSUNG_CONVERTED} converted"
+echo -e "  Apple Live Photos       : ${APPLE_COUNT} found, ${APPLE_CONVERTED} converted"
+[[ "${HEIC_CONVERTED:-0}" -gt 0 ]] && \
+echo -e "  HEIC→JPEG conversions   : ${HEIC_CONVERTED}"
+[[ "$TOTAL_FAILED" -gt 0 ]] && \
+echo -e "  ${RED}Failures                : ${TOTAL_FAILED}${RESET}"
+[[ "$DRY_RUN" = "0" ]] && \
+echo -e "  Backup saved to         : ${BACKUP_ZIP}"
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}\n"
 
-if [[ "$DRY_RUN" = "0" && "$PAIR_COUNT" -gt 0 ]]; then
-  echo -e "${GREEN}✓ Done! Run PhotoPrism re-index to apply changes:${RESET}"
+if [[ "$DRY_RUN" = "0" && "$TOTAL_CONVERTED" -gt 0 ]]; then
+  echo -e "${GREEN}✓ Done! Re-index PhotoPrism to apply changes:${RESET}"
   echo -e "  ${CYAN}docker exec -it photoprism photoprism index --cleanup${RESET}\n"
 fi
