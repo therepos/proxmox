@@ -64,31 +64,52 @@ if [[ "$DRY_RUN" = "1" ]]; then
   warn "DRY RUN MODE — listing actions only, nothing will be changed.\n"
 fi
 
-# ── Check dependencies ────────────────────────────────────────────────────────
-check_cmd() {
-  if command -v "$1" &>/dev/null; then
-    success "Found: $1"
-    return 0
+# ── Check & auto-install dependencies ────────────────────────────────────────
+install_pkg() {
+  local pkg="$1"
+  info "Installing ${pkg}..."
+  if [[ "$DRY_RUN" = "0" ]]; then
+    apt-get install -y "$pkg" -qq >/dev/null 2>&1 && success "Installed: ${pkg}" || {
+      error "Failed to install ${pkg}. Try manually: apt-get install ${pkg}"
+      return 1
+    }
   else
-    warn "Not found: $1"
-    return 1
+    warn "[DRY RUN] Would install: ${pkg}"
+  fi
+}
+
+ensure_cmd() {
+  local cmd="$1"; local pkg="${2:-$1}"
+  if command -v "$cmd" &>/dev/null; then
+    success "Found: $cmd"
+  else
+    warn "Not found: $cmd — installing ${pkg}..."
+    install_pkg "$pkg"
   fi
 }
 
 info "Checking dependencies..."
-HAS_ZIP=0;     check_cmd zip     && HAS_ZIP=1
-HAS_CONVERT=0; check_cmd convert && HAS_CONVERT=1   # ImageMagick
-HAS_FFMPEG=0;  check_cmd ffmpeg  && HAS_FFMPEG=1
+
+# zip — required
+ensure_cmd zip zip
+# ImageMagick (convert) — for HEIC→JPEG
+ensure_cmd convert imagemagick
+# ffmpeg — fallback for HEIC→JPEG
+ensure_cmd ffmpeg ffmpeg
 echo ""
 
+# Re-check after installs
+HAS_ZIP=0;     command -v zip     &>/dev/null && HAS_ZIP=1
+HAS_CONVERT=0; command -v convert &>/dev/null && HAS_CONVERT=1
+HAS_FFMPEG=0;  command -v ffmpeg  &>/dev/null && HAS_FFMPEG=1
+
 if [[ "$HAS_ZIP" = "0" ]]; then
-  error "'zip' is required. Install with: apt-get install zip"
+  error "'zip' could not be installed. Cannot continue."
   exit 1
 fi
 
 if [[ "$CONVERT_HEIC" = "1" && "$HAS_CONVERT" = "0" && "$HAS_FFMPEG" = "0" ]]; then
-  warn "Neither ImageMagick nor ffmpeg found — HEIC files will NOT be converted to JPEG."
-  warn "Install ImageMagick: apt-get install imagemagick"
+  warn "Neither ImageMagick nor ffmpeg available — HEIC files will NOT be converted to JPEG."
   CONVERT_HEIC=0
 fi
 
