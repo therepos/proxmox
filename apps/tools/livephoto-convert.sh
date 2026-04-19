@@ -7,20 +7,10 @@
 #   1. Samsung Motion Photos — video embedded inside the JPEG (XMP tags)
 #   2. Apple Live Photos     — separate .mov sidecar alongside JPEG/HEIC
 #
-# What this script does:
-#   1. Scans for both types of live photos
-#   2. Backs them all up into a timestamped zip archive
-#   3. Samsung: strips embedded video using exiftool
-#   4. Apple:   deletes the .mov sidecar; converts HEIC→JPEG if needed
-#   5. Prints a summary report
-#
-# Requirements: exiftool, zip (auto-installed if missing)
-#               imagemagick or ffmpeg (for HEIC→JPEG, auto-installed)
-#
 # Usage:
 #   bash convert_live_photos.sh /mnt/sec/media/photos/chiult
 #
-# Dry run (no changes made):
+# Dry run:
 #   DRY_RUN=1 bash convert_live_photos.sh /mnt/sec/media/photos/chiult
 # =============================================================================
 
@@ -28,12 +18,52 @@ set -euo pipefail
 
 # ── Colour helpers ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
+CYAN='\033[0;36m'; PURPLE='\033[0;35m'; BOLD='\033[1m'; RESET='\033[0m'
 
 info()    { echo -e "${CYAN}[INFO]${RESET}  $*"; }
 success() { echo -e "${GREEN}[OK]${RESET}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
 error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; }
+
+# ── Progress helpers ──────────────────────────────────────────────────────────
+PROGRESS_TOTAL=0
+PROGRESS_CURRENT=0
+
+draw_progress() {
+  local activity="$1"
+  local pct=0
+  [[ "$PROGRESS_TOTAL" -gt 0 ]] && pct=$(( PROGRESS_CURRENT * 100 / PROGRESS_TOTAL ))
+
+  local filled=$(( pct * 30 / 100 ))
+  local empty=$(( 30 - filled ))
+  local bar=""
+  for ((i=0; i<filled; i++)); do bar+="█"; done
+  for ((i=0; i<empty; i++));  do bar+="░"; done
+
+  # Overwrite the last 2 lines
+  printf "\r\033[1A\033[2K\033[1A\033[2K"
+  printf "${BOLD}PROGRESS${RESET}  ${PURPLE}${bar}${RESET}  ${pct}%%\n"
+  printf "${BOLD}ACTIVITY${RESET}  ${CYAN}${activity}${RESET}\n"
+}
+
+init_progress() {
+  PROGRESS_TOTAL=$1
+  PROGRESS_CURRENT=0
+  # Print initial two lines so draw_progress has lines to overwrite
+  printf "${BOLD}PROGRESS${RESET}  ${PURPLE}░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░${RESET}  0%%\n"
+  printf "${BOLD}ACTIVITY${RESET}  starting...\n"
+}
+
+tick_progress() {
+  ((PROGRESS_CURRENT++)) || true
+  draw_progress "$1"
+}
+
+finish_progress() {
+  PROGRESS_CURRENT=$PROGRESS_TOTAL
+  draw_progress "$1"
+  echo ""
+}
 
 # ── Args & config ─────────────────────────────────────────────────────────────
 ORIGINALS_DIR="${1:-}"
@@ -42,7 +72,6 @@ BACKUP_DIR="${BACKUP_DIR:-$(dirname "${ORIGINALS_DIR:-/tmp}")/live_photo_backups
 
 if [[ -z "$ORIGINALS_DIR" ]]; then
   error "Usage: $0 /path/to/photos"
-  error "       DRY_RUN=1 $0 /path/to/photos"
   exit 1
 fi
 
@@ -57,7 +86,6 @@ BACKUP_ZIP="${BACKUP_DIR}/live_photos_backup_${TIMESTAMP}.zip"
 
 echo -e "\n${BOLD}════════════════════════════════════════════════════${RESET}"
 echo -e "${BOLD}  PhotoPrism Live Photo Converter${RESET}"
-echo -e "${BOLD}  (Samsung Motion Photos + Apple Live Photos)${RESET}"
 echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
 echo -e "  Originals : ${ORIGINALS_DIR}"
 echo -e "  Backup zip: ${BACKUP_ZIP}"
@@ -100,7 +128,7 @@ HAS_CONVERT=0; command -v convert &>/dev/null && HAS_CONVERT=1
 HAS_FFMPEG=0;  command -v ffmpeg  &>/dev/null && HAS_FFMPEG=1
 
 # ── Step 1a: Find Samsung Motion Photos ──────────────────────────────────────
-info "Scanning for Samsung Motion Photos (embedded video in JPEG)..."
+info "Scanning for Samsung Motion Photos..."
 
 declare -a SAMSUNG_PHOTOS=()
 
@@ -113,15 +141,8 @@ done < <(find "$ORIGINALS_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -
 SAMSUNG_COUNT="${#SAMSUNG_PHOTOS[@]}"
 success "Samsung Motion Photos found: ${SAMSUNG_COUNT}"
 
-if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
-  for f in "${SAMSUNG_PHOTOS[@]}"; do
-    echo -e "    ${CYAN}→${RESET} $f"
-  done
-fi
-echo ""
-
 # ── Step 1b: Find Apple Live Photos ──────────────────────────────────────────
-info "Scanning for Apple Live Photos (.mov sidecar alongside JPEG/HEIC)..."
+info "Scanning for Apple Live Photos..."
 
 declare -a APPLE_STILLS=()
 declare -a APPLE_MOVS=()
@@ -136,27 +157,13 @@ while IFS= read -r -d '' mov; do
     fi
   done
   if [[ -n "$still" ]]; then
-    # Extra check: verify it's an Apple Live Photo via exiftool ContentIdentifier
-    if exiftool -q -q -ContentIdentifier -LivePhotoVideoIndex "$still" 2>/dev/null | grep -qiE "^(Content Identifier|Live Photo Video Index)\s*:"; then
-      APPLE_STILLS+=("$still")
-      APPLE_MOVS+=("$mov")
-    else
-      # Fallback: if .mov matches a JPEG/HEIC by name, treat as live photo pair anyway
-      APPLE_STILLS+=("$still")
-      APPLE_MOVS+=("$mov")
-    fi
+    APPLE_STILLS+=("$still")
+    APPLE_MOVS+=("$mov")
   fi
 done < <(find "$ORIGINALS_DIR" -type f -iname "*.mov" -print0)
 
 APPLE_COUNT="${#APPLE_MOVS[@]}"
 success "Apple Live Photos found: ${APPLE_COUNT}"
-
-if [[ "$APPLE_COUNT" -gt 0 ]]; then
-  for i in "${!APPLE_MOVS[@]}"; do
-    echo -e "    ${CYAN}Still:${RESET} ${APPLE_STILLS[$i]}"
-    echo -e "    ${RED}Video:${RESET} ${APPLE_MOVS[$i]}"
-  done
-fi
 echo ""
 
 TOTAL=$((SAMSUNG_COUNT + APPLE_COUNT))
@@ -167,7 +174,7 @@ if [[ "$TOTAL" -eq 0 ]]; then
 fi
 
 # ── Step 2: Backup ────────────────────────────────────────────────────────────
-info "Step 1/3 — Backing up all live photo files..."
+info "Backing up ${TOTAL} live photo file(s)..."
 
 if [[ "$DRY_RUN" = "0" ]]; then
   mkdir -p "$BACKUP_DIR"
@@ -181,110 +188,83 @@ if [[ "$DRY_RUN" = "0" ]]; then
     ALL_BACKUP_FILES+=("${APPLE_MOVS[$i]#$ORIGINALS_DIR/}")
   done
 
-  (
-    cd "$ORIGINALS_DIR"
-    zip -r "$BACKUP_ZIP" "${ALL_BACKUP_FILES[@]}"
-  )
+  (cd "$ORIGINALS_DIR" && zip -r "$BACKUP_ZIP" "${ALL_BACKUP_FILES[@]}" -q)
   BACKUP_SIZE="$(du -sh "$BACKUP_ZIP" | cut -f1)"
   success "Backup created: $BACKUP_ZIP (${BACKUP_SIZE})"
 else
-  warn "[DRY RUN] Would backup ${TOTAL} live photo file(s) to: $BACKUP_ZIP"
+  warn "[DRY RUN] Would backup ${TOTAL} file(s) to: $BACKUP_ZIP"
 fi
 echo ""
 
-# ── Step 3: Process Samsung Motion Photos ────────────────────────────────────
-if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
-  info "Step 2/3 — Stripping embedded video from Samsung Motion Photos..."
+# ── Step 3: Convert Samsung Motion Photos ────────────────────────────────────
+SAMSUNG_CONVERTED=0; SAMSUNG_FAILED=0
 
-  SAMSUNG_CONVERTED=0
-  SAMSUNG_FAILED=0
+if [[ "$SAMSUNG_COUNT" -gt 0 ]]; then
+  info "Converting Samsung Motion Photos..."
+  init_progress "$SAMSUNG_COUNT"
 
   for jpg in "${SAMSUNG_PHOTOS[@]}"; do
+    fname="$(basename "$jpg")"
     if [[ "$DRY_RUN" = "0" ]]; then
       if exiftool -overwrite_original \
-          -MicroVideo= \
-          -MicroVideoOffset= \
-          -MicroVideoLength= \
+          -MicroVideo= -MicroVideoOffset= -MicroVideoLength= \
           -MicroVideoPresentationTimestampUs= \
-          -MotionPhoto= \
-          -MotionPhotoVersion= \
+          -MotionPhoto= -MotionPhotoVersion= \
           -MotionPhotoPresentationTimestampUs= \
-          -EmbeddedVideoType= \
-          -EmbeddedVideoFile= \
+          -EmbeddedVideoType= -EmbeddedVideoFile= \
           -q "$jpg" 2>/dev/null; then
-        success "Stripped: $(basename "$jpg")"
         ((SAMSUNG_CONVERTED++)) || true
       else
-        error "Failed: $jpg"
         ((SAMSUNG_FAILED++)) || true
+        fname="[FAILED] $fname"
       fi
     else
-      warn "[DRY RUN] Would strip motion video from: $(basename "$jpg")"
       ((SAMSUNG_CONVERTED++)) || true
     fi
+    tick_progress "stripping $fname"
   done
-  echo ""
-else
-  SAMSUNG_CONVERTED=0; SAMSUNG_FAILED=0
-  info "Step 2/3 — No Samsung Motion Photos to process, skipping."
-  echo ""
+  finish_progress "samsung motion photos done"
 fi
 
-# ── Step 4: Process Apple Live Photos ────────────────────────────────────────
-if [[ "$APPLE_COUNT" -gt 0 ]]; then
-  info "Step 3/3 — Processing Apple Live Photos..."
+# ── Step 4: Convert Apple Live Photos ────────────────────────────────────────
+APPLE_CONVERTED=0; APPLE_FAILED=0; HEIC_CONVERTED=0
 
-  APPLE_CONVERTED=0
-  APPLE_FAILED=0
-  HEIC_CONVERTED=0
+if [[ "$APPLE_COUNT" -gt 0 ]]; then
+  info "Converting Apple Live Photos..."
+  init_progress "$APPLE_COUNT"
 
   for i in "${!APPLE_MOVS[@]}"; do
     still="${APPLE_STILLS[$i]}"
     mov="${APPLE_MOVS[$i]}"
+    fname="$(basename "$mov")"
     ext="${still##*.}"
 
-    # Convert HEIC → JPEG if needed
-    if [[ "${ext,,}" == "heic" ]]; then
-      new_still="${still%.*}.jpg"
-      if [[ "$DRY_RUN" = "0" ]]; then
+    if [[ "$DRY_RUN" = "0" ]]; then
+      # Convert HEIC → JPEG if needed
+      if [[ "${ext,,}" == "heic" ]]; then
+        new_still="${still%.*}.jpg"
         converted=0
-        if [[ "$HAS_CONVERT" = "1" ]]; then
-          convert "$still" "$new_still" 2>/dev/null && converted=1
-        elif [[ "$HAS_FFMPEG" = "1" ]]; then
-          ffmpeg -i "$still" "$new_still" -loglevel quiet 2>/dev/null && converted=1
-        fi
+        [[ "$HAS_CONVERT" = "1" ]] && convert "$still" "$new_still" 2>/dev/null && converted=1
+        [[ "$converted" = "0" && "$HAS_FFMPEG" = "1" ]] && ffmpeg -i "$still" "$new_still" -loglevel quiet 2>/dev/null && converted=1
         if [[ "$converted" = "1" ]]; then
           rm "$still"
-          success "HEIC→JPEG: $(basename "$still") → $(basename "$new_still")"
           ((HEIC_CONVERTED++)) || true
-        else
-          warn "Could not convert HEIC: $(basename "$still") — keeping as-is"
         fi
-      else
-        warn "[DRY RUN] Would convert HEIC→JPEG: $(basename "$still")"
-        ((HEIC_CONVERTED++)) || true
       fi
-    fi
 
-    # Delete the .mov sidecar
-    if [[ "$DRY_RUN" = "0" ]]; then
+      # Delete the .mov sidecar
       if rm "$mov" 2>/dev/null; then
-        success "Deleted sidecar: $(basename "$mov")"
         ((APPLE_CONVERTED++)) || true
       else
-        error "Failed to delete: $mov"
         ((APPLE_FAILED++)) || true
+        fname="[FAILED] $fname"
       fi
     else
-      warn "[DRY RUN] Would delete sidecar: $(basename "$mov")"
       ((APPLE_CONVERTED++)) || true
     fi
+    tick_progress "removing $fname"
   done
-  echo ""
-else
-  APPLE_CONVERTED=0; APPLE_FAILED=0; HEIC_CONVERTED=0
-  info "Step 3/3 — No Apple Live Photos to process, skipping."
-  echo ""
+  finish_progress "apple live photos done"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
