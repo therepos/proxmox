@@ -22,3 +22,8 @@ services:
       /home/neko/.config/brave/SingletonCookie
       /home/neko/.config/brave/SingletonSocket
       && exec /usr/bin/supervisord -c /etc/neko/supervisord.conf"
+    security_opt:
+      - apparmor=unconfined
+      - seccomp=unconfined
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
