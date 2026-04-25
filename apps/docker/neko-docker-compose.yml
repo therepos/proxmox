@@ -1,0 +1,24 @@
+services:
+  neko-brave:
+    image: ghcr.io/m1k1o/neko/brave:latest
+    container_name: neko-brave
+    restart: unless-stopped
+    shm_size: "2gb"
+    cap_add:
+      - SYS_ADMIN
+    ports:
+      - "3007:8080"
+      - "52000-52100:52000-52100/udp"
+    environment:
+      NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD: "${ADMIN_PASS}"
+      NEKO_MEMBER_MULTIUSER_USER_PASSWORD: "${USER_PASS}"
+      NEKO_DESKTOP_SCREEN: "1920x1080@30"
+      NEKO_WEBRTC_EPR: "52000-52100"
+      NEKO_WEBRTC_ICESERVERS: '[{"urls":["stun:stun.l.google.com:19302"]}]'
+    volumes:
+      - /mnt/sec/apps/neko:/home/neko/.config/brave
+    command: >
+      sh -c "rm -f /home/neko/.config/brave/SingletonLock
+      /home/neko/.config/brave/SingletonCookie
+      /home/neko/.config/brave/SingletonSocket
+      && exec /usr/bin/supervisord -c /etc/neko/supervisord.conf"
