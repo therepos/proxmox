@@ -1,4 +1,12 @@
 services:
+  neko-brave-init:
+    image: busybox
+    container_name: neko-brave-init
+    restart: "no"
+    volumes:
+      - /mnt/sec/apps/neko:/mnt/neko
+    command: chown -R 1000:1000 /mnt/neko
+
   neko-brave:
     image: ghcr.io/m1k1o/neko/brave:latest
     container_name: neko-brave
@@ -25,5 +33,8 @@ services:
     security_opt:
       - apparmor=unconfined
       - seccomp=unconfined
+    depends_on:
+      neko-brave-init:
+        condition: service_completed_successfully
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
