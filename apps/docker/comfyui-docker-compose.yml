@@ -17,5 +17,3 @@ services:
     volumes:
       - /mnt/sec/apps/comfyui:/root
       - /mnt/sec/apps/comfyui/models:/root/ComfyUI/models
-      - /mnt/sec/media/shared:/root/ComfyUI/output
-      - /mnt/sec/media/shared:/root/ComfyUI/input
