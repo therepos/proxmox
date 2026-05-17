@@ -34,14 +34,22 @@ command -v pct &>/dev/null || status_message "error" "pct not found. Run on the 
 list_drives() {
     local os_disk
     os_disk=$(lsblk -no PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null | head -1)
+    [[ -n "$os_disk" ]] && os_disk="/dev/${os_disk}"
 
     lsblk -pnlo NAME,FSTYPE,SIZE,MOUNTPOINT,UUID,TYPE | \
-        awk -v os="/dev/${os_disk}" '
-            $6 == "part" || $6 == "disk" {
-                if ($1 ~ os) next        # skip OS disk
-                if ($2 == "") next       # skip no-filesystem
+        awk -v os="$os_disk" '
+            ($6 == "part" || $6 == "disk") {
+                if (os != "" && index($1, os) == 1) next   # skip OS disk + its partitions
+                if ($2 == "") next
                 if ($2 == "LVM2_member") next
                 if ($2 == "swap") next
+                # For whole disks, skip if they have partitions (we will show the partitions)
+                if ($6 == "disk") {
+                    cmd = "lsblk -nlo NAME " $1 " | wc -l"
+                    cmd | getline part_count
+                    close(cmd)
+                    if (part_count > 1) next
+                }
                 print $1, $2, $3, $4, $5
             }
         '
