@@ -8,7 +8,6 @@ set -euo pipefail
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 YELLOW="\e[33m➜\e[0m"
-CYAN="\e[36m"
 RESET="\e[0m"
 
 function status_message() {
@@ -30,22 +29,37 @@ command -v pct &>/dev/null || status_message "error" "pct not found. Run on the 
 
 # ===== Helpers =====
 
-# List all candidate drives (whole disks + partitions with a filesystem, excluding the OS disk)
+detect_os_disk() {
+    local root_src
+    root_src=$(findmnt -no SOURCE /)
+    local os_disk=""
+    if [[ "$root_src" == /dev/mapper/* ]]; then
+        local vg pv
+        vg=$(lvs --noheadings -o vg_name "$root_src" 2>/dev/null | tr -d ' ')
+        pv=$(pvs --noheadings -o pv_name,vg_name 2>/dev/null | awk -v vg="$vg" '$2==vg {print $1; exit}')
+        # strip partition suffix from PV path (e.g. /dev/nvme0n1p3 -> /dev/nvme0n1)
+        os_disk=$(echo "$pv" | sed -E 's|p?[0-9]+$||')
+    else
+        local parent
+        parent=$(lsblk -no PKNAME "$root_src" 2>/dev/null | tail -1)
+        [[ -n "$parent" ]] && os_disk="/dev/${parent}"
+    fi
+    echo "$os_disk"
+}
+
 list_drives() {
     local os_disk
-    os_disk=$(lsblk -no PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null | head -1)
-    [[ -n "$os_disk" ]] && os_disk="/dev/${os_disk}"
+    os_disk=$(detect_os_disk)
 
     lsblk -pnlo NAME,FSTYPE,SIZE,MOUNTPOINT,UUID,TYPE | \
         awk -v os="$os_disk" '
             ($6 == "part" || $6 == "disk") {
-                if (os != "" && index($1, os) == 1) next   # skip OS disk + its partitions
+                if (os != "" && index($1, os) == 1) next
                 if ($2 == "") next
                 if ($2 == "LVM2_member") next
                 if ($2 == "swap") next
-                # For whole disks, skip if they have partitions (we will show the partitions)
                 if ($6 == "disk") {
-                    cmd = "lsblk -nlo NAME " $1 " | wc -l"
+                    cmd = "lsblk -nlo NAME " $1 " 2>/dev/null | wc -l"
                     cmd | getline part_count
                     close(cmd)
                     if (part_count > 1) next
@@ -55,7 +69,6 @@ list_drives() {
         '
 }
 
-# Show numbered list of drives; returns array via global MAP
 show_drives_menu() {
     MAP=()
     local i=1
@@ -71,9 +84,9 @@ show_drives_menu() {
             local pve_storage
             pve_storage=$(grep -B1 "path ${mountpoint}\b" /etc/pve/storage.cfg 2>/dev/null | grep -oP '^\S+: \K\S+' | head -1)
             if [[ -n "$pve_storage" ]]; then
-                status_text="→ ${mountpoint}   [MOUNTED + storage '${pve_storage}']"
+                status_text="-> ${mountpoint}   [MOUNTED + storage '${pve_storage}']"
             else
-                status_text="→ ${mountpoint}   [MOUNTED]"
+                status_text="-> ${mountpoint}   [MOUNTED]"
             fi
         fi
         printf "  %d) %-18s %-8s %-8s %s\n" "$i" "$dev" "$fstype" "$size" "$status_text"
@@ -89,19 +102,16 @@ show_drives_menu() {
     echo ""
 }
 
-# Bind mount a host path into a specific LXC at the next free mpN slot
 bind_mount_into_lxc() {
     local ctid=$1
     local host_path=$2
     local mount_target=$3
 
-    # Already mounted?
     if pct config "$ctid" | grep -qE "^mp[0-9]+:.*${host_path//\//\\/}[, ]"; then
         status_message "info" "CTID $ctid already has $host_path bind-mounted"
         return
     fi
 
-    # Find next free mpN slot
     local idx=0
     while pct config "$ctid" | grep -q "^mp${idx}:"; do
         idx=$((idx + 1))
@@ -135,17 +145,19 @@ remove_bind_mount_from_lxc() {
     fi
 }
 
-list_lxcs() {
+list_lxcs_inline() {
     pct list | awk 'NR>1 {printf "%s (%s), ", $1, $3}' | sed 's/, $//'
 }
 
 select_lxcs() {
-    local prompt=$1
     local ctids
     ctids=$(pct list | awk 'NR>1 {print $1}')
-    [[ -z "$ctids" ]] && { echo ""; return; }
+    if [[ -z "$ctids" ]]; then
+        echo ""
+        return
+    fi
 
-    echo "Found LXCs: $(list_lxcs)"
+    echo "Found LXCs: $(list_lxcs_inline)"
     echo ""
     echo "  1) All"
     echo "  2) Select specific"
@@ -175,7 +187,7 @@ register_proxmox_storage() {
         --path "$path" \
         --content images,rootdir,vztmpl,iso,backup,snippets \
         --shared 0 >/dev/null
-    status_message "success" "Registered as Proxmox storage '$name' (Datacenter → Storage → $name)"
+    status_message "success" "Registered as Proxmox storage '$name' (Datacenter -> Storage -> $name)"
 }
 
 unregister_proxmox_storage() {
@@ -208,11 +220,11 @@ action_new_mount() {
         echo "  2) Cancel"
         echo ""
         read -p "Choice: " op </dev/tty
-        [[ "$op" == "1" ]] && op="2"  # remap so wipe-and-format branch runs
+        [[ "$op" == "1" ]] && op="2"
     fi
 
     case "$op" in
-        1) : ;;  # keep data
+        1) : ;;
         2)
             read -p "Type 'wipe' to confirm destruction of all data on $dev: " confirm </dev/tty
             [[ "$confirm" != "wipe" ]] && status_message "info" "Cancelled."
@@ -225,7 +237,6 @@ action_new_mount() {
         *) status_message "info" "Cancelled."; exit 0 ;;
     esac
 
-    # Install fs driver if needed
     case "$fstype" in
         ntfs) command -v ntfs-3g &>/dev/null || apt install -y -qq ntfs-3g >/dev/null ;;
         exfat) command -v mount.exfat-fuse &>/dev/null || apt install -y -qq exfat-fuse >/dev/null ;;
@@ -242,13 +253,11 @@ action_new_mount() {
     avail=$(df -h "$mnt_path" | awk 'NR==2 {print $4}')
     status_message "success" "Mounted (${avail} available)"
 
-    # fstab
     if ! grep -q "$uuid" /etc/fstab; then
         echo "UUID=${uuid} ${mnt_path} ${fstype} defaults,nofail,x-systemd.device-timeout=10 0 2" >> /etc/fstab
     fi
     status_message "success" "fstab updated"
 
-    # Proxmox storage
     echo ""
     echo "Register as Proxmox storage? (usable for backups, ISOs, VM disks via UI)"
     echo ""
@@ -260,7 +269,6 @@ action_new_mount() {
         register_proxmox_storage "$mnt_name" "$mnt_path"
     fi
 
-    # Bind mounts
     echo ""
     echo "Bind-mount ${mnt_path} into LXCs? (bind mounts apply only to LXCs, one at a time)"
     local selected
@@ -274,10 +282,11 @@ action_new_mount() {
     echo ""
     echo "================================================================"
     status_message "success" "Setup complete."
+    echo "================================================================"
+    echo ""
     echo "  Mount:    ${mnt_path} (${avail})"
     [[ "$reg" == "1" ]] && echo "  Storage:  '${mnt_name}'"
     [[ -n "$selected" ]] && echo "  LXCs:     $(echo $selected | tr '\n' ' ')"
-    echo "================================================================"
 }
 
 action_manage_existing() {
@@ -326,7 +335,6 @@ action_manage_existing() {
         4)
             read -p "Type 'yes' to unmount and unregister ${mount_path}: " confirm </dev/tty
             [[ "$confirm" != "yes" ]] && { status_message "info" "Cancelled."; exit 0; }
-            # Remove from all LXCs first
             for ctid in $(pct list | awk 'NR>1 {print $1}'); do
                 remove_bind_mount_from_lxc "$ctid" "$mount_path" >/dev/null 2>&1 || true
             done
