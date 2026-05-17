@@ -32,7 +32,7 @@ DISK=4
 STORAGE="local-lvm"
 TEMPLATE_STORAGE="local"
 BRIDGE="vmbr0"
-FB_PORT=8080
+FB_PORT=3001
 FB_BIN="/usr/local/bin/filebrowser"
 
 # Precheck
