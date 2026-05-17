@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/dufs-setup.sh?$(date +%s))"
-# Purpose: Install / Update / Uninstall Dufs on Proxmox host
+# Purpose: Install / Update / Change creds / Uninstall Dufs on Proxmox host
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ function status_message() {
 }
 
 DUFS_BIN="/usr/local/bin/dufs"
-DUFS_DEFAULT_PORT=5000
+DUFS_DEFAULT_PORT=3001
 DUFS_DEFAULT_ROOT="/mnt/sec"
 
 [[ $EUID -eq 0 ]] || status_message "error" "Run as root."
@@ -145,6 +145,43 @@ action_update() {
     fi
 }
 
+action_change_creds() {
+    [[ $INSTALLED -eq 0 ]] && status_message "error" "Not installed."
+
+    local current_user
+    current_user=$(grep -oP 'auth \K[^:]+' /etc/systemd/system/dufs.service)
+    echo "Current user: $current_user"
+    echo ""
+
+    read -p "New username (blank to keep '${current_user}'): " new_user </dev/tty
+    new_user="${new_user:-$current_user}"
+
+    read -rsp "New password (blank to auto-generate, hidden): " new_pass </dev/tty
+    echo ""
+    if [[ -z "$new_pass" ]]; then
+        new_pass=$(openssl rand -base64 12 | tr -d '=+/')
+        echo "Auto-generated password: $new_pass"
+    fi
+
+    sed -i -E "s|--auth [^@]+@|--auth ${new_user}:${new_pass}@|" /etc/systemd/system/dufs.service
+    echo "${new_user}:${new_pass}" > /root/.dufs-host.creds
+    chmod 600 /root/.dufs-host.creds
+
+    systemctl daemon-reload
+    systemctl restart dufs
+    sleep 2
+
+    if systemctl is-active --quiet dufs; then
+        status_message "success" "Credentials updated and service restarted"
+        echo ""
+        echo "  Login: ${new_user} / ${new_pass}"
+    else
+        echo ""
+        journalctl -u dufs --no-pager -n 10
+        status_message "error" "Service failed to restart."
+    fi
+}
+
 action_uninstall_silent() {
     systemctl stop dufs 2>/dev/null || true
     systemctl disable dufs 2>/dev/null || true
@@ -169,8 +206,11 @@ action_status() {
     echo "Version:  $("$DUFS_BIN" --version 2>/dev/null | head -1)"
     local port
     port=$(grep -oP 'port \K\d+' /etc/systemd/system/dufs.service 2>/dev/null | head -1)
+    local user
+    user=$(grep -oP 'auth \K[^:]+' /etc/systemd/system/dufs.service 2>/dev/null | head -1)
     local ip
     ip=$(hostname -I | awk '{print $1}')
+    echo "User:     ${user:-?}"
     echo "Access:   http://${ip}:${port:-?}"
     echo ""
     echo "Recent logs:"
@@ -190,8 +230,9 @@ fi
 echo ""
 echo "  1) Install / Reinstall"
 echo "  2) Update"
-echo "  3) Uninstall"
-echo "  4) Status"
+echo "  3) Change credentials"
+echo "  4) Uninstall"
+echo "  5) Status"
 echo "  q) Quit"
 echo ""
 read -p "Select: " choice </dev/tty
@@ -200,8 +241,9 @@ echo ""
 case "$choice" in
     1) action_install ;;
     2) action_update ;;
-    3) action_uninstall ;;
-    4) action_status ;;
+    3) action_change_creds ;;
+    4) action_uninstall ;;
+    5) action_status ;;
     q|Q) exit 0 ;;
     *) status_message "error" "Invalid." ;;
 esac
