@@ -220,13 +220,17 @@ action_install() {
     fi
 
     echo ""
-    status_message "success" "FileBrowser running at http://${lxc_ip}:${FB_PORT}"
+    echo "================================================================"
+    status_message "success" "Setup complete."
+    echo "================================================================"
     echo ""
     echo "  Login:        admin / ${fb_password}"
     echo "  Creds file:   /root/.filebrowser-lxc-${ctid}.creds"
     echo "  LXC root pw:  /root/.filebrowser-lxc-${ctid}.pw"
+    [[ -n "$bind_input" ]] && echo "  Host paths:   visible under /mnt/ inside FileBrowser"
     echo ""
-    [[ -n "$bind_input" ]] && echo "  Host paths visible under /mnt/ inside FileBrowser"
+    echo -e "  ${GREEN} Access:       http://${lxc_ip}:${FB_PORT}"
+    echo ""
 }
 
 action_update() {
