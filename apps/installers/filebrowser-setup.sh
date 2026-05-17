@@ -33,6 +33,7 @@ STORAGE="local-lvm"
 TEMPLATE_STORAGE="local"
 BRIDGE="vmbr0"
 FB_PORT=8080
+FB_BIN="/usr/local/bin/filebrowser"
 
 # Precheck
 if ! command -v pct &> /dev/null; then
@@ -48,8 +49,6 @@ find_ctid() {
     done
 }
 
-# Robust FileBrowser install routine — called inside `pct exec`
-# Uses explicit error handling instead of relying on set -e inside heredoc
 install_filebrowser_inside_lxc() {
     local ctid=$1
     local fb_password=$2
@@ -58,6 +57,7 @@ install_filebrowser_inside_lxc() {
 set -euo pipefail
 export LC_ALL=C
 export LANG=C
+export PATH=/usr/local/bin:/usr/local/sbin:\$PATH
 echo 'LC_ALL=C' > /etc/default/locale
 
 echo '[*] Installing prerequisites...'
@@ -88,21 +88,21 @@ if [[ ! -f /tmp/filebrowser ]]; then
     exit 1
 fi
 
-echo '[*] Installing to /usr/local/bin/...'
-install -m 755 /tmp/filebrowser /usr/local/bin/filebrowser
+echo '[*] Installing to ${FB_BIN}...'
+install -m 755 /tmp/filebrowser ${FB_BIN}
 rm -f /tmp/fb.tar.gz /tmp/filebrowser /tmp/LICENSE /tmp/README.md /tmp/CHANGELOG.md 2>/dev/null || true
 
-if ! command -v filebrowser >/dev/null; then
-    echo 'FATAL: filebrowser binary not in PATH after install' >&2
+if [[ ! -x ${FB_BIN} ]]; then
+    echo 'FATAL: ${FB_BIN} not found or not executable after install' >&2
     exit 1
 fi
-echo "[*] Installed: \$(filebrowser version | head -1)"
+echo "[*] Installed: \$(${FB_BIN} version | head -1)"
 
 echo '[*] Initializing config...'
 mkdir -p /etc/filebrowser /srv/filebrowser
-filebrowser config init --database /etc/filebrowser/filebrowser.db >/dev/null
-filebrowser config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
-filebrowser users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
+${FB_BIN} config init --database /etc/filebrowser/filebrowser.db >/dev/null
+${FB_BIN} config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
+${FB_BIN} users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
 
 echo '[*] Setting up systemd service...'
 cat > /etc/systemd/system/filebrowser.service <<'UNIT'
@@ -111,7 +111,7 @@ Description=FileBrowser
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/filebrowser --database /etc/filebrowser/filebrowser.db
+ExecStart=${FB_BIN} --database /etc/filebrowser/filebrowser.db
 Restart=on-failure
 User=root
 
@@ -140,7 +140,6 @@ action_install() {
         action_uninstall_silent
     fi
 
-    # Bind mount prompt
     echo ""
     echo "Bind mount host paths into the LXC? (comma-separated, blank for none)"
     echo "Examples: /mnt/data, /var/lib/vz, /"
@@ -148,14 +147,12 @@ action_install() {
     read -p "Paths: " bind_input </dev/tty
     echo ""
 
-    # Pick free CTID
     local ctid=$CTID_DEFAULT
     while pct status "$ctid" &>/dev/null; do
         ctid=$((ctid + 1))
     done
     status_message "info" "Using CTID $ctid"
 
-    # Template
     pveam update >/dev/null
     local template
     template=$(pveam available --section system | awk '/debian-12-standard/ {print $2}' | sort -V | tail -1)
@@ -184,7 +181,6 @@ action_install() {
     echo "$lxc_password" > "/root/.filebrowser-lxc-${ctid}.pw"
     chmod 600 "/root/.filebrowser-lxc-${ctid}.pw"
 
-    # Apply bind mounts
     if [[ -n "$bind_input" ]]; then
         local mp_idx=0
         IFS=',' read -ra paths <<< "$bind_input"
@@ -220,7 +216,7 @@ action_install() {
     lxc_ip=$(pct exec "$ctid" -- hostname -I | awk '{print $1}')
 
     if ! pct exec "$ctid" -- systemctl is-active --quiet filebrowser; then
-        status_message "error" "FileBrowser service is not active. Check 'pct exec $ctid -- journalctl -u filebrowser'"
+        status_message "error" "FileBrowser service is not active. Check: pct exec $ctid -- journalctl -u filebrowser"
     fi
 
     echo ""
@@ -238,21 +234,22 @@ action_update() {
         status_message "error" "No FileBrowser LXC installed."
     fi
     status_message "info" "Updating FileBrowser in CTID $EXISTING_CTID..."
-    pct exec "$EXISTING_CTID" -- bash <<'EOSCRIPT'
+    pct exec "$EXISTING_CTID" -- bash <<EOSCRIPT
 set -euo pipefail
 export LC_ALL=C
+export PATH=/usr/local/bin:/usr/local/sbin:\$PATH
 
 systemctl stop filebrowser
 
-FB_VERSION=$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'"' -f4)
-if [[ -z "$FB_VERSION" ]]; then
+FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'"' -f4)
+if [[ -z "\$FB_VERSION" ]]; then
     echo 'FATAL: could not fetch FileBrowser version' >&2
     exit 1
 fi
 
 cd /tmp
 rm -f fb.tar.gz filebrowser
-curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/${FB_VERSION}/linux-amd64-filebrowser.tar.gz" -o fb.tar.gz
+curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz" -o fb.tar.gz
 if [[ ! -s fb.tar.gz ]]; then
     echo 'FATAL: download produced empty file' >&2
     exit 1
@@ -262,7 +259,7 @@ if [[ ! -f /tmp/filebrowser ]]; then
     echo 'FATAL: binary not in archive' >&2
     exit 1
 fi
-install -m 755 /tmp/filebrowser /usr/local/bin/filebrowser
+install -m 755 /tmp/filebrowser ${FB_BIN}
 rm -f /tmp/fb.tar.gz /tmp/filebrowser /tmp/LICENSE /tmp/README.md /tmp/CHANGELOG.md 2>/dev/null || true
 
 systemctl start filebrowser
@@ -271,7 +268,7 @@ EOSCRIPT
     sleep 2
     if pct exec "$EXISTING_CTID" -- systemctl is-active --quiet filebrowser; then
         local version
-        version=$(pct exec "$EXISTING_CTID" -- filebrowser version 2>/dev/null | head -1)
+        version=$(pct exec "$EXISTING_CTID" -- ${FB_BIN} version 2>/dev/null | head -1)
         status_message "success" "Updated. $version"
     else
         status_message "error" "Service failed to restart after update."
@@ -315,7 +312,7 @@ action_status() {
     pct exec "$EXISTING_CTID" -- systemctl is-active filebrowser 2>/dev/null || echo "  (not running)"
     echo ""
     echo "Version:"
-    pct exec "$EXISTING_CTID" -- filebrowser version 2>/dev/null | head -1 || true
+    pct exec "$EXISTING_CTID" -- ${FB_BIN} version 2>/dev/null | head -1 || true
     echo ""
     local lxc_ip
     lxc_ip=$(pct exec "$EXISTING_CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
