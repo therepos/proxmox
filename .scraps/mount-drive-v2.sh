@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/mount-drive-v2.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/scraps/mount-drive-v2.sh?$(date +%s))"
 # purpose: mounts a user-specified drive and updates fstab
 
 # Colors for output
