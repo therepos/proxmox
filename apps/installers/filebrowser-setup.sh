@@ -48,6 +48,83 @@ find_ctid() {
     done
 }
 
+# Robust FileBrowser install routine — called inside `pct exec`
+# Uses explicit error handling instead of relying on set -e inside heredoc
+install_filebrowser_inside_lxc() {
+    local ctid=$1
+    local fb_password=$2
+
+    pct exec "$ctid" -- bash <<EOSCRIPT
+set -euo pipefail
+export LC_ALL=C
+export LANG=C
+echo 'LC_ALL=C' > /etc/default/locale
+
+echo '[*] Installing prerequisites...'
+apt update -qq >/dev/null 2>&1
+apt install -y -qq curl tar ca-certificates >/dev/null 2>&1
+
+echo '[*] Fetching latest FileBrowser version...'
+FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'"' -f4)
+if [[ -z "\$FB_VERSION" ]]; then
+    echo 'FATAL: could not fetch FileBrowser version from GitHub API' >&2
+    exit 1
+fi
+echo "[*] Latest version: \$FB_VERSION"
+
+echo '[*] Downloading binary...'
+cd /tmp
+rm -f fb.tar.gz filebrowser
+curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz" -o fb.tar.gz
+if [[ ! -s fb.tar.gz ]]; then
+    echo 'FATAL: download produced empty file' >&2
+    exit 1
+fi
+
+echo '[*] Extracting...'
+tar -xzf fb.tar.gz
+if [[ ! -f /tmp/filebrowser ]]; then
+    echo 'FATAL: filebrowser binary not found in archive' >&2
+    exit 1
+fi
+
+echo '[*] Installing to /usr/local/bin/...'
+install -m 755 /tmp/filebrowser /usr/local/bin/filebrowser
+rm -f /tmp/fb.tar.gz /tmp/filebrowser /tmp/LICENSE /tmp/README.md /tmp/CHANGELOG.md 2>/dev/null || true
+
+if ! command -v filebrowser >/dev/null; then
+    echo 'FATAL: filebrowser binary not in PATH after install' >&2
+    exit 1
+fi
+echo "[*] Installed: \$(filebrowser version | head -1)"
+
+echo '[*] Initializing config...'
+mkdir -p /etc/filebrowser /srv/filebrowser
+filebrowser config init --database /etc/filebrowser/filebrowser.db >/dev/null
+filebrowser config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
+filebrowser users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
+
+echo '[*] Setting up systemd service...'
+cat > /etc/systemd/system/filebrowser.service <<'UNIT'
+[Unit]
+Description=FileBrowser
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/filebrowser --database /etc/filebrowser/filebrowser.db
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now filebrowser >/dev/null 2>&1
+echo '[*] Done.'
+EOSCRIPT
+}
+
 EXISTING_CTID=$(find_ctid)
 
 # ===== Actions =====
@@ -130,53 +207,10 @@ action_install() {
     pct start "$ctid"
     sleep 5
 
-    status_message "info" "Installing FileBrowser..."
-    pct exec "$ctid" -- bash -c "
-        export LC_ALL=C
-        export LANG=C
-        echo 'LC_ALL=C' > /etc/default/locale
-        apt update -qq >/dev/null 2>&1
-        apt install -y -qq curl tar >/dev/null 2>&1
-
-        FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'\"' -f4)
-        if [[ -z \"\$FB_VERSION\" ]]; then
-            echo 'FATAL: could not fetch FileBrowser version from GitHub API' >&2
-            exit 1
-        fi
-
-        cd /tmp
-        curl -fsSL \"https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz\" -o fb.tar.gz
-        tar -xzf fb.tar.gz
-        install -m 755 filebrowser /usr/local/bin/filebrowser
-        rm -f fb.tar.gz filebrowser LICENSE README.md CHANGELOG.md 2>/dev/null || true
-
-        if ! command -v filebrowser >/dev/null; then
-            echo 'FATAL: filebrowser binary not in PATH after install' >&2
-            exit 1
-        fi
-
-        mkdir -p /etc/filebrowser /srv/filebrowser
-        filebrowser config init --database /etc/filebrowser/filebrowser.db >/dev/null
-        filebrowser config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
-        filebrowser users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
-    " || status_message "error" "FileBrowser install failed inside LXC."
-
-    pct exec "$ctid" -- bash -c "cat > /etc/systemd/system/filebrowser.service <<'EOF'
-[Unit]
-Description=FileBrowser
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/filebrowser --database /etc/filebrowser/filebrowser.db
-Restart=on-failure
-User=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl daemon-reload
-    systemctl enable --now filebrowser >/dev/null 2>&1
-"
+    status_message "info" "Installing FileBrowser inside LXC..."
+    if ! install_filebrowser_inside_lxc "$ctid" "$fb_password"; then
+        status_message "error" "FileBrowser install failed inside LXC. See output above for FATAL line."
+    fi
 
     echo "admin:${fb_password}" > "/root/.filebrowser-lxc-${ctid}.creds"
     chmod 600 "/root/.filebrowser-lxc-${ctid}.creds"
@@ -184,6 +218,10 @@ EOF
     sleep 3
     local lxc_ip
     lxc_ip=$(pct exec "$ctid" -- hostname -I | awk '{print $1}')
+
+    if ! pct exec "$ctid" -- systemctl is-active --quiet filebrowser; then
+        status_message "error" "FileBrowser service is not active. Check 'pct exec $ctid -- journalctl -u filebrowser'"
+    fi
 
     echo ""
     status_message "success" "FileBrowser running at http://${lxc_ip}:${FB_PORT}"
@@ -200,24 +238,35 @@ action_update() {
         status_message "error" "No FileBrowser LXC installed."
     fi
     status_message "info" "Updating FileBrowser in CTID $EXISTING_CTID..."
-    pct exec "$EXISTING_CTID" -- bash -c "
-        export LC_ALL=C
-        systemctl stop filebrowser
+    pct exec "$EXISTING_CTID" -- bash <<'EOSCRIPT'
+set -euo pipefail
+export LC_ALL=C
 
-        FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'\"' -f4)
-        if [[ -z \"\$FB_VERSION\" ]]; then
-            echo 'FATAL: could not fetch FileBrowser version' >&2
-            exit 1
-        fi
+systemctl stop filebrowser
 
-        cd /tmp
-        curl -fsSL \"https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz\" -o fb.tar.gz
-        tar -xzf fb.tar.gz
-        install -m 755 filebrowser /usr/local/bin/filebrowser
-        rm -f fb.tar.gz filebrowser LICENSE README.md CHANGELOG.md 2>/dev/null || true
+FB_VERSION=$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'"' -f4)
+if [[ -z "$FB_VERSION" ]]; then
+    echo 'FATAL: could not fetch FileBrowser version' >&2
+    exit 1
+fi
 
-        systemctl start filebrowser
-    " || status_message "error" "Update failed."
+cd /tmp
+rm -f fb.tar.gz filebrowser
+curl -fsSL "https://github.com/filebrowser/filebrowser/releases/download/${FB_VERSION}/linux-amd64-filebrowser.tar.gz" -o fb.tar.gz
+if [[ ! -s fb.tar.gz ]]; then
+    echo 'FATAL: download produced empty file' >&2
+    exit 1
+fi
+tar -xzf fb.tar.gz
+if [[ ! -f /tmp/filebrowser ]]; then
+    echo 'FATAL: binary not in archive' >&2
+    exit 1
+fi
+install -m 755 /tmp/filebrowser /usr/local/bin/filebrowser
+rm -f /tmp/fb.tar.gz /tmp/filebrowser /tmp/LICENSE /tmp/README.md /tmp/CHANGELOG.md 2>/dev/null || true
+
+systemctl start filebrowser
+EOSCRIPT
 
     sleep 2
     if pct exec "$EXISTING_CTID" -- systemctl is-active --quiet filebrowser; then
