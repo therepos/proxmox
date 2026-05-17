@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-lxc-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-setup.sh?$(date +%s))"
 # Purpose: Install / Update / Uninstall FileBrowser LXC on Proxmox
 # =============================================================================
 
@@ -96,8 +96,6 @@ action_install() {
     fb_password=$(openssl rand -base64 12)
 
     status_message "info" "Creating LXC..."
-    # NOTE: privileged (--unprivileged 0) so host file UIDs match cleanly when accessing bind mounts as root
-    # If you don't need full system access, change to --unprivileged 1
     pct create "$ctid" "${TEMPLATE_STORAGE}:vztmpl/${template}" \
         --hostname "$HOSTNAME" \
         --cores "$CORES" --memory "$MEMORY" --swap "$MEMORY" \
@@ -115,7 +113,7 @@ action_install() {
         IFS=',' read -ra paths <<< "$bind_input"
         for raw_path in "${paths[@]}"; do
             local path
-            path=$(echo "$raw_path" | xargs)  # trim whitespace
+            path=$(echo "$raw_path" | xargs)
             if [[ -z "$path" || ! -e "$path" ]]; then
                 status_message "info" "Skipping invalid path: $path"
                 continue
@@ -138,15 +136,31 @@ action_install() {
         export LANG=C
         echo 'LC_ALL=C' > /etc/default/locale
         apt update -qq >/dev/null 2>&1
-        apt install -y -qq curl >/dev/null 2>&1
-        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null 2>&1
+        apt install -y -qq curl tar >/dev/null 2>&1
+
+        FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'\"' -f4)
+        if [[ -z \"\$FB_VERSION\" ]]; then
+            echo 'FATAL: could not fetch FileBrowser version from GitHub API' >&2
+            exit 1
+        fi
+
+        cd /tmp
+        curl -fsSL \"https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz\" -o fb.tar.gz
+        tar -xzf fb.tar.gz
+        install -m 755 filebrowser /usr/local/bin/filebrowser
+        rm -f fb.tar.gz filebrowser LICENSE README.md CHANGELOG.md 2>/dev/null || true
+
+        if ! command -v filebrowser >/dev/null; then
+            echo 'FATAL: filebrowser binary not in PATH after install' >&2
+            exit 1
+        fi
+
         mkdir -p /etc/filebrowser /srv/filebrowser
         filebrowser config init --database /etc/filebrowser/filebrowser.db >/dev/null
         filebrowser config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
         filebrowser users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
-    "
+    " || status_message "error" "FileBrowser install failed inside LXC."
 
-    # Create systemd service
     pct exec "$ctid" -- bash -c "cat > /etc/systemd/system/filebrowser.service <<'EOF'
 [Unit]
 Description=FileBrowser
@@ -164,7 +178,6 @@ EOF
     systemctl enable --now filebrowser >/dev/null 2>&1
 "
 
-    # Save FB password
     echo "admin:${fb_password}" > "/root/.filebrowser-lxc-${ctid}.creds"
     chmod 600 "/root/.filebrowser-lxc-${ctid}.creds"
 
@@ -190,9 +203,22 @@ action_update() {
     pct exec "$EXISTING_CTID" -- bash -c "
         export LC_ALL=C
         systemctl stop filebrowser
-        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null 2>&1
+
+        FB_VERSION=\$(curl -fsSL https://api.github.com/repos/filebrowser/filebrowser/releases/latest | grep tag_name | cut -d'\"' -f4)
+        if [[ -z \"\$FB_VERSION\" ]]; then
+            echo 'FATAL: could not fetch FileBrowser version' >&2
+            exit 1
+        fi
+
+        cd /tmp
+        curl -fsSL \"https://github.com/filebrowser/filebrowser/releases/download/\${FB_VERSION}/linux-amd64-filebrowser.tar.gz\" -o fb.tar.gz
+        tar -xzf fb.tar.gz
+        install -m 755 filebrowser /usr/local/bin/filebrowser
+        rm -f fb.tar.gz filebrowser LICENSE README.md CHANGELOG.md 2>/dev/null || true
+
         systemctl start filebrowser
-    "
+    " || status_message "error" "Update failed."
+
     sleep 2
     if pct exec "$EXISTING_CTID" -- systemctl is-active --quiet filebrowser; then
         local version
