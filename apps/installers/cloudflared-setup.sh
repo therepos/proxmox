@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/YOUR_USER/YOUR_REPO/raw/main/apps/installers/cloudflared-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/cloudflared-setup.sh?$(date +%s))"
 # Purpose: Install / Update / Uninstall Cloudflared tunnel LXC on Proxmox
 # =============================================================================
 

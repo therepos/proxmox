@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-setup.sh?$(date +%s))"
-# Purpose: Installs Filebrowser (Ubuntu/PVE9)
-# =============================================================================
-# Usage:
-#   Username: admin
-#   Password: helper-scripts.com
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-lxc-setup.sh?$(date +%s))"
+# Purpose: Install / Update / Uninstall FileBrowser LXC on Proxmox
 # =============================================================================
 
-# Helpers
+set -euo pipefail
+
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
+YELLOW="\e[33m➜\e[0m"
 RESET="\e[0m"
 
 function status_message() {
@@ -17,72 +15,268 @@ function status_message() {
     local message=$2
     if [[ "$status" == "success" ]]; then
         echo -e "${GREEN} ${message}"
+    elif [[ "$status" == "info" ]]; then
+        echo -e "${YELLOW} ${message}"
     else
         echo -e "${RED} ${message}"
         exit 1
     fi
 }
 
-# Uninstall Filebrowser
-uninstall_filebrowser() {
-    echo "Uninstalling FileBrowser..."
-    systemctl stop filebrowser
-    systemctl disable filebrowser
-    rm -f /etc/systemd/system/filebrowser.service
-    rm -f /usr/local/bin/filebrowser
-    systemctl daemon-reload
-    status_message "success" "FileBrowser has been uninstalled."
-}
-
-# Change Port
-change_port() {
-    read -p "Do you want to change the default port (8080)? [y/N]: " change_response
-    if [[ "$change_response" =~ ^[Yy]$ ]]; then
-        read -p "Enter the new port number: " new_port
-
-        if [[ ! $new_port =~ ^[0-9]+$ || $new_port -lt 1 || $new_port -gt 65535 ]]; then
-            status_message "error" "Invalid port number. Please enter a number between 1 and 65535."
-        fi
-
-        # Update the systemd service file
-        SERVICE_FILE="/etc/systemd/system/filebrowser.service"
-
-        if [[ -f "$SERVICE_FILE" ]]; then
-            sed -i "s|ExecStart=.*|ExecStart=/usr/local/bin/filebrowser -r / --port $new_port|" "$SERVICE_FILE"
-
-            # Reload and restart the service
-            systemctl daemon-reload
-            systemctl restart filebrowser
-
-            status_message "success" "FileBrowser port has been changed to $new_port."
-        else
-            status_message "error" "FileBrowser service file not found. Ensure FileBrowser is installed properly."
-        fi
-    else
-        status_message "success" "Port change skipped. FileBrowser will run on the default port (8080)."
-    fi
-}
+# Config
+HOSTNAME="filebrowser"
+CTID_DEFAULT=120
+MEMORY=512
+CORES=1
+DISK=4
+STORAGE="local-lvm"
+TEMPLATE_STORAGE="local"
+BRIDGE="vmbr0"
+FB_PORT=8080
 
 # Precheck
-if command -v filebrowser &> /dev/null; then
-    echo "FileBrowser is already installed."
-    read -p "Do you want to uninstall it? [y/N]: " uninstall_response
-    if [[ "$uninstall_response" =~ ^[Yy]$ ]]; then
-        uninstall_filebrowser
-        exit 0
+if ! command -v pct &> /dev/null; then
+    status_message "error" "pct not found. Run this on the Proxmox host."
+fi
+
+find_ctid() {
+    for id in $(pct list | awk 'NR>1 {print $1}'); do
+        if pct config "$id" 2>/dev/null | grep -q "hostname: ${HOSTNAME}"; then
+            echo "$id"
+            return
+        fi
+    done
+}
+
+EXISTING_CTID=$(find_ctid)
+
+# ===== Actions =====
+
+action_install() {
+    if [[ -n "$EXISTING_CTID" ]]; then
+        echo "Existing LXC found at CTID $EXISTING_CTID. Will be removed first."
+        read -p "Continue? [y/N]: " confirm </dev/tty
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            status_message "info" "Cancelled."
+            exit 0
+        fi
+        action_uninstall_silent
+    fi
+
+    # Bind mount prompt
+    echo ""
+    echo "Bind mount host paths into the LXC? (comma-separated, blank for none)"
+    echo "Examples: /mnt/data, /var/lib/vz, /"
+    echo ""
+    read -p "Paths: " bind_input </dev/tty
+    echo ""
+
+    # Pick free CTID
+    local ctid=$CTID_DEFAULT
+    while pct status "$ctid" &>/dev/null; do
+        ctid=$((ctid + 1))
+    done
+    status_message "info" "Using CTID $ctid"
+
+    # Template
+    pveam update >/dev/null
+    local template
+    template=$(pveam available --section system | awk '/debian-12-standard/ {print $2}' | sort -V | tail -1)
+    if [[ -z "$template" ]]; then
+        status_message "error" "No Debian 12 template found."
+    fi
+    if ! pveam list "$TEMPLATE_STORAGE" | grep -q "$template"; then
+        status_message "info" "Downloading template..."
+        pveam download "$TEMPLATE_STORAGE" "$template" >/dev/null
+    fi
+
+    local lxc_password
+    lxc_password=$(openssl rand -base64 16)
+    local fb_password
+    fb_password=$(openssl rand -base64 12)
+
+    status_message "info" "Creating LXC..."
+    # NOTE: privileged (--unprivileged 0) so host file UIDs match cleanly when accessing bind mounts as root
+    # If you don't need full system access, change to --unprivileged 1
+    pct create "$ctid" "${TEMPLATE_STORAGE}:vztmpl/${template}" \
+        --hostname "$HOSTNAME" \
+        --cores "$CORES" --memory "$MEMORY" --swap "$MEMORY" \
+        --net0 "name=eth0,bridge=${BRIDGE},ip=dhcp" \
+        --rootfs "${STORAGE}:${DISK}" \
+        --unprivileged 0 --features nesting=1 --onboot 1 \
+        --password "$lxc_password" >/dev/null
+
+    echo "$lxc_password" > "/root/.filebrowser-lxc-${ctid}.pw"
+    chmod 600 "/root/.filebrowser-lxc-${ctid}.pw"
+
+    # Apply bind mounts
+    if [[ -n "$bind_input" ]]; then
+        local mp_idx=0
+        IFS=',' read -ra paths <<< "$bind_input"
+        for raw_path in "${paths[@]}"; do
+            local path
+            path=$(echo "$raw_path" | xargs)  # trim whitespace
+            if [[ -z "$path" || ! -e "$path" ]]; then
+                status_message "info" "Skipping invalid path: $path"
+                continue
+            fi
+            local mount_name
+            mount_name=$(basename "$path")
+            [[ "$path" == "/" ]] && mount_name="host"
+            pct set "$ctid" -mp${mp_idx} "${path},mp=/mnt/${mount_name}"
+            status_message "info" "Bind mount: $path → /mnt/${mount_name}"
+            mp_idx=$((mp_idx + 1))
+        done
+    fi
+
+    pct start "$ctid"
+    sleep 5
+
+    status_message "info" "Installing FileBrowser..."
+    pct exec "$ctid" -- bash -c "
+        export LC_ALL=C
+        export LANG=C
+        echo 'LC_ALL=C' > /etc/default/locale
+        apt update -qq >/dev/null 2>&1
+        apt install -y -qq curl >/dev/null 2>&1
+        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null 2>&1
+        mkdir -p /etc/filebrowser /srv/filebrowser
+        filebrowser config init --database /etc/filebrowser/filebrowser.db >/dev/null
+        filebrowser config set --address 0.0.0.0 --port ${FB_PORT} --root / --database /etc/filebrowser/filebrowser.db >/dev/null
+        filebrowser users add admin '${fb_password}' --perm.admin --database /etc/filebrowser/filebrowser.db >/dev/null
+    "
+
+    # Create systemd service
+    pct exec "$ctid" -- bash -c "cat > /etc/systemd/system/filebrowser.service <<'EOF'
+[Unit]
+Description=FileBrowser
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/filebrowser --database /etc/filebrowser/filebrowser.db
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now filebrowser >/dev/null 2>&1
+"
+
+    # Save FB password
+    echo "admin:${fb_password}" > "/root/.filebrowser-lxc-${ctid}.creds"
+    chmod 600 "/root/.filebrowser-lxc-${ctid}.creds"
+
+    sleep 3
+    local lxc_ip
+    lxc_ip=$(pct exec "$ctid" -- hostname -I | awk '{print $1}')
+
+    echo ""
+    status_message "success" "FileBrowser running at http://${lxc_ip}:${FB_PORT}"
+    echo ""
+    echo "  Login:        admin / ${fb_password}"
+    echo "  Creds file:   /root/.filebrowser-lxc-${ctid}.creds"
+    echo "  LXC root pw:  /root/.filebrowser-lxc-${ctid}.pw"
+    echo ""
+    [[ -n "$bind_input" ]] && echo "  Host paths visible under /mnt/ inside FileBrowser"
+}
+
+action_update() {
+    if [[ -z "$EXISTING_CTID" ]]; then
+        status_message "error" "No FileBrowser LXC installed."
+    fi
+    status_message "info" "Updating FileBrowser in CTID $EXISTING_CTID..."
+    pct exec "$EXISTING_CTID" -- bash -c "
+        export LC_ALL=C
+        systemctl stop filebrowser
+        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null 2>&1
+        systemctl start filebrowser
+    "
+    sleep 2
+    if pct exec "$EXISTING_CTID" -- systemctl is-active --quiet filebrowser; then
+        local version
+        version=$(pct exec "$EXISTING_CTID" -- filebrowser version 2>/dev/null | head -1)
+        status_message "success" "Updated. $version"
     else
-        status_message "success" "Existing FileBrowser installation retained."
+        status_message "error" "Service failed to restart after update."
+    fi
+}
+
+action_uninstall_silent() {
+    if [[ -n "$EXISTING_CTID" ]]; then
+        pct stop "$EXISTING_CTID" 2>/dev/null || true
+        pct destroy "$EXISTING_CTID" --purge 2>/dev/null
+        rm -f "/root/.filebrowser-lxc-${EXISTING_CTID}.pw"
+        rm -f "/root/.filebrowser-lxc-${EXISTING_CTID}.creds"
+    fi
+}
+
+action_uninstall() {
+    if [[ -z "$EXISTING_CTID" ]]; then
+        status_message "error" "No FileBrowser LXC installed."
+    fi
+    echo "This will permanently destroy LXC $EXISTING_CTID and remove FileBrowser data."
+    read -p "Type 'yes' to confirm: " confirm </dev/tty
+    if [[ "$confirm" != "yes" ]]; then
+        status_message "info" "Cancelled."
         exit 0
     fi
-fi
+    status_message "info" "Destroying LXC $EXISTING_CTID..."
+    action_uninstall_silent
+    status_message "success" "FileBrowser LXC removed."
+}
 
-# Install FileBrowser
-bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/filebrowser.sh)"
+action_status() {
+    if [[ -z "$EXISTING_CTID" ]]; then
+        status_message "info" "FileBrowser LXC: not installed"
+        return
+    fi
+    echo ""
+    echo "LXC $EXISTING_CTID status:"
+    pct status "$EXISTING_CTID"
+    echo ""
+    echo "FileBrowser service:"
+    pct exec "$EXISTING_CTID" -- systemctl is-active filebrowser 2>/dev/null || echo "  (not running)"
+    echo ""
+    echo "Version:"
+    pct exec "$EXISTING_CTID" -- filebrowser version 2>/dev/null | head -1 || true
+    echo ""
+    local lxc_ip
+    lxc_ip=$(pct exec "$EXISTING_CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
+    [[ -n "$lxc_ip" ]] && echo "Access: http://${lxc_ip}:${FB_PORT}"
+    echo ""
+    echo "Bind mounts:"
+    pct config "$EXISTING_CTID" | grep -E "^mp[0-9]+:" || echo "  (none)"
+}
 
-if [[ $? -ne 0 ]]; then
-    status_message "error" "FileBrowser installation failed. Please check your network connection or the script URL."
+# ===== Menu =====
+
+echo ""
+echo "================================================================"
+echo "  FileBrowser LXC Manager"
+echo "================================================================"
+echo ""
+if [[ -n "$EXISTING_CTID" ]]; then
+    echo -e "  Status: ${GREEN} Installed (CTID $EXISTING_CTID)"
 else
-    status_message "success" "FileBrowser installation completed successfully."
+    echo -e "  Status: ${YELLOW} Not installed"
 fi
+echo ""
+echo "  1) Install / Reinstall"
+echo "  2) Update FileBrowser"
+echo "  3) Uninstall"
+echo "  4) Show status"
+echo "  q) Quit"
+echo ""
+read -p "Select an option: " choice </dev/tty
+echo ""
 
-change_port
+case "$choice" in
+    1) action_install ;;
+    2) action_update ;;
+    3) action_uninstall ;;
+    4) action_status ;;
+    q|Q) status_message "info" "Bye."; exit 0 ;;
+    *) status_message "error" "Invalid option." ;;
+esac
