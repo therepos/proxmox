@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/tailscale-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/YOUR_USER/YOUR_REPO/raw/main/apps/installers/tailscale-setup.sh?$(date +%s))"
 # Purpose: Creates an unprivileged LXC running Tailscale as a subnet router (Proxmox)
 # =============================================================================
 # Usage:
@@ -15,6 +15,7 @@ set -euo pipefail
 GREEN="\e[32m✔\e[0m"
 RED="\e[31m✘\e[0m"
 YELLOW="\e[33m➜\e[0m"
+CYAN="\e[36m"
 RESET="\e[0m"
 
 function status_message() {
@@ -43,22 +44,6 @@ BRIDGE="vmbr0"
 # Precheck: must be on Proxmox host
 if ! command -v pct &> /dev/null; then
     status_message "error" "pct not found. Run this on the Proxmox host."
-fi
-
-# Auto-pick next free CTID starting at 100
-CTID=$CTID_DEFAULT
-while pct status "$CTID" &>/dev/null; do
-    CTID=$((CTID + 1))
-done
-status_message "info" "Using CTID $CTID"
-
-# Auto-detect LAN subnet from Proxmox host
-LAN_SUBNET=$(ip -4 route | awk '/proto kernel/ && /vmbr0/ {print $1; exit}')
-if [[ -z "$LAN_SUBNET" ]]; then
-    LAN_SUBNET="192.168.0.0/24"
-    status_message "info" "Could not auto-detect subnet, defaulting to $LAN_SUBNET"
-else
-    status_message "info" "Detected LAN subnet: $LAN_SUBNET"
 fi
 
 # Uninstall flow
@@ -92,6 +77,22 @@ if pct list | awk 'NR>1 {print $3}' | grep -qx "tailscale"; then
         exit 0
     fi
 fi
+
+# Auto-pick next free CTID starting at 100
+CTID=$CTID_DEFAULT
+while pct status "$CTID" &>/dev/null; do
+    CTID=$((CTID + 1))
+done
+status_message "info" "Using CTID $CTID"
+
+# Auto-detect LAN subnet from Proxmox host (FIXED)
+LAN_SUBNET=$(ip -4 -o addr show "$BRIDGE" 2>/dev/null | awk '{print $4}' | head -1 | \
+    awk -F/ 'NF==2 {split($1,a,"."); print a[1]"."a[2]"."a[3]".0/"$2}')
+
+if [[ -z "$LAN_SUBNET" || ! "$LAN_SUBNET" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+    status_message "error" "Could not auto-detect subnet from $BRIDGE. Check 'ip -4 addr show $BRIDGE'."
+fi
+status_message "info" "Detected LAN subnet: $LAN_SUBNET"
 
 # Fetch latest Debian 12 template
 status_message "info" "Updating template list..."
@@ -134,15 +135,19 @@ lxc.cgroup2.devices.allow: c 10:200 rwm
 lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 EOF
 
-# Start and install
+# Start
 status_message "info" "Starting LXC..."
 pct start "$CTID"
 sleep 5
 
+# Install Tailscale (fix locale first to silence warnings)
 status_message "info" "Installing Tailscale inside LXC..."
 pct exec "$CTID" -- bash -c "
-    apt update -qq
-    apt install -y -qq curl >/dev/null
+    export LC_ALL=C
+    export LANG=C
+    echo 'LC_ALL=C' > /etc/default/locale
+    apt update -qq >/dev/null 2>&1
+    apt install -y -qq curl >/dev/null 2>&1
     curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
     echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
     echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.conf
@@ -151,12 +156,39 @@ pct exec "$CTID" -- bash -c "
 "
 status_message "success" "Tailscale installed."
 
-# Interactive Tailscale login (the one unavoidable user step)
-echo ""
-echo "=========================================="
-echo "  Open the URL below in your browser to authenticate:"
-echo "=========================================="
-pct exec "$CTID" -- tailscale up --advertise-routes="$LAN_SUBNET" --accept-routes
+# Authenticate (idempotent: skip if already logged in)
+if pct exec "$CTID" -- tailscale status 2>&1 | grep -qE "^(Logged out|NeedsLogin)"; then
+    echo ""
+    echo -e "${CYAN}=============================================="
+    echo "  TAILSCALE AUTHENTICATION REQUIRED"
+    echo "  Open the URL below in your browser to log in:"
+    echo -e "==============================================${RESET}"
+    echo ""
+    # Run in background, capture URL, display prominently
+    pct exec "$CTID" -- tailscale up \
+        --advertise-routes="$LAN_SUBNET" \
+        --accept-routes 2>&1 | tee /tmp/tailscale-up.log &
+    TS_PID=$!
+
+    # Wait for URL to appear, then highlight it
+    for i in {1..30}; do
+        if grep -q "login.tailscale.com" /tmp/tailscale-up.log 2>/dev/null; then
+            AUTH_URL=$(grep -oE 'https://login\.tailscale\.com/a/[a-zA-Z0-9]+' /tmp/tailscale-up.log | head -1)
+            echo ""
+            echo -e "${CYAN}>>> AUTH URL: ${AUTH_URL} <<<${RESET}"
+            echo ""
+            break
+        fi
+        sleep 1
+    done
+
+    wait $TS_PID
+    rm -f /tmp/tailscale-up.log
+else
+    status_message "success" "Tailscale already authenticated."
+    # Make sure routes are up to date
+    pct exec "$CTID" -- tailscale set --advertise-routes="$LAN_SUBNET" >/dev/null 2>&1 || true
+fi
 
 echo ""
 status_message "success" "Setup complete."
@@ -166,5 +198,10 @@ echo "  Hostname:     $HOSTNAME"
 echo "  LAN subnet:   $LAN_SUBNET (advertised)"
 echo "  Root pw file: /root/.tailscale-lxc-${CTID}.pw"
 echo ""
-echo "  Next: approve the subnet route at:"
-echo "    https://login.tailscale.com/admin/machines"
+echo -e "${YELLOW} Next steps:${RESET}"
+echo "  1. Approve the subnet route at:"
+echo "     https://login.tailscale.com/admin/machines"
+echo "     -> Find 'tailscale' device -> Edit route settings -> enable $LAN_SUBNET"
+echo "  2. (Optional) Disable key expiry on the same page"
+echo "  3. Install Tailscale on your laptop/phone, log in to the same account"
+echo "  4. Access Proxmox from anywhere at https://<proxmox-lan-ip>:8006"
