@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/dufs-setup.sh?$(date +%s))"
+# Purpose: Install / Update / Uninstall Dufs on Proxmox host
+
+set -euo pipefail
+
+GREEN="\e[32m✔\e[0m"
+RED="\e[31m✘\e[0m"
+YELLOW="\e[33m➜\e[0m"
+
+function status_message() {
+    local status=$1
+    local message=$2
+    if [[ "$status" == "success" ]]; then echo -e "${GREEN} ${message}"
+    elif [[ "$status" == "info" ]]; then echo -e "${YELLOW} ${message}"
+    else echo -e "${RED} ${message}"; exit 1
+    fi
+}
+
+DUFS_BIN="/usr/local/bin/dufs"
+DUFS_DEFAULT_PORT=5000
+DUFS_DEFAULT_ROOT="/mnt/sec"
+
+[[ $EUID -eq 0 ]] || status_message "error" "Run as root."
+
+INSTALLED=0
+[[ -x "$DUFS_BIN" ]] && INSTALLED=1
+
+action_install() {
+    if [[ $INSTALLED -eq 1 ]]; then
+        echo "Dufs already installed."
+        read -p "Reinstall? [y/N]: " r </dev/tty
+        [[ ! "$r" =~ ^[Yy]$ ]] && exit 0
+        action_uninstall_silent
+    fi
+
+    read -p "Root path Dufs will serve (default ${DUFS_DEFAULT_ROOT}): " root_input </dev/tty
+    local dufs_root="${root_input:-$DUFS_DEFAULT_ROOT}"
+    if [[ ! -d "$dufs_root" ]]; then
+        status_message "error" "Path '$dufs_root' does not exist."
+    fi
+
+    read -p "Port (default ${DUFS_DEFAULT_PORT}): " port_input </dev/tty
+    local dufs_port="${port_input:-$DUFS_DEFAULT_PORT}"
+    if [[ ! "$dufs_port" =~ ^[0-9]+$ ]] || [[ "$dufs_port" -lt 1024 || "$dufs_port" -gt 65535 ]]; then
+        status_message "error" "Invalid port."
+    fi
+
+    local dufs_password
+    dufs_password=$(openssl rand -base64 12 | tr -d '=+/')
+
+    status_message "info" "Installing Dufs..."
+    apt update -qq >/dev/null
+    apt install -y -qq curl tar ca-certificates >/dev/null
+
+    local dufs_version
+    dufs_version=$(curl -fsSL https://api.github.com/repos/sigoden/dufs/releases/latest | grep tag_name | cut -d'"' -f4)
+    [[ -z "$dufs_version" ]] && status_message "error" "Could not fetch Dufs version."
+    echo "[*] Latest version: $dufs_version"
+
+    cd /tmp
+    rm -f dufs.tar.gz dufs
+    local arch_tag="x86_64-unknown-linux-musl"
+    echo "[*] Downloading binary..."
+    curl -fsSL "https://github.com/sigoden/dufs/releases/download/${dufs_version}/dufs-${dufs_version}-${arch_tag}.tar.gz" -o dufs.tar.gz
+    [[ ! -s dufs.tar.gz ]] && status_message "error" "Download failed."
+
+    tar -xzf dufs.tar.gz
+    [[ ! -f /tmp/dufs ]] && status_message "error" "Binary not in archive."
+
+    echo "[*] Installing to ${DUFS_BIN}..."
+    install -m 755 /tmp/dufs "$DUFS_BIN"
+    rm -f /tmp/dufs.tar.gz /tmp/dufs /tmp/LICENSE /tmp/README.md 2>/dev/null || true
+
+    [[ ! -x "$DUFS_BIN" ]] && status_message "error" "Install failed."
+
+    echo "[*] Setting up systemd service..."
+    cat > /etc/systemd/system/dufs.service <<EOF
+[Unit]
+Description=Dufs File Server
+After=network.target
+
+[Service]
+ExecStart=${DUFS_BIN} ${dufs_root} --bind 0.0.0.0 --port ${dufs_port} --auth admin:${dufs_password}@/:rw --allow-all
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now dufs >/dev/null
+
+    echo "admin:${dufs_password}" > /root/.dufs-host.creds
+    chmod 600 /root/.dufs-host.creds
+
+    sleep 2
+    if ! systemctl is-active --quiet dufs; then
+        echo ""
+        journalctl -u dufs --no-pager -n 20
+        status_message "error" "Service failed to start."
+    fi
+
+    local ip
+    ip=$(hostname -I | awk '{print $1}')
+
+    echo ""
+    echo "================================================================"
+    status_message "success" "Setup complete."
+    echo "================================================================"
+    echo ""
+    echo "  Login:        admin / ${dufs_password}"
+    echo "  Creds file:   /root/.dufs-host.creds"
+    echo "  Root path:    ${dufs_root}"
+    echo ""
+    echo -e "  ${GREEN} Access:       http://${ip}:${dufs_port}"
+    echo ""
+}
+
+action_update() {
+    [[ $INSTALLED -eq 0 ]] && status_message "error" "Not installed."
+    status_message "info" "Updating Dufs..."
+    systemctl stop dufs
+
+    local dufs_version
+    dufs_version=$(curl -fsSL https://api.github.com/repos/sigoden/dufs/releases/latest | grep tag_name | cut -d'"' -f4)
+    [[ -z "$dufs_version" ]] && status_message "error" "Could not fetch version."
+
+    cd /tmp
+    rm -f dufs.tar.gz dufs
+    local arch_tag="x86_64-unknown-linux-musl"
+    curl -fsSL "https://github.com/sigoden/dufs/releases/download/${dufs_version}/dufs-${dufs_version}-${arch_tag}.tar.gz" -o dufs.tar.gz
+    [[ ! -s dufs.tar.gz ]] && status_message "error" "Download failed."
+    tar -xzf dufs.tar.gz
+    install -m 755 /tmp/dufs "$DUFS_BIN"
+    rm -f /tmp/dufs.tar.gz /tmp/dufs /tmp/LICENSE /tmp/README.md 2>/dev/null || true
+
+    systemctl start dufs
+    sleep 2
+    if systemctl is-active --quiet dufs; then
+        status_message "success" "Updated to $("$DUFS_BIN" --version | head -1)"
+    else
+        status_message "error" "Service failed to restart."
+    fi
+}
+
+action_uninstall_silent() {
+    systemctl stop dufs 2>/dev/null || true
+    systemctl disable dufs 2>/dev/null || true
+    rm -f /etc/systemd/system/dufs.service
+    rm -f "$DUFS_BIN"
+    rm -f /root/.dufs-host.creds
+    systemctl daemon-reload
+}
+
+action_uninstall() {
+    [[ $INSTALLED -eq 0 ]] && status_message "error" "Not installed."
+    read -p "Type 'yes' to confirm full uninstall: " c </dev/tty
+    [[ "$c" != "yes" ]] && { status_message "info" "Cancelled."; exit 0; }
+    action_uninstall_silent
+    status_message "success" "Dufs fully removed."
+}
+
+action_status() {
+    [[ $INSTALLED -eq 0 ]] && { status_message "info" "Not installed."; return; }
+    echo ""
+    echo "Service:  $(systemctl is-active dufs)"
+    echo "Version:  $("$DUFS_BIN" --version 2>/dev/null | head -1)"
+    local port
+    port=$(grep -oP 'port \K\d+' /etc/systemd/system/dufs.service 2>/dev/null | head -1)
+    local ip
+    ip=$(hostname -I | awk '{print $1}')
+    echo "Access:   http://${ip}:${port:-?}"
+    echo ""
+    echo "Recent logs:"
+    journalctl -u dufs --no-pager -n 5
+}
+
+echo ""
+echo "================================================================"
+echo "  Dufs Host Manager"
+echo "================================================================"
+echo ""
+if [[ $INSTALLED -eq 1 ]]; then
+    echo -e "  Status: ${GREEN} Installed"
+else
+    echo -e "  Status: ${YELLOW} Not installed"
+fi
+echo ""
+echo "  1) Install / Reinstall"
+echo "  2) Update"
+echo "  3) Uninstall"
+echo "  4) Status"
+echo "  q) Quit"
+echo ""
+read -p "Select: " choice </dev/tty
+echo ""
+
+case "$choice" in
+    1) action_install ;;
+    2) action_update ;;
+    3) action_uninstall ;;
+    4) action_status ;;
+    q|Q) exit 0 ;;
+    *) status_message "error" "Invalid." ;;
+esac
