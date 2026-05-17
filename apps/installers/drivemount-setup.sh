@@ -51,22 +51,33 @@ list_drives() {
     local os_disk
     os_disk=$(detect_os_disk)
 
-    lsblk -pnlo NAME,FSTYPE,SIZE,MOUNTPOINT,UUID,TYPE | \
-        awk -v os="$os_disk" '
-            ($6 == "part" || $6 == "disk") {
-                if (os != "" && index($1, os) == 1) next
-                if ($2 == "") next
-                if ($2 == "LVM2_member") next
-                if ($2 == "swap") next
-                if ($6 == "disk") {
-                    cmd = "lsblk -nlo NAME " $1 " 2>/dev/null | wc -l"
-                    cmd | getline part_count
-                    close(cmd)
-                    if (part_count > 1) next
-                }
-                print $1, $2, $3, $4, $5
-            }
-        '
+    # Use a delimiter to preserve empty MOUNTPOINT field
+    lsblk -pnlo NAME,FSTYPE,SIZE,MOUNTPOINT,UUID,TYPE -P | \
+        while read -r line; do
+            eval "$line"
+            local dev="$NAME"
+            local fstype="$FSTYPE"
+            local size="$SIZE"
+            local mountpoint="$MOUNTPOINT"
+            local uuid="$UUID"
+            local type="$TYPE"
+
+            # Filter
+            [[ "$type" != "part" && "$type" != "disk" ]] && continue
+            [[ -n "$os_disk" && "$dev" == "$os_disk"* ]] && continue
+            [[ -z "$fstype" ]] && continue
+            [[ "$fstype" == "LVM2_member" ]] && continue
+            [[ "$fstype" == "swap" ]] && continue
+
+            # For whole disks, skip if it has partitions
+            if [[ "$type" == "disk" ]]; then
+                local part_count
+                part_count=$(lsblk -nlo NAME "$dev" 2>/dev/null | wc -l)
+                [[ "$part_count" -gt 1 ]] && continue
+            fi
+
+            echo "$dev $fstype $size $mountpoint $uuid"
+        done
 }
 
 show_drives_menu() {
