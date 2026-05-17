@@ -63,16 +63,6 @@ def generate_templates():
         apps_base
     )
 
-    # Tools
-    tools_base = "https://github.com/therepos/proxmox/blob/main/apps/tools"
-    lines += generate_section(
-        "Tools",
-        "apps/tools",
-        lambda f: os.path.isfile(os.path.join("apps/tools", f)),
-        lambda f: f,
-        tools_base
-    )
-
     with open(OUTPUT_MD, 'w') as out:
         out.write(''.join(lines))
 
