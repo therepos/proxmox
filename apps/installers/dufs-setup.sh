@@ -19,7 +19,7 @@ function status_message() {
 
 DUFS_BIN="/usr/local/bin/dufs"
 DUFS_DEFAULT_PORT=3001
-DUFS_DEFAULT_ROOT="/mnt/sec"
+DUFS_DEFAULT_ROOT="/"
 
 [[ $EUID -eq 0 ]] || status_message "error" "Run as root."
 
