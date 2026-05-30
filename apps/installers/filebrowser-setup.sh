@@ -16,7 +16,7 @@ FB_ROOT="/"
 FB_CONFIG_DIR="/etc/filebrowser"
 FB_DB="${FB_CONFIG_DIR}/fb.db"
 FB_USER="admin"
-FB_PASS="password@12345"
+FB_PASS="password"
 FB_BIN="/usr/local/bin/filebrowser"
 SERVICE_FILE="/etc/systemd/system/filebrowser.service"
 INSTALL_URL="https://raw.githubusercontent.com/filebrowser/get/master/get.sh"
@@ -60,8 +60,7 @@ if command -v filebrowser &> /dev/null; then
 fi
 
 # --- Install binary ----------------------------------------------------------
-echo "Installing FileBrowser binary..."
-curl -fsSL "$INSTALL_URL" | bash
+curl -fsSL "$INSTALL_URL" | bash >/dev/null
 if ! command -v filebrowser &> /dev/null; then
     status_message "error" "FileBrowser binary not found after install. Check network or install URL."
 fi
@@ -70,10 +69,12 @@ status_message "success" "FileBrowser binary installed."
 # --- Configure ---------------------------------------------------------------
 mkdir -p "$FB_CONFIG_DIR"
 
-filebrowser config init -d "$FB_DB"
-filebrowser config set -d "$FB_DB" -a "$FB_ADDRESS" -p "$PORT" -r "$FB_ROOT"
-filebrowser users add "$FB_USER" "$FB_PASS" --perm.admin -d "$FB_DB"
-status_message "success" "FileBrowser configured on ${FB_ADDRESS}:${PORT} (root: ${FB_ROOT})."
+filebrowser config init -d "$FB_DB" >/dev/null
+filebrowser config set -d "$FB_DB" -a "$FB_ADDRESS" -p "$PORT" -r "$FB_ROOT" >/dev/null
+status_message "success" "Configuration applied (${FB_ADDRESS}:${PORT}, root: ${FB_ROOT})."
+
+filebrowser users add "$FB_USER" "$FB_PASS" --perm.admin -d "$FB_DB" >/dev/null
+status_message "success" "Admin user created."
 
 # --- systemd service ---------------------------------------------------------
 cat > "$SERVICE_FILE" <<EOF
@@ -90,7 +91,7 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now filebrowser
+systemctl enable --now filebrowser >/dev/null 2>&1
 
 if systemctl is-active --quiet filebrowser; then
     status_message "success" "FileBrowser running at http://$(hostname -I | awk '{print $1}'):${PORT}"
