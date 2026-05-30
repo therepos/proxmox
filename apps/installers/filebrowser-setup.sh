@@ -19,7 +19,7 @@ FB_USER="admin"
 FB_PASS="password"
 FB_BIN="/usr/local/bin/filebrowser"
 SERVICE_FILE="/etc/systemd/system/filebrowser.service"
-INSTALL_URL="https://raw.githubusercontent.com/filebrowser/filebrowser/master/install.sh"
+INSTALL_URL="https://raw.githubusercontent.com/filebrowser/get/master/get.sh"
 
 # --- Helpers -----------------------------------------------------------------
 GREEN="\e[32m✔\e[0m"
@@ -61,8 +61,9 @@ fi
 
 # --- Install binary ----------------------------------------------------------
 echo "Installing FileBrowser binary..."
-if ! bash -c "$(curl -fsSL "$INSTALL_URL")"; then
-    status_message "error" "FileBrowser binary install failed. Check network or install URL."
+curl -fsSL "$INSTALL_URL" | bash
+if ! command -v filebrowser &> /dev/null; then
+    status_message "error" "FileBrowser binary not found after install. Check network or install URL."
 fi
 status_message "success" "FileBrowser binary installed."
 
