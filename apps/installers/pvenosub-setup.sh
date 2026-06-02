@@ -50,6 +50,29 @@ function status_message() {
     fi
 }
 
+# Robustly disable a deb822 .sources file: ensure "Enabled: false" is present,
+# whether the key already exists (commented or set true) or is missing entirely.
+# PVE 9 default .sources files often omit the Enabled key (defaults to enabled),
+# so a plain sed-replace is not enough -- we must append the key when absent.
+function disable_sources_file() {
+    local f=$1
+    [[ -f "$f" ]] || return 0
+    if grep -qi '^Enabled:' "$f"; then
+        sed -i 's/^[Ee]nabled:.*/Enabled: false/' "$f"
+    else
+        # Ensure file ends with a newline before appending
+        [[ -n "$(tail -c1 "$f")" ]] && echo "" >> "$f"
+        echo "Enabled: false" >> "$f"
+    fi
+}
+
+# Disable a legacy .list file by commenting active deb lines.
+function disable_list_file() {
+    local f=$1
+    [[ -f "$f" ]] || return 0
+    sed -i 's/^deb/#deb/g' "$f"
+}
+
 # Spinner frames as an array (each element one braille glyph)
 SPIN_FRAMES=("\xe2\xa0\x8b" "\xe2\xa0\x99" "\xe2\xa0\xb9" "\xe2\xa0\xb8" "\xe2\xa0\xbc" "\xe2\xa0\xb4" "\xe2\xa0\xa6" "\xe2\xa0\xa7" "\xe2\xa0\x87" "\xe2\xa0\x8f")
 
@@ -141,23 +164,17 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 fi
 echo ""
 
-# 1. Disable pve-enterprise (handles both legacy .list and new deb822 .sources)
+# 1. Disable pve-enterprise (handles both legacy .list and deb822 .sources)
 status_message "info" "Disabling pve-enterprise repo..."
-if [[ -f /etc/apt/sources.list.d/pve-enterprise.list ]]; then
-    sed -i 's/^deb/#deb/g' /etc/apt/sources.list.d/pve-enterprise.list
-fi
-if [[ -f /etc/apt/sources.list.d/pve-enterprise.sources ]]; then
-    sed -i 's/^Enabled: true/Enabled: false/g' /etc/apt/sources.list.d/pve-enterprise.sources
-fi
+disable_list_file    /etc/apt/sources.list.d/pve-enterprise.list
+disable_sources_file /etc/apt/sources.list.d/pve-enterprise.sources
 
-# 2. Disable ceph-enterprise
+# 2. Disable ceph-enterprise (covers several possible filenames)
 status_message "info" "Disabling ceph-enterprise repo..."
-for f in /etc/apt/sources.list.d/ceph.list /etc/apt/sources.list.d/ceph-enterprise.list; do
-    [[ -f "$f" ]] && sed -i 's/^deb/#deb/g' "$f"
-done
-for f in /etc/apt/sources.list.d/ceph.sources /etc/apt/sources.list.d/ceph-enterprise.sources; do
-    [[ -f "$f" ]] && sed -i 's/^Enabled: true/Enabled: false/g' "$f"
-done
+disable_list_file    /etc/apt/sources.list.d/ceph.list
+disable_list_file    /etc/apt/sources.list.d/ceph-enterprise.list
+disable_sources_file /etc/apt/sources.list.d/ceph.sources
+disable_sources_file /etc/apt/sources.list.d/ceph-enterprise.sources
 
 # 3. Add pve-no-subscription
 status_message "info" "Adding pve-no-subscription repo..."
