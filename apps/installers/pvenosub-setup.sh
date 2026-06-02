@@ -16,7 +16,6 @@
 
 set -euo pipefail
 
-# Suppress ALL interactive prompts
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 export NEEDRESTART_SUSPEND=1
@@ -27,7 +26,6 @@ GREEN="\e[32m\xe2\x9c\x94\e[0m"
 RED="\e[31m\xe2\x9c\x98\e[0m"
 YELLOW="\e[33m\xe2\x9e\x9c\e[0m"
 
-# Raw color codes for the spinner
 C_GREEN="\e[32m"
 C_RED="\e[31m"
 C_YELLOW="\e[33m"
@@ -50,40 +48,29 @@ function status_message() {
     fi
 }
 
-# Robustly disable a deb822 .sources file: ensure "Enabled: false" is present,
-# whether the key already exists (commented or set true) or is missing entirely.
-# PVE 9 default .sources files often omit the Enabled key (defaults to enabled),
-# so a plain sed-replace is not enough -- we must append the key when absent.
 function disable_sources_file() {
     local f=$1
     [[ -f "$f" ]] || return 0
     if grep -qi '^Enabled:' "$f"; then
         sed -i 's/^[Ee]nabled:.*/Enabled: false/' "$f"
     else
-        # Ensure file ends with a newline before appending
         [[ -n "$(tail -c1 "$f")" ]] && echo "" >> "$f"
         echo "Enabled: false" >> "$f"
     fi
 }
 
-# Disable a legacy .list file by commenting active deb lines.
 function disable_list_file() {
     local f=$1
     [[ -f "$f" ]] || return 0
     sed -i 's/^deb/#deb/g' "$f"
 }
 
-# Spinner frames as an array (each element one braille glyph)
 SPIN_FRAMES=("\xe2\xa0\x8b" "\xe2\xa0\x99" "\xe2\xa0\xb9" "\xe2\xa0\xb8" "\xe2\xa0\xbc" "\xe2\xa0\xb4" "\xe2\xa0\xa6" "\xe2\xa0\xa7" "\xe2\xa0\x87" "\xe2\xa0\x8f")
 
-# Run a command in the background, animate a spinner + elapsed timer while it
-# works, append all output to $LOG_FILE, and print a final tick/cross.
-# Usage: run_with_spinner "Message" cmd arg1 arg2 ...
 function run_with_spinner() {
     local msg=$1
     shift
 
-    # Non-interactive (piped/CI): skip animation, just run and report.
     if [[ ! -t 1 ]]; then
         echo -e "${YELLOW} ${msg}"
         if "$@" >>"$LOG_FILE" 2>&1; then
@@ -133,11 +120,9 @@ function run_with_spinner() {
     fi
 }
 
-# Prechecks
 [[ $EUID -eq 0 ]] || status_message "error" "Must be run as root."
 command -v pveversion &>/dev/null || status_message "error" "Not a Proxmox VE host."
 
-# Detect Debian codename (bookworm for PVE 8, trixie for PVE 9)
 CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
 if [[ -z "$CODENAME" ]]; then
     status_message "error" "Could not detect Debian codename."
@@ -164,19 +149,16 @@ if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
 fi
 echo ""
 
-# 1. Disable pve-enterprise (handles both legacy .list and deb822 .sources)
 status_message "info" "Disabling pve-enterprise repo..."
 disable_list_file    /etc/apt/sources.list.d/pve-enterprise.list
 disable_sources_file /etc/apt/sources.list.d/pve-enterprise.sources
 
-# 2. Disable ceph-enterprise (covers several possible filenames)
 status_message "info" "Disabling ceph-enterprise repo..."
 disable_list_file    /etc/apt/sources.list.d/ceph.list
 disable_list_file    /etc/apt/sources.list.d/ceph-enterprise.list
 disable_sources_file /etc/apt/sources.list.d/ceph.sources
 disable_sources_file /etc/apt/sources.list.d/ceph-enterprise.sources
 
-# 3. Add pve-no-subscription
 status_message "info" "Adding pve-no-subscription repo..."
 cat > /etc/apt/sources.list.d/pve-no-subscription.sources <<EOF
 Types: deb
@@ -186,7 +168,6 @@ Components: pve-no-subscription
 Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 EOF
 
-# 4. Add pve-test (disabled state, ready to enable manually if ever needed)
 status_message "info" "Adding pve-test repo (disabled)..."
 cat > /etc/apt/sources.list.d/pve-test.sources <<EOF
 Types: deb
@@ -197,23 +178,19 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 Enabled: false
 EOF
 
-# 5. Disable subscription nag
 status_message "info" "Disabling subscription nag..."
 NAG_FILE="/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js"
 if [[ -f "$NAG_FILE" ]]; then
     sed -i.bak "s/data.status !== 'Active'/false/g" "$NAG_FILE" || true
-    systemctl restart pveproxy.service
+    systemctl restart pveproxy.service 2>/dev/null || true
 fi
 
-# 6. Disable HA
 status_message "info" "Disabling HA services..."
 systemctl disable --now pve-ha-lrm pve-ha-crm 2>/dev/null || true
 
-# 7. Disable Corosync
 status_message "info" "Disabling Corosync..."
 systemctl disable --now corosync 2>/dev/null || true
 
-# 8. Update + full-upgrade (animated; full output captured to $LOG_FILE)
 run_with_spinner "Refreshing package lists..." \
     apt-get update -qq
 
@@ -231,7 +208,6 @@ run_with_spinner "Clearing apt cache..." \
 
 status_message "success" "Post-install complete. Full log: ${LOG_FILE}"
 
-# 9. Reboot
 echo ""
 echo "Rebooting in 10 seconds. Press Ctrl+C to cancel."
 sleep 10
