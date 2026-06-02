@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/pvenosub-setup.sh?$(date +%s))"
-# Purpose: Auto-runs Proxmox VE post-install with sane homelab defaults
+# Purpose: Auto-runs Proxmox VE post-install with homelab defaults
 # =============================================================================
 # Defaults applied:
 #   - Disable pve-enterprise repo
