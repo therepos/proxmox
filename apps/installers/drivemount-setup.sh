@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/mount-drive-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/drivemount-setup.sh?$(date +%s))"
 # Purpose: Mount a drive and optionally register as Proxmox storage
 
 set -euo pipefail
