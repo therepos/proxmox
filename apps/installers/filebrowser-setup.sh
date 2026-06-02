@@ -2,9 +2,9 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/filebrowser-setup.sh?$(date +%s))"
 # Purpose: Installs FileBrowser via official binary (Ubuntu/PVE9)
 # =============================================================================
-# Defaults:
+# Usage:
 #   Username: admin
-#   Password: password   (change after first login)
+#   Password: password@12345  (change after first login)
 # =============================================================================
 
 set -euo pipefail
