@@ -153,7 +153,7 @@ fi
 status_message "success" "Added to fstab (auto-mount on boot)"
 
 echo ""
-read -p "Register as Proxmox storage? [Y/n]: " reg </dev/tty
+read -p "Register as Proxmox storage (dump/ images/ private/ snippets/ template/)? [Y/n]: " reg </dev/tty
 REGISTERED=0
 if [[ ! "$reg" =~ ^[Nn]$ ]]; then
     if ! grep -q "^dir: ${MNT_NAME}\b" /etc/pve/storage.cfg 2>/dev/null; then
