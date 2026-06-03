@@ -487,7 +487,9 @@ compute_ids_csv_for_funcs() {
   local ids
   ids="$(
     for f in "${funcs[@]}"; do
-      lspci -Dnns "${f#0000:}" | awk -F'[][]' '{print $3}'
+      # lspci -Dn numeric output: "0000:01:00.0 0300: 10de:27b0 (rev a1)"
+      # field 3 is the vendor:device ID. Strip any trailing junk.
+      lspci -Dn -s "${f#0000:}" | awk '{print $3}'
     done | sort -u | paste -sd, -
   )"
   [[ -n "$ids" ]] || die "Could not compute PCI IDs for GPU functions: ${funcs[*]}"
