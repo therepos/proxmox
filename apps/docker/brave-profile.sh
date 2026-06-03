@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/brave-profile.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/docker/brave-profile.sh?$(date +%s))"
 # Purpose: Backup / restore the Brave (Kasm) profile for a standalone container.
 # =============================================================================
 # Why this exists:
