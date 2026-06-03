@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/gpu-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/gpu-setup.sh?$(date +%s))"
 # Purpose: GPU passthrough (host) + NVIDIA driver install (VM) — combined
 # =============================================================================
 # Usage (auto-detects Proxmox host vs VM):
