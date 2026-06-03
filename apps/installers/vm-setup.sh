@@ -35,6 +35,22 @@ ok()    { echo "[+] $*"; }
 warn()  { echo "[!] $*"; }
 fail()  { echo "[x] $*" >&2; exit 1; }
 
+# Interactive numeric prompt that works under: bash -c "$(wget ...)"
+# Reads from /dev/tty when available so piped stdin doesn't swallow input.
+asknum() { # asknum "prompt" min max default
+    local p="$1" min="$2" max="$3" def="$4" in
+    while true; do
+        if [[ -r /dev/tty ]]; then
+            read -rp "$p [$min-$max] (default: $def): " in </dev/tty || in="$def"
+        else
+            read -rp "$p [$min-$max] (default: $def): " in || in="$def"
+        fi
+        in="${in:-$def}"
+        [[ "$in" =~ ^[0-9]+$ ]] || { echo "Enter a number."; continue; }
+        (( in>=min && in<=max )) && { echo "$in"; return; }
+    done
+}
+
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
 # --- Environment detection --------------------------------------------------
@@ -50,7 +66,7 @@ is_proxmox_host() {
 # --- Shared config (used by both sides) -------------------------------------
 VMID="${VMID:-200}"                   # VM that receives the virtiofs share
 VIRTIOFS_TAG="${VIRTIOFS_TAG:-sec}"   # mapping id (host) and mount tag (guest)
-MOUNT_POINT="${MOUNT_POINT:-/mnt/sec}"# where it mounts inside the VM
+MOUNT_POINT="${MOUNT_POINT:-/mnt/sec}"  # where it mounts inside the VM
 
 # --- Host-side config -------------------------------------------------------
 HOST_SHARE_PATH="${HOST_SHARE_PATH:-/mnt/sec}"  # directory on the host to share
@@ -414,11 +430,86 @@ host_setup() {
     echo ""
 }
 
+# --- Host: status -----------------------------------------------------------
+host_status() {
+    echo ""
+    echo "  VirtIO-FS Share Status"
+    echo "  ----------------------"
+    echo "  VMID:            ${VMID}"
+    echo "  Tag:             ${VIRTIOFS_TAG}"
+    echo "  Host path:       ${HOST_SHARE_PATH}"
+    if pvesh get /cluster/mapping/dir 2>/dev/null | grep -qw "$VIRTIOFS_TAG"; then
+        echo "  Mapping:         present"
+    else
+        echo "  Mapping:         MISSING"
+    fi
+    if qm config "$VMID" 2>/dev/null | grep -qE "^virtiofs[0-9]+:.*dirid=${VIRTIOFS_TAG}"; then
+        echo "  VM device:       attached"
+    else
+        echo "  VM device:       not attached"
+    fi
+    echo "  VM power state:  $(qm status "$VMID" 2>/dev/null | awk '{print $2}')"
+    echo ""
+}
+
+# --- Host: remove (undo) ----------------------------------------------------
+host_remove() {
+    echo ""
+    warn "This will detach the virtiofs device from VM ${VMID} and delete the"
+    warn "'${VIRTIOFS_TAG}' mapping. Files on ${HOST_SHARE_PATH} are NOT touched."
+    local ans="n"
+    if [[ -r /dev/tty ]]; then
+        read -rp "Proceed with removal? [y/N]: " ans </dev/tty || ans="n"
+    fi
+    [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]] || { info "Cancelled."; return 0; }
+
+    # Detach any virtiofs device pointing at our tag (needs VM stopped)
+    local vfdev
+    vfdev="$(qm config "$VMID" 2>/dev/null | grep -oE "^virtiofs[0-9]+" | head -1 || true)"
+    if [[ -n "$vfdev" ]]; then
+        local status; status="$(qm status "$VMID" | awk '{print $2}')"
+        if [[ "$status" == "running" ]]; then
+            info "Stopping VM ${VMID} to detach ${vfdev}..."
+            qm shutdown "$VMID" --timeout "$SHUTDOWN_TIMEOUT" \
+                || fail "Graceful shutdown failed/timed out. Aborting."
+            while [[ "$(qm status "$VMID" | awk '{print $2}')" == "running" ]]; do sleep 2; done
+            ok "VM stopped."
+        fi
+        qm set "$VMID" --delete "$vfdev" && ok "Detached ${vfdev} from VM ${VMID}."
+    else
+        info "No virtiofs device on VM ${VMID}."
+    fi
+
+    # Delete the mapping
+    if pvesh get /cluster/mapping/dir 2>/dev/null | grep -qw "$VIRTIOFS_TAG"; then
+        pvesh delete "/cluster/mapping/dir/${VIRTIOFS_TAG}" \
+            && ok "Deleted mapping '${VIRTIOFS_TAG}'." \
+            || warn "Failed to delete mapping (may not exist)."
+    else
+        info "Mapping '${VIRTIOFS_TAG}' not present."
+    fi
+    echo ""
+}
+
 # ============================================================================
-# DISPATCH — pick host or VM path
+# DISPATCH — pick host or VM path (each shows an interactive menu)
 # ============================================================================
 if is_proxmox_host; then
-    host_setup
+    echo ""
+    echo "================================================="
+    echo "  Proxmox Host — VirtIO-FS for VM ${VMID}"
+    echo "================================================="
+    echo "  1) Setup share   (map + attach to VM + chown + restart)"
+    echo "  2) Status        (show mapping + device state)"
+    echo "  3) Remove        (detach device + delete mapping)"
+    echo "  0) Exit"
+    choice="$(asknum 'Choose' 0 3 1)"
+    case "$choice" in
+        0) ok "Bye."; exit 0 ;;
+        1) host_setup ;;
+        2) host_status ;;
+        3) host_remove ;;
+    esac
     exit 0
 fi
 
@@ -432,6 +523,82 @@ echo "================================================="
 echo ""
 
 STATE=$(get_state)
+
+# Detect whether the host attached a virtiofs device (used by menu + warning).
+virtiofs_device_present() {
+    local d
+    for d in /sys/bus/virtio/devices/virtio*; do
+        [[ -e "$d/driver" ]] || continue
+        if readlink "$d/driver" 2>/dev/null | grep -q "virtiofs"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Standalone mount action (used by menu option 2).
+do_mount_only() {
+    run_step "VirtIO-FS Mount" step_virtiofs
+    local ip; ip=$(hostname -I | awk '{print $1}')
+    echo ""
+    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        ok "Mounted at ${MOUNT_POINT}."
+    else
+        warn "${MOUNT_POINT} not mounted — run the host-side setup first."
+    fi
+}
+
+# VM status action (menu option 3).
+vm_status() {
+    echo ""
+    echo "  VM Status"
+    echo "  ---------"
+    echo "  Docker:      $(command -v docker >/dev/null && echo installed || echo missing)"
+    echo "  NVIDIA:      $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
+    echo "  Webmin:      $(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
+    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        echo "  ${MOUNT_POINT}:  mounted (virtiofs)"
+    else
+        echo "  ${MOUNT_POINT}:  not mounted"
+    fi
+    echo "  VirtIO-FS device present: $(virtiofs_device_present && echo yes || echo no)"
+    echo ""
+}
+
+# Show the menu ONLY on a fresh run. The post-reboot resume must NOT stop for
+# input, so it skips the menu and falls straight into the state machine.
+if [[ "$STATE" == "start" ]]; then
+    if ! virtiofs_device_present; then
+        warn "═══════════════════════════════════════════════════════════"
+        warn " No VirtIO-FS device detected on this VM."
+        warn " The HOST-SIDE setup likely hasn't run yet (run this script"
+        warn " on the Proxmox host first to attach the '${VIRTIOFS_TAG}' share)."
+        warn " You can still proceed; the ${MOUNT_POINT} mount will be skipped."
+        warn "═══════════════════════════════════════════════════════════"
+        echo ""
+    fi
+
+    echo "================================================="
+    echo "  Ubuntu VM Setup"
+    echo "================================================="
+    echo "  1) Full setup    (Webmin, Docker, NVIDIA, Kasm, mount)"
+    echo "  2) Mount share   (VirtIO-FS only)"
+    echo "  3) Status"
+    echo "  0) Exit"
+    choice="$(asknum 'Choose' 0 3 1)"
+    case "$choice" in
+        0) ok "Bye."; exit 0 ;;
+        2) do_mount_only; exit 0 ;;
+        3) vm_status; exit 0 ;;
+        1) : ;;  # fall through to full setup below
+    esac
+fi
+
+echo ""
+echo "================================================="
+echo "  Ubuntu VM Setup — One-Click Installer"
+echo "================================================="
+echo ""
 
 case "$STATE" in
     start)
