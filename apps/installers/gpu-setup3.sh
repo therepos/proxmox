@@ -38,7 +38,7 @@ FUNC_LINE='gpu-setup() { /usr/local/bin/gpu-setup.sh "$@"; }'
 
 if is_proxmox_host; then
   if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
-    SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/gpu-setup3.sh"
+    SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/gpu-setup.sh"
     echo "[info] Installing gpu-setup.sh to $INSTALL_PATH..."
     wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo "[err] Download failed." >&2; exit 1; }
     chmod +x "$INSTALL_PATH"
@@ -349,7 +349,7 @@ check_iommu_group_isolation() {
 
 # File helpers
 write_file_atomic() {
-  local path="$1" tmp="${path}.tmp.$$"
+  local path="${1:?write_file_atomic: missing destination path}" tmp="${path}.tmp.$$"
   cat >"$tmp"
   mv "$tmp" "$path"
 }
@@ -528,18 +528,23 @@ write_vfio_and_blacklist_files() {
   local funcs=("$@")
   local ids_csv; ids_csv="$(compute_ids_csv_for_funcs "${funcs[@]}")"
 
-  write_file_atomic "$MODPROBE_VFIO" <<EOF
+  # Fallback defaults: guarantee these are set even if globals were lost
+  local f_vfio="${MODPROBE_VFIO:-/etc/modprobe.d/gpu-setup-vfio.conf}"
+  local f_noub="${MODPROBE_BL_NOUVEAU:-/etc/modprobe.d/gpu-setup-blacklist-nouveau.conf}"
+  local f_nvid="${MODPROBE_BL_NVIDIA:-/etc/modprobe.d/gpu-setup-blacklist-nvidia.conf}"
+
+  write_file_atomic "$f_vfio" <<EOF
 # managed by gpu-setup — do not edit manually
 options vfio-pci ids=${ids_csv} disable_vga=1
 EOF
 
-  write_file_atomic "$MODPROBE_BL_NOUVEAU" <<'EOF'
+  write_file_atomic "$f_noub" <<'EOF'
 # managed by gpu-setup — do not edit manually
 blacklist nouveau
 options nouveau modeset=0
 EOF
 
-  write_file_atomic "$MODPROBE_BL_NVIDIA" <<'EOF'
+  write_file_atomic "$f_nvid" <<'EOF'
 # managed by gpu-setup — do not edit manually
 blacklist nvidia
 blacklist nvidia_drm
