@@ -38,7 +38,7 @@ FUNC_LINE='gpu-setup() { /usr/local/bin/gpu-setup.sh "$@"; }'
 
 if is_proxmox_host; then
   if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
-    SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/gpu-setup.sh"
+    SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/installers/gpu-setup.sh"
     echo "[info] Installing gpu-setup.sh to $INSTALL_PATH..."
     wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo "[err] Download failed." >&2; exit 1; }
     chmod +x "$INSTALL_PATH"
