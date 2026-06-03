@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/vm-setup.sh?$(date +%s))"
-# Purpose: Ubuntu VM setup
+# Purpose: Ubuntu VM setup + Proxmox-host VirtIO-FS share setup (one script)
 # =============================================================================
-# Usage:
-#   Run once on a fresh Ubuntu Server VM with GPU passthrough.
-#   The script will reboot automatically after the NVIDIA driver install,
-#   then resume on next login to complete the remaining steps.
+# This ONE script auto-detects where it runs and does the matching half:
 #
-# Features:
-#   1. Webmin           — web-based system admin (via webmin-setup.sh)
-#   2. Docker           — container runtime (from official Docker repo)
-#   3. NVIDIA driver    — headless driver + container toolkit (via gpu-driver.sh)
-#   4. [REBOOT]         — required to load NVIDIA kernel module
-#   5. Kasm Workspaces  — browser-based desktops/apps (via kasm-setup.sh)
-#   6. NFS mount        — mounts Proxmox shared drives via NFS
+#   RUN IT ON THE PROXMOX HOST FIRST:
+#     - Creates a directory mapping for the share
+#     - Attaches it to the VM as a virtiofs device (auto stop/start the VM)
+#     - Optionally chowns the share to the VM user (prompted, irreversible)
+#     - Starts the VM
 #
-# Environment overrides (same as sub-scripts):
-#   KASM_VERSION           Kasm version             (default: 1.18.1)
-#   KASM_PORT              Kasm web UI port         (default: 443)
-#   NVIDIA_DRIVER_VERSION  Force a driver branch    (default: auto-detect)
+#   THEN RUN THE SAME SCRIPT INSIDE THE UBUNTU VM:
+#     1. Webmin          — web-based system admin (via webmin-setup.sh)
+#     2. Docker          — container runtime (from official Docker repo)
+#     3. LVM expand      — grow root LV to fill the disk
+#     4. NVIDIA driver   — headless driver + container toolkit (via gpu-driver.sh)
+#     5. [REBOOT]        — required to load NVIDIA kernel module (auto-resumes)
+#     6. Kasm Workspaces — browser-based desktops/apps (via kasm-setup.sh)
+#     7. VirtIO-FS mount — mounts the host share at MOUNT_POINT (persisted, nofail)
+#
+# So: run on host -> run in VM. Two runs, one file. The host/VM split is
+# physical (different machines), so this is the safest automation boundary.
+#
+# Config (override via env): VMID, VIRTIOFS_TAG, MOUNT_POINT, HOST_SHARE_PATH,
+#   CHOWN_ENABLE, CHOWN_PATH, CHOWN_UID, CHOWN_GID, SHUTDOWN_TIMEOUT,
+#   KASM_VERSION, KASM_PORT, NVIDIA_DRIVER_VERSION
 # =============================================================================
 
 set -euo pipefail
@@ -31,23 +37,35 @@ fail()  { echo "[x] $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# Proxmox guard
-if [[ -f /etc/pve/.version ]] || command -v pveversion &>/dev/null; then
-    fail "This script is for an Ubuntu VM, not the Proxmox host."
-fi
+# --- Environment detection --------------------------------------------------
+# This single script runs in TWO places:
+#   - On the Proxmox HOST: sets up the directory mapping + attaches virtiofs to
+#     the VM + (optionally) chowns the share + starts the VM.
+#   - In the Ubuntu VM:     installs Webmin/Docker/NVIDIA/Kasm + mounts virtiofs.
+# It auto-detects which side it is on.
+is_proxmox_host() {
+    [[ -f /etc/pve/.version ]] || command -v pveversion &>/dev/null
+}
 
-# --- State tracking ---------------------------------------------------------
+# --- Shared config (used by both sides) -------------------------------------
+VMID="${VMID:-200}"                   # VM that receives the virtiofs share
+VIRTIOFS_TAG="${VIRTIOFS_TAG:-sec}"   # mapping id (host) and mount tag (guest)
+MOUNT_POINT="${MOUNT_POINT:-/mnt/sec}"# where it mounts inside the VM
+
+# --- Host-side config -------------------------------------------------------
+HOST_SHARE_PATH="${HOST_SHARE_PATH:-/mnt/sec}"  # directory on the host to share
+CHOWN_ENABLE="${CHOWN_ENABLE:-1}"               # 1 = chown the share, 0 = skip
+CHOWN_PATH="${CHOWN_PATH:-/mnt/sec}"            # what to chown (WHOLE drive by default)
+CHOWN_UID="${CHOWN_UID:-1000}"                  # target owner UID (toor = 1000)
+CHOWN_GID="${CHOWN_GID:-1000}"                  # target owner GID
+SHUTDOWN_TIMEOUT="${SHUTDOWN_TIMEOUT:-120}"     # seconds to wait for graceful VM shutdown
+
+# --- State tracking (VM side only) ------------------------------------------
 STATE_FILE="/var/lib/setup-vm/state"
 GITHUB_BASE="https://github.com/therepos/proxmox/raw/main/apps/installers"
 
-# --- NFS config -------------------------------------------------------------
-NFS_HOST="192.168.1.111"
-NFS_MOUNTS=(
-    "/mnt/sec/apps"
-    "/mnt/sec/media"
-)
-
-mkdir -p "$(dirname "$STATE_FILE")"
+# Only the VM side uses state tracking; create the dir there.
+is_proxmox_host || mkdir -p "$(dirname "$STATE_FILE")"
 
 get_state() {
     [[ -f "$STATE_FILE" ]] && cat "$STATE_FILE" || echo "start"
@@ -252,24 +270,161 @@ step_kasm() {
     bash -c "$(wget -qLO- "${GITHUB_BASE}/kasm-setup.sh?$(date +%s)")"
 }
 
-step_nfs() {
-    # Check if all mounts are already established
-    local all_mounted=true
-    for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
-        if ! mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
-            all_mounted=false
-            break
-        fi
-    done
+step_virtiofs() {
+    # Mount a host directory shared to this VM via virtiofs, and persist it.
+    # Requires the host-side device (qm set <vmid> -virtiofs0 dirid=...) to exist.
 
-    if $all_mounted; then
-        ok "All NFS mounts already established. Skipping."
+    # Already mounted? Skip.
+    if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+        ok "VirtIO-FS already mounted at ${MOUNT_POINT}. Skipping."
         return 0
     fi
 
-    bash -c "$(wget -qLO- "https://github.com/therepos/proxmox/raw/main/apps/installers/nfs-setup.sh?$(date +%s)")" --client-install
+    # Ensure the virtiofs kernel module is available (built-in on modern kernels).
+    modprobe virtiofs 2>/dev/null || true
+
+    mkdir -p "$MOUNT_POINT"
+
+    # Add a persistent fstab entry (idempotent). 'nofail' so the VM boots even
+    # if the share is not attached on the host.
+    local fstab_line="${VIRTIOFS_TAG}  ${MOUNT_POINT}  virtiofs  defaults,nofail  0  0"
+    if ! grep -qsE "^\s*${VIRTIOFS_TAG}\s+${MOUNT_POINT}\s+virtiofs" /etc/fstab; then
+        echo "$fstab_line" >> /etc/fstab
+        ok "Added VirtIO-FS entry to /etc/fstab."
+    else
+        ok "VirtIO-FS fstab entry already present."
+    fi
+
+    # Try to mount now.
+    if mount -t virtiofs "$VIRTIOFS_TAG" "$MOUNT_POINT" 2>/dev/null; then
+        ok "Mounted VirtIO-FS tag '${VIRTIOFS_TAG}' at ${MOUNT_POINT}."
+    else
+        warn "Could not mount VirtIO-FS tag '${VIRTIOFS_TAG}'."
+        warn "Verify the host has attached the device:"
+        warn "    qm set <vmid> -virtiofs0 dirid=${VIRTIOFS_TAG}"
+        warn "and that the VM was fully restarted after attaching it."
+        warn "Continuing (fstab entry uses 'nofail', so boot is unaffected)."
+    fi
 }
 
+# ============================================================================
+# HOST SIDE — runs only on the Proxmox host
+# ============================================================================
+# NOTE: pvesh '/cluster/mapping/dir' and 'qm set -virtiofsN' are PVE 8.x/9.x
+# syntax. Verified on PVE 9.2.x. Older/newer majors may differ.
+host_setup() {
+    local VM_WAS_RUNNING=0
+    echo ""
+    echo "================================================="
+    echo "  Proxmox Host — VirtIO-FS Share Setup"
+    echo "================================================="
+    echo ""
+
+    # Sanity: required tools
+    command -v qm   >/dev/null || fail "'qm' not found — is this really a Proxmox host?"
+    command -v pvesh >/dev/null || fail "'pvesh' not found — is this really a Proxmox host?"
+
+    # VM must exist
+    qm status "$VMID" &>/dev/null || fail "VM ${VMID} does not exist on this host."
+
+    # 1. Ensure the host share directory exists
+    if [[ ! -d "$HOST_SHARE_PATH" ]]; then
+        fail "Host share path '${HOST_SHARE_PATH}' does not exist. Mount your storage there first."
+    fi
+    ok "Host share path present: ${HOST_SHARE_PATH}"
+
+    # 2. Create/confirm the directory mapping (idempotent)
+    if pvesh get /cluster/mapping/dir 2>/dev/null | grep -qw "$VIRTIOFS_TAG"; then
+        ok "Directory mapping '${VIRTIOFS_TAG}' already exists."
+    else
+        info "Creating directory mapping '${VIRTIOFS_TAG}' -> ${HOST_SHARE_PATH}..."
+        local node; node="$(hostname)"
+        pvesh create /cluster/mapping/dir \
+            --id "$VIRTIOFS_TAG" \
+            --map "node=${node},path=${HOST_SHARE_PATH}" \
+            || fail "Failed to create directory mapping."
+        ok "Directory mapping created."
+    fi
+
+    # 3. Attach the virtiofs device to the VM (needs VM stopped)
+    if qm config "$VMID" | grep -qE "^virtiofs[0-9]+:.*dirid=${VIRTIOFS_TAG}"; then
+        ok "VM ${VMID} already has a virtiofs device for '${VIRTIOFS_TAG}'."
+    else
+        # Stop the VM gracefully if it is running
+        local status; status="$(qm status "$VMID" | awk '{print $2}')"
+        if [[ "$status" == "running" ]]; then
+            info "VM ${VMID} is running; sending graceful shutdown..."
+            qm shutdown "$VMID" --timeout "$SHUTDOWN_TIMEOUT" \
+                || fail "Graceful shutdown failed/timed out. Aborting (not force-killing)."
+            # Wait until actually stopped
+            local waited=0
+            while [[ "$(qm status "$VMID" | awk '{print $2}')" == "running" ]]; do
+                sleep 2; waited=$((waited+2))
+                (( waited >= SHUTDOWN_TIMEOUT )) && fail "VM did not stop within ${SHUTDOWN_TIMEOUT}s."
+            done
+            ok "VM ${VMID} stopped."
+            VM_WAS_RUNNING=1
+        else
+            VM_WAS_RUNNING=0
+        fi
+
+        info "Attaching virtiofs0 (dirid=${VIRTIOFS_TAG}) to VM ${VMID}..."
+        qm set "$VMID" -virtiofs0 "dirid=${VIRTIOFS_TAG}" \
+            || fail "Failed to attach virtiofs device."
+        ok "VirtIO-FS device attached to VM ${VMID}."
+    fi
+
+    # 4. Optionally chown the share (BIG, irreversible on whole drive — confirm)
+    if [[ "$CHOWN_ENABLE" == "1" ]]; then
+        echo ""
+        warn "About to: chown -R ${CHOWN_UID}:${CHOWN_GID} ${CHOWN_PATH}"
+        warn "This changes ownership of ALL files under that path and cannot be undone."
+        if [[ -r /dev/tty ]]; then
+            read -rp "Proceed with chown? [y/N]: " ans </dev/tty || ans="n"
+        else
+            ans="n"
+        fi
+        if [[ "${ans,,}" == "y" || "${ans,,}" == "yes" ]]; then
+            info "Chowning ${CHOWN_PATH} (this may take a while on large drives)..."
+            chown -R "${CHOWN_UID}:${CHOWN_GID}" "$CHOWN_PATH" \
+                && ok "Ownership set to ${CHOWN_UID}:${CHOWN_GID} on ${CHOWN_PATH}." \
+                || warn "chown encountered errors; review manually."
+        else
+            warn "Skipped chown. You can set CHOWN_ENABLE=0 to silence this prompt."
+        fi
+    fi
+
+    # 5. Start the VM (if we stopped it, or if it was already stopped)
+    if [[ "$(qm status "$VMID" | awk '{print $2}')" != "running" ]]; then
+        info "Starting VM ${VMID}..."
+        qm start "$VMID" || fail "Failed to start VM ${VMID}."
+        ok "VM ${VMID} started."
+    fi
+
+    echo ""
+    echo "================================================="
+    echo "  Host side complete."
+    echo "================================================="
+    echo ""
+    echo "  Next: run THIS SAME SCRIPT inside the VM to finish setup:"
+    echo "    bash -c \"\$(wget -qLO- ${GITHUB_BASE}/vm-setup.sh?\$(date +%s))\""
+    echo ""
+    echo "  The VM-side run will mount the share at ${MOUNT_POINT}"
+    echo "  and install Docker / NVIDIA / etc."
+    echo ""
+}
+
+# ============================================================================
+# DISPATCH — pick host or VM path
+# ============================================================================
+if is_proxmox_host; then
+    host_setup
+    exit 0
+fi
+
+# ----------------------------------------------------------------------------
+# Everything below this point runs ONLY inside the Ubuntu VM.
+# ----------------------------------------------------------------------------
 echo ""
 echo "================================================="
 echo "  Ubuntu VM Setup — One-Click Installer"
@@ -329,11 +484,11 @@ case "$STATE" in
 
         set_state "kasm"
         run_step "5/6  Kasm Workspaces" step_kasm
-        set_state "nfs"
+        set_state "virtiofs"
         ;&
 
-    nfs)
-        run_step "6/6  NFS Mount"     step_nfs
+    virtiofs)
+        run_step "6/6  VirtIO-FS Mount"  step_virtiofs
         set_state "done"
         ;&
 
@@ -377,14 +532,14 @@ echo "    CHANGE BOTH PASSWORDS IMMEDIATELY."
 echo ""
 echo "  A self-signed certificate warning is expected for both."
 echo ""
-echo "  NFS Mounts"
-for MOUNT_PATH in "${NFS_MOUNTS[@]}"; do
-    if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
-        echo "    ${NFS_HOST}:${MOUNT_PATH} -> ${MOUNT_PATH} (mounted)"
-    else
-        echo "    ${MOUNT_PATH} (not mounted — check NFS exports on host)"
-    fi
-done
+echo "  VirtIO-FS Mount"
+if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+    echo "    tag '${VIRTIOFS_TAG}' -> ${MOUNT_POINT} (mounted)"
+else
+    echo "    ${MOUNT_POINT} (not mounted)"
+    echo "    On the Proxmox host, attach the share then restart this VM:"
+    echo "      qm set <vmid> -virtiofs0 dirid=${VIRTIOFS_TAG}"
+fi
 echo ""
 
 # Cleanup state
