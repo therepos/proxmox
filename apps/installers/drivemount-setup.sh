@@ -47,20 +47,67 @@ MANAGED=$(awk '
     }
 ' /etc/pve/storage.cfg 2>/dev/null || true)
 
+# Collect existing managed mounts (printed later, only if unmounting)
 EXISTING_MAP=()
 if [[ -n "$MANAGED" ]]; then
-    echo "Existing mounts:"
-    e=1
     while IFS='|' read -r name path; do
         [[ -z "$name" ]] && continue
-        size=$(df -h "$path" 2>/dev/null | awk 'NR==2 {print $2}')
-        echo "  E$e) $path ($size, storage '$name')"
         EXISTING_MAP+=("$path|$name")
-        ((e++))
     done <<< "$MANAGED"
-    echo ""
 fi
 
+# Ask the action first
+echo "What do you want to do?"
+echo "  1) Mount a drive"
+echo "  2) Unmount a drive"
+echo "  q) Quit"
+echo ""
+read -p "Select: " action </dev/tty
+echo ""
+
+case "$action" in
+    q|Q) exit 0 ;;
+    2)
+        # --- UNMOUNT FLOW ---
+        if [[ ${#EXISTING_MAP[@]} -eq 0 ]]; then
+            status_message "info" "No managed mounts to unmount."
+            exit 0
+        fi
+        echo "Existing mounts:"
+        e=1
+        for entry in "${EXISTING_MAP[@]}"; do
+            IFS='|' read -r path name <<< "$entry"
+            size=$(df -h "$path" 2>/dev/null | awk 'NR==2 {print $2}')
+            echo "  $e) $path ($size, storage '$name')"
+            ((e++))
+        done
+        echo ""
+        echo "  q) Quit"
+        echo ""
+        read -p "Select: " uchoice </dev/tty
+        case "$uchoice" in
+            q|Q) exit 0 ;;
+            ''|*[!0-9]*) status_message "error" "Invalid choice." ;;
+        esac
+        idx=$((uchoice - 1))
+        [[ $idx -lt 0 || $idx -ge ${#EXISTING_MAP[@]} ]] && status_message "error" "Invalid choice."
+        IFS='|' read -r MNT_PATH STORAGE_NAME <<< "${EXISTING_MAP[$idx]}"
+
+        echo ""
+        read -p "Type 'yes' to unmount and remove ${MNT_PATH}: " confirm </dev/tty
+        [[ "$confirm" != "yes" ]] && { status_message "info" "Cancelled."; exit 0; }
+        pvesm remove "$STORAGE_NAME" 2>/dev/null || true
+        umount "$MNT_PATH" || status_message "error" "Unmount failed (in use?)"
+        sed -i "\|${MNT_PATH}|d" /etc/fstab
+        rmdir "$MNT_PATH" 2>/dev/null || true
+        status_message "success" "Unmounted and cleaned up"
+        exit 0
+        ;;
+    1) : ;;  # fall through to mount flow below
+    *) status_message "error" "Invalid choice." ;;
+esac
+
+# --- MOUNT FLOW ---
 # Scan for unmounted drives, filtered for sanity
 echo "Available drives to mount:"
 echo ""
@@ -97,31 +144,6 @@ read -p "Select: " choice </dev/tty
 
 case "$choice" in
     q|Q) exit 0 ;;
-    E*)
-        idx=$((${choice#E} - 1))
-        if [[ $idx -lt 0 || $idx -ge ${#EXISTING_MAP[@]} ]]; then
-            status_message "error" "Invalid choice."
-        fi
-        IFS='|' read -r MNT_PATH STORAGE_NAME <<< "${EXISTING_MAP[$idx]}"
-
-        echo ""
-        echo "Manage ${MNT_PATH}:"
-        echo "  1) Unmount and remove"
-        echo "  2) Cancel"
-        echo ""
-        read -p "Choice: " op </dev/tty
-
-        if [[ "$op" == "1" ]]; then
-            read -p "Type 'yes' to confirm: " confirm </dev/tty
-            [[ "$confirm" != "yes" ]] && { status_message "info" "Cancelled."; exit 0; }
-            pvesm remove "$STORAGE_NAME" 2>/dev/null || true
-            umount "$MNT_PATH" || status_message "error" "Unmount failed (in use?)"
-            sed -i "\|${MNT_PATH}|d" /etc/fstab
-            rmdir "$MNT_PATH" 2>/dev/null || true
-            status_message "success" "Unmounted and cleaned up"
-        fi
-        exit 0
-        ;;
     ''|*[!0-9]*) status_message "error" "Invalid choice." ;;
 esac
 
