@@ -349,7 +349,8 @@ check_iommu_group_isolation() {
 
 # File helpers
 write_file_atomic() {
-  local path="${1:?write_file_atomic: missing destination path}" tmp="${path}.tmp.$$"
+  local path="${1:?write_file_atomic: missing destination path}"
+  local tmp="${path}.tmp.$$"
   cat >"$tmp"
   mv "$tmp" "$path"
 }
