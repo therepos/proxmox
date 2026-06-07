@@ -105,6 +105,21 @@ fi
 Provide a non-interactive path: honor a `-y`/`--yes` flag and/or env vars so the
 script can run unattended (required for orchestrated/headless use).
 
+## Section headers
+
+Within the body, label sections with a fixed-width header — `# --- Title ` padded
+with dashes to **79 columns**:
+
+```bash
+# --- Variables ---------------------------------------------------------------
+# --- Helpers -----------------------------------------------------------------
+```
+
+Keep the top `# ===…===` doc-block fence (the file header/usage block) and any
+major multi-line `# ===` / `# TITLE` / `# ===` banners as-is. Use `# --- Title ---`
+for the regular, single-line section dividers (not `# Title`, `# ==== Title ====`,
+or unpadded variants).
+
 ## 8. Idempotency
 
 Detect prior state and skip cleanly (exit 0, not an error). Examples:

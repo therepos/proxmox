@@ -59,7 +59,7 @@ is_proxmox_host() {
     [[ -f /etc/pve/.version ]] || command -v pveversion &>/dev/null
 }
 
-# --- Config -----------------------------------------------------------------
+# --- Config ------------------------------------------------------------------
 VMID="${VMID:-200}"                             # VM that receives the share
 VIRTIOFS_TAG="${VIRTIOFS_TAG:-sec}"             # mapping id (host) / mount tag (guest)
 MOUNT_POINT="${MOUNT_POINT:-/mnt/sec}"          # where it mounts inside the VM

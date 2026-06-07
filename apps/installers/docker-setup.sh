@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# Helpers
+# --- Helpers -----------------------------------------------------------------
 LOG_DIR="/var/log"
 LOG_FILE="$LOG_DIR/dockerhost-install-$(date +%F).log"
 mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"

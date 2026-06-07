@@ -115,7 +115,7 @@ case "$action" in
     *) status_message "error" "Invalid choice." ;;
 esac
 
-# --- MOUNT FLOW ---
+# --- MOUNT FLOW --------------------------------------------------------------
 # Scan for unmounted drives, filtered for sanity
 echo "Available drives to mount:"
 echo ""

@@ -27,7 +27,7 @@
 
 set -euo pipefail
 
-# Environment detection
+# --- Environment detection ---------------------------------------------------
 is_proxmox_host() {
   [[ -f /etc/pve/.version ]] || command -v pveversion &>/dev/null
 }
@@ -66,10 +66,10 @@ if is_proxmox_host; then
   fi
 fi
 
-# Version
+# --- Version -----------------------------------------------------------------
 SCRIPT_VERSION="2.0.0"
 
-# UI
+# --- UI ----------------------------------------------------------------------
 # Detect non-interactive mode early (full arg parsing happens in main)
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 for _arg in "$@"; do [[ "$_arg" == "-y" || "$_arg" == "--yes" ]] && NONINTERACTIVE=1; done
@@ -151,7 +151,7 @@ if is_proxmox_host; then
   fi
 fi
 
-# Constants/State
+# --- Constants/State ---------------------------------------------------------
 STATE_DIR="/var/lib/gpu-setup"
 STATE_FILE="$STATE_DIR/state.env"
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -169,7 +169,7 @@ MODPROBE_VFIO="/etc/modprobe.d/gpu-setup-vfio.conf"
 MODPROBE_BL_NOUVEAU="/etc/modprobe.d/gpu-setup-blacklist-nouveau.conf"
 MODPROBE_BL_NVIDIA="/etc/modprobe.d/gpu-setup-blacklist-nvidia.conf"
 
-# State helpers
+# --- State helpers -----------------------------------------------------------
 load_state() {
   # Reset all state vars to empty before sourcing to prevent stale data
   STATE_VERSION=""
@@ -202,7 +202,7 @@ ensure_state() {
   [[ -f "$STATE_FILE" ]] || { STATE_CREATED_AT="$TS"; write_state; }
 }
 
-# Detection helpers
+# --- Detection helpers -------------------------------------------------------
 boot_method_detect() {
   if [[ -f /etc/kernel/cmdline ]]; then echo "systemd-boot"; else echo "grub"; fi
 }
@@ -303,7 +303,7 @@ find_vm_assignments_for_addr() {
   done
 }
 
-# IOMMU group isolation check
+# --- IOMMU group isolation check ---------------------------------------------
 check_iommu_group_isolation() {
   local addr="$1"
   local group_link="/sys/bus/pci/devices/${addr}/iommu_group"
@@ -350,7 +350,7 @@ check_iommu_group_isolation() {
   fi
 }
 
-# File helpers
+# --- File helpers ------------------------------------------------------------
 write_file_atomic() {
   local path="${1:?write_file_atomic: missing destination path}"
   local tmp="${path}.tmp.$$"
@@ -584,7 +584,7 @@ remove_vfio_module_lines_we_added() {
   echo 1
 }
 
-# VM menu
+# --- VM menu -----------------------------------------------------------------
 prompt_vmid_menu() {
   local q="$1"
   mapfile -t MENU < <(qm list 2>/dev/null | tail -n +2 | while read -r vmid name status _; do
@@ -665,7 +665,7 @@ prompt_vmid_menu() {
   done
 }
 
-# VM bind/switch helpers
+# --- VM bind/switch helpers --------------------------------------------------
 remove_from_vm_if_present() {
   local vmid="$1"; shift
   local addr
@@ -704,7 +704,7 @@ add_funcs_to_vm() {
 }
 
 
-# VM stop/start helpers
+# --- VM stop/start helpers ---------------------------------------------------
 stop_vm_with_wait() {
   local vmid="$1"
   local interval=3
@@ -799,7 +799,7 @@ start_vm_with_wait() {
   fi
 }
 
-# Modes
+# --- Modes -------------------------------------------------------------------
 mode_status() {
   local gpu; gpu="$(choose_gpu)"
   mapfile -t FUNCS < <(sibling_functions "$gpu")
@@ -1288,7 +1288,7 @@ mode_revert() {
   fi
 }
 
-# Interactive menu
+# --- Interactive menu --------------------------------------------------------
 interactive_menu() {
   echo
   echo "═══════════════════════════════════════"

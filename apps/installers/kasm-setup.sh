@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-# Helpers
+# --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
@@ -31,10 +31,10 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< ui-block <<<
 
-# Root check
+# --- Root check --------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# Configuration
+# --- Configuration -----------------------------------------------------------
 KASM_VERSION="${KASM_VERSION:-1.18.1}"
 KASM_TARBALL="kasm_release_${KASM_VERSION}.tar.gz"
 KASM_URL="https://kasm-static-content.s3.amazonaws.com/${KASM_TARBALL}"
@@ -68,14 +68,14 @@ fi
 echo "================================================="
 echo ""
 
-# System update
+# --- System update -----------------------------------------------------------
 info "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get upgrade -y -qq
 ok "System packages updated."
 
-# Prerequisites
+# --- Prerequisites -----------------------------------------------------------
 info "Installing prerequisites..."
 apt-get install -y -qq curl wget apt-transport-https ca-certificates > /dev/null 2>&1
 ok "Prerequisites installed."
@@ -106,7 +106,7 @@ if [[ "$MODE" == "install" ]]; then
     fi
 fi
 
-# Download
+# --- Download ----------------------------------------------------------------
 info "Downloading Kasm Workspaces v${KASM_VERSION}..."
 cd /tmp
 if [[ -f "${KASM_TARBALL}" ]]; then
@@ -116,12 +116,12 @@ else
 fi
 ok "Download complete."
 
-# Extract
+# --- Extract -----------------------------------------------------------------
 info "Extracting..."
 tar -xf "${KASM_TARBALL}"
 ok "Extracted."
 
-# Install or Upgrade
+# --- Install or Upgrade ------------------------------------------------------
 if [[ "$MODE" == "upgrade" ]]; then
 
     info "Backing up database before upgrade..."
@@ -153,7 +153,7 @@ else
     ok "Kasm Workspaces ${KASM_VERSION} installed."
 fi
 
-# Docker group
+# --- Docker group ------------------------------------------------------------
 # Kasm's installer sets up Docker. Add the invoking user to the docker group
 # so they can run docker commands without sudo.
 if [[ "$MODE" == "install" ]]; then
@@ -164,7 +164,7 @@ if [[ "$MODE" == "install" ]]; then
     fi
 fi
 
-# Persistent storage
+# --- Persistent storage ------------------------------------------------------
 if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     info "Ensuring persistent storage directories exist..."
     mkdir -p /data/kasm-profiles
@@ -174,12 +174,12 @@ if [[ "${SKIP_PERSISTENT}" != "true" ]]; then
     ok "Persistent storage ready."
 fi
 
-# Cleanup
+# --- Cleanup -----------------------------------------------------------------
 info "Cleaning up /tmp..."
 rm -rf /tmp/kasm_release /tmp/"${KASM_TARBALL}"
 ok "Cleanup done."
 
-# Summary
+# --- Summary -----------------------------------------------------------------
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo ""

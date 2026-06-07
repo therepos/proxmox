@@ -28,7 +28,7 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< ui-block <<<
 
-# Config
+# --- Config ------------------------------------------------------------------
 COMPOSE_URL="https://github.com/therepos/proxmox/raw/main/apps/docker/gitlab-docker-compose.yml"
 PLACEHOLDER_IP="192.168.1.100"
 PLACEHOLDER_DIR="/mnt/sec/apps/gitlab"
@@ -37,10 +37,10 @@ GITLAB_HOST="${GITLAB_HOST:-${HOST_IP}}"
 DATA_DIR="${GITLAB_DATA_DIR:-/mnt/sec/apps/gitlab}"
 COMPOSE_DIR="${DATA_DIR}/compose"
 
-# Root check
+# --- Root check --------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# Docker check
+# --- Docker check ------------------------------------------------------------
 command -v docker &> /dev/null || fail "Docker is not installed. Install Docker first."
 docker compose version &> /dev/null || fail "Docker Compose (v2 plugin) is not available."
 
@@ -335,7 +335,7 @@ do_upgrade() {
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Main menu
+# --- Main menu ---------------------------------------------------------------
 # ═════════════════════════════════════════════════════════════════════════════
 echo ""
 echo "GitLab CE - Setup & Management"
