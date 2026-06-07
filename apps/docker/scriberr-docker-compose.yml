@@ -10,7 +10,7 @@ services:
     image: ghcr.io/rishikanthc/scriberr:latest
     container_name: scriberr
     ports:
-      - "3029:8080"
+      - "3009:8080"
     environment:
       - PUID=1000
       - PGID=1000
