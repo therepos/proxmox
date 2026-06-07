@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/sensors-setup.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/lmsensors-setup.sh?$(date +%s))"
 # Purpose: Install/uninstall lm-sensors temperature monitoring on PVE9
 # =============================================================================
 # Usage:
