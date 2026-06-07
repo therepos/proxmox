@@ -8,21 +8,19 @@
 # https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
 #
 # =====
-# Non-sensitive config lives in firefly3.env (in the repo).
-# Sensitive values are NOT in the repo -- set them in the Portainer stack's
-# "Environment variables" section so they substitute into ${...} below:
+# Non-sensitive config lives in firefly3.env (in the repo)
+# Set sensitive values in the Portainer stack's
 #
-#   APP_KEY                  32-character random string
-#   STATIC_CRON_TOKEN        exactly 32 characters long
-#   DB_PASSWORD              database password (min 16 chars)
-#   FIREFLY_III_ACCESS_TOKEN importer Personal Access Token
-#   MAIL_USERNAME            username@email.com
-#   MAIL_PASSWORD            Zoho app password
-#   MAIL_FROM                username@email.com
-#   MAIL_FROM_ADDRESS        username@email.com
+#   APP_KEY                     32-character random string
+#   APP_URL                     https://hostname.com
+#   STATIC_CRON_TOKEN           exactly 32 characters long
+#   DB_PASSWORD                 min 16 chars
+#   FIREFLY_III_ACCESS_TOKEN    importer Personal Access Token
+#   MAIL_USERNAME               username@email.com
+#   MAIL_PASSWORD               <zoho-app-password>
+#   MAIL_FROM                   username@email.com
+#   MAIL_FROM_ADDRESS           username@email.com
 #
-# (MAIL_MAILER / MAIL_HOST / MAIL_PORT / MAIL_ENCRYPTION / TZ / APP_URL etc.
-#  are non-sensitive and remain in firefly3.env.)
 # =====
 
 services:
@@ -37,7 +35,9 @@ services:
     environment:
       # Sensitive values supplied via the Portainer stack env vars
       APP_KEY: ${APP_KEY}
+      APP_URL=${APP_URL}
       DB_PASSWORD: ${DB_PASSWORD}
+      FIREFLY_III_URL=${FIREFLY_III_URL}
       STATIC_CRON_TOKEN: ${STATIC_CRON_TOKEN}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
