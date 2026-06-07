@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/install-webmin.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/webmin-setup.sh?$(date +%s))"
 # Purpose: Install webmin on PVE9
 # =============================================================================
 # Usage:
 #   Enable Trusted Referrers:
 #   1. nano /etc/webmin/config
 #   2. Add:
-#       referer=webminubuntu.threeminuteslab.com
+#       referer=webmin.example.com
 #   Enable Terminal:
 #   1. nano /etc/webmin/miniserv.conf
 #   2. Add: 
-#       redirect_host=webminubuntu.threeminuteslab.com
+#       redirect_host=webmin.example.com
 #       redirect_port=443
 #   3. systemctl restart webmin
 # =============================================================================
