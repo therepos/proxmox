@@ -4,9 +4,10 @@ Conventions for every `*-setup.sh` under `apps/installers/`. This is the single
 source of truth for **how installer scripts are written** — when creating or
 updating one (human or LLM), follow this so all scripts stay consistent.
 
-We deliberately do **not** use a shared sourced library (e.g. `ui.sh`): every
-script must be fully standalone. Consistency comes from following this policy
-and pasting the canonical blocks below verbatim.
+We deliberately do **not** use a shared *sourced* library (e.g. a runtime
+`ui.sh`): every script must be fully standalone. Instead, the shared UI block is
+inlined into each script between markers and kept in sync from a single source by
+a generator — see §5. So: standalone at runtime, single-edit at author time.
 
 ---
 
@@ -43,15 +44,22 @@ set -euo pipefail
 ```
 Then the UI block (§5), then the root check (§6).
 
-## 5. Canonical UI block (paste verbatim)
+## 5. Canonical UI block (managed by sync-ui.sh)
 
 Standard output style across all scripts: fixed-width bracket labels, colored by
 severity, message text left uncolored. The four labels are each **6 columns**
 (`[ OK ]`, `[INFO]`, `[WARN]`, `[FAIL]`), so message text always starts at the
 same column — no jagged alignment in any terminal.
 
+Paste this block **wrapped in the markers** shown. The region between the markers
+is managed by `scripts/sync-ui.sh`, which copies the canonical copy from
+`apps/installers/.ui-block.sh` into every script's marked region. So a future
+restyle is a single edit (`.ui-block.sh`) + `scripts/sync-ui.sh` — do not edit
+the block in place. Keep per-script extras (e.g. back-compat aliases) *outside*
+the markers so the managed region stays byte-identical across files.
+
 ```bash
-# ---- UI (standard; do not customize) ---------------------------------------
+# >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 # Colour is decided once: on if stdout is a real terminal, OR if a parent
 # orchestrator forces it (FORCE_COLOR=1) so colour survives a tee pipe.
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
@@ -63,7 +71,11 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# <<< ui-block <<<
 ```
+
+Verify every script's region matches the canonical block with
+`scripts/sync-ui.sh --check` (use it in CI/pre-commit to catch drift).
 
 Colors: `[ OK ]` green · `[INFO]` cyan · `[WARN]` yellow · `[FAIL]` red.
 
@@ -170,7 +182,7 @@ Keep logs outside any state dir that gets cleaned up at the end of a run.
 # =============================================================================
 set -euo pipefail
 
-# ---- UI (standard; do not customize) ---------------------------------------
+# >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
 else
@@ -180,15 +192,17 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# <<< ui-block <<<
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-# Idempotency check
+# --- Idempotency check -------------------------------------------------------
 if command -v example >/dev/null 2>&1; then
     ok "example is already installed. Nothing to do."
     exit 0
 fi
 
+# --- Install -----------------------------------------------------------------
 info "Installing example..."
 # ... do the work; on failure call: fail "what went wrong"
 ok "example installed."
