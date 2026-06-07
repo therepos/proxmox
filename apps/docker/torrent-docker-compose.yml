@@ -5,7 +5,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Asia/Kuala_Lumpur
+      - TZ=Asia/Singapore
     volumes:
       - /mnt/sec/apps/sonarr/config:/config
       - /mnt/sec/media/shows:/tv
@@ -25,7 +25,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Asia/Kuala_Lumpur
+      - TZ=Asia/Singapore
     volumes:
       - /mnt/sec/apps/radarr/config:/config
       - /mnt/sec/media/movies:/movies
@@ -45,7 +45,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Asia/Kuala_Lumpur
+      - TZ=Asia/Singapore
     volumes:
       - /mnt/sec/apps/jackett/config:/config
       - /mnt/sec/media/downloads:/downloads
@@ -64,7 +64,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Asia/Kuala_Lumpur
+      - TZ=Asia/Singapore
       - WEBUI_PORT=8080
     volumes:
       - /mnt/sec/apps/qbittorrent/config:/config
