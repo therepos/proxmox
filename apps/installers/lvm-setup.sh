@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/lvm-expand.sh?$(date +%s))"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/lvm-setup.sh?$(date +%s))"
 # Purpose: Grow the root logical volume to fill all free space in its volume group
 # =============================================================================
 # Idempotent: if the root filesystem is not on LVM, or there is no meaningful

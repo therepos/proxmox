@@ -16,7 +16,7 @@
 #
 #     BASE (fixed order, always runs — every useful VM needs these):
 #       1. Webmin        — web-based system admin        (webmin-setup.sh)
-#       2. LVM expand    — grow root LV to fill the disk   (lvm-expand.sh)
+#       2. LVM expand    — grow root LV to fill the disk   (lvm-setup.sh)
 #       3. Docker        — container runtime              (docker-setup.sh)
 #       4. NVIDIA driver — driver + container toolkit     (gpu-setup.sh driver)
 #                          Auto-skips if no GPU passthrough is present. If the
@@ -103,7 +103,7 @@ VERIFY_NVIDIA_FLAG="${STATE_DIR}/verify-nvidia"
 mkdir -p "$STATE_DIR"
 
 # Base phase: fixed order. The reboot lives here (NVIDIA).
-BASE_STEPS=(webmin lvm-expand docker nvidia virtiofs)
+BASE_STEPS=(webmin lvm docker nvidia virtiofs)
 
 # App phase: order-free, user-configurable (env override; default kasm).
 VM_APPS="${VM_APPS:-kasm}"
@@ -195,7 +195,7 @@ dispatch_step() {
     case "$1" in
         webmin)     step_webmin ;;
         docker)     step_docker ;;
-        lvm-expand) run_remote lvm-expand.sh ;;
+        lvm)        run_remote lvm-setup.sh ;;
         nvidia)     run_remote gpu-setup.sh driver -y ;;
         virtiofs)   run_remote virtiofs-setup.sh mount ;;
         *)          run_remote "${1}-setup.sh" ;;   # convention: <app> -> <app>-setup.sh
@@ -206,7 +206,7 @@ step_title() {
     case "$1" in
         webmin)     echo "Webmin" ;;
         docker)     echo "Docker" ;;
-        lvm-expand) echo "LVM Expand" ;;
+        lvm)        echo "LVM Expand" ;;
         nvidia)     echo "NVIDIA Driver" ;;
         virtiofs)   echo "VirtIO-FS Mount" ;;
         kasm)       echo "Kasm Workspaces" ;;
