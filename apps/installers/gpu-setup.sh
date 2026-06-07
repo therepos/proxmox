@@ -1378,7 +1378,8 @@ mode_driver_install() {
   # Check for NVIDIA GPU
   info "Checking for NVIDIA GPU..."
   if ! lspci | grep -qi nvidia; then
-    die "No NVIDIA GPU detected. Is GPU passthrough configured?"
+    say "No NVIDIA GPU present — skipping NVIDIA driver."
+    return 0
   fi
   local GPU_MODEL
   GPU_MODEL=$(lspci | grep -i nvidia | head -1 | sed 's/.*: //')
