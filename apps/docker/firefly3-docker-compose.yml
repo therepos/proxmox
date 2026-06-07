@@ -33,7 +33,7 @@ services:
     volumes:
       - /mnt/sec/apps/firefly3/upload:/var/www/html/storage/upload
     ports:
-      - '3019:8080'
+      - '3018:8080'
     depends_on:
       - db
     security_opt:
