@@ -61,9 +61,6 @@ services:
     restart: always
     env_file:
       - firefly3.env
-    environment:
-      # Must match the app's DB_PASSWORD (single Portainer var keeps them in sync)
-      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - /mnt/sec/apps/firefly3/db:/var/lib/mysql
     security_opt:
