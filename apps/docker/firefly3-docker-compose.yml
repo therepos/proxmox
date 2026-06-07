@@ -4,22 +4,21 @@
 #
 # =====
 # General:
-# The Firefly III URL is: http://app:8080
-# https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
+#   The Firefly III URL is: http://app:8080
+#   https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
 #
 # =====
-# Non-sensitive config lives in firefly3.env (in the repo)
-# Set sensitive values in the Portainer stack's
-#
-#   APP_KEY                     32-character random string
-#   APP_URL                     https://hostname.com
-#   STATIC_CRON_TOKEN           exactly 32 characters long
-#   DB_PASSWORD                 min 16 chars
-#   FIREFLY_III_ACCESS_TOKEN    importer Personal Access Token
-#   MAIL_USERNAME               username@email.com
-#   MAIL_PASSWORD               <zoho-app-password>
-#   MAIL_FROM                   username@email.com
-#   MAIL_FROM_ADDRESS           username@email.com
+# ENV:
+#   APP_KEY=<32-char-string>
+#   APP_URL=https://hostname.com
+#   DB_PASSWORD=<min-16-char>
+#   STATIC_CRON_TOKEN=<32-char-string>
+#   MAIL_USERNAME=username@email.com
+#   MAIL_PASSWORD=<mail-app-password>
+#   MAIL_FROM=username@email.com
+#   MAIL_FROM_ADDRESS=username@email.com
+#   FIREFLY_III_ACCESS_TOKEN=
+#   FIREFLY_III_URL=https://hostname.com
 #
 # =====
 
