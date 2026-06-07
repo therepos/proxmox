@@ -1,6 +1,6 @@
 # The Firefly III Data Importer:
 # 1. Generate Personal Access Token
-# 2. Edit .env --> FIREFLY_III_ACCESS_TOKEN = (Personal Access Token)
+# 2. Set FIREFLY_III_ACCESS_TOKEN in Portainer (Personal Access Token)
 #
 # =====
 # General:
@@ -8,23 +8,21 @@
 # https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
 #
 # =====
-# APP_KEY=<32-character-random string>
-# APL_URL=https://host.com
-# STATIC_CRON_TOKEN=<32-character-random string>
-# TZ=Asia/Singapore
-# =====
-# Mailer Setup using Zoho:
-# MAIL_MAILER=smtp
-# MAIL_HOST=smtp.zoho.com
-# MAIL_PORT=587
-# MAIL_ENCRYPTION=tls
-# MAIL_USERNAME=username@email.com
-# MAIL_PASSWORD=<zoho-app-password>
-# MAIL_FROM_ADDRESS=username@email.com
-# MAIL_FROM_NAME="Firefly III"
-# MAIL_FROM=username@email.com
-# =====
-# Password is mininum 16 characters
+# Non-sensitive config lives in firefly3.env (in the repo).
+# Sensitive values are NOT in the repo -- set them in the Portainer stack's
+# "Environment variables" section so they substitute into ${...} below:
+#
+#   APP_KEY                  32-character random string
+#   STATIC_CRON_TOKEN        exactly 32 characters long
+#   DB_PASSWORD              database password (min 16 chars)
+#   FIREFLY_III_ACCESS_TOKEN importer Personal Access Token
+#   MAIL_USERNAME            username@email.com
+#   MAIL_PASSWORD            Zoho app password
+#   MAIL_FROM                username@email.com
+#   MAIL_FROM_ADDRESS        username@email.com
+#
+# (MAIL_MAILER / MAIL_HOST / MAIL_PORT / MAIL_ENCRYPTION / TZ / APP_URL etc.
+#  are non-sensitive and remain in firefly3.env.)
 # =====
 
 services:
@@ -36,6 +34,15 @@ services:
     restart: always
     env_file:
       - firefly3.env
+    environment:
+      # Sensitive values supplied via the Portainer stack env vars
+      APP_KEY: ${APP_KEY}
+      DB_PASSWORD: ${DB_PASSWORD}
+      STATIC_CRON_TOKEN: ${STATIC_CRON_TOKEN}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
     volumes:
       - /mnt/sec/apps/firefly3/upload:/var/www/html/storage/upload
     ports:
@@ -56,6 +63,9 @@ services:
     restart: always
     env_file:
       - firefly3.env
+    environment:
+      # Must match the app's DB_PASSWORD (single Portainer var keeps them in sync)
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - /mnt/sec/apps/firefly3/db:/var/lib/mysql
     security_opt:
@@ -70,6 +80,8 @@ services:
       - firefly3
     env_file:
       - firefly3.env
+    environment:
+      FIREFLY_III_ACCESS_TOKEN: ${FIREFLY_III_ACCESS_TOKEN}
     ports:
       - '3017:8080'
     depends_on:
@@ -97,6 +109,8 @@ services:
       - firefly3
     env_file:
       - firefly3.env
+    environment:
+      STATIC_CRON_TOKEN: ${STATIC_CRON_TOKEN}
     depends_on:
       - app
     security_opt:
