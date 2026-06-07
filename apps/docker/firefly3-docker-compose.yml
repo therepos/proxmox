@@ -34,6 +34,8 @@ services:
     networks:
       - firefly3
     restart: always
+    env_file:
+      - firefly3.env
     volumes:
       - /mnt/sec/apps/firefly3/upload:/var/www/html/storage/upload
     ports:
@@ -52,6 +54,8 @@ services:
     networks:
       - firefly3
     restart: always
+    env_file:
+      - firefly3.env
     volumes:
       - /mnt/sec/apps/firefly3/db:/var/lib/mysql
     security_opt:
@@ -64,6 +68,8 @@ services:
     restart: always
     networks:
       - firefly3
+    env_file:
+      - firefly3.env
     ports:
       - '3017:8080'
     depends_on:
@@ -89,6 +95,8 @@ services:
       crond -f -L /dev/stdout"
     networks:
       - firefly3
+    env_file:
+      - firefly3.env
     depends_on:
       - app
     security_opt:
