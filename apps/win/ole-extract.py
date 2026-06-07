@@ -13,8 +13,9 @@ def ensure(pkg, import_name=None):
                 continue
         raise ImportError(f"Could not install {pkg}")
 
-import zipfile, io, struct
-olefile = None   # loaded on first use via ensure()
+import zipfile, io, struct, email
+from email import policy
+olefile = None   # loaded on first use
 
 # ---------- type detection ----------
 def zip_kind(b):
@@ -36,7 +37,7 @@ def ole_kind(b):
         if "worddocument" in s:               return "doc"
         if "powerpoint document" in s:        return "ppt"
         if "__properties_version1.0" in s or any(x.startswith("__substg1.0_") for x in s):
-            return "msg"                      # Outlook email
+            return "msg"
     except Exception:
         pass
     return "ole"
@@ -74,7 +75,15 @@ def from_packager(stream):
                            stream.find(b"\xd0\xcf\x11\xe0")) if i != -1], default=-1)
     return None, (stream[idx:] if idx != -1 else stream)
 
+def safe_name(name):
+    name = name.replace("\\", "/").split("/")[-1]
+    for ch in '<>:"/\\|?*':
+        name = name.replace(ch, "_")
+    name = "".join(c for c in name if ord(c) >= 32).strip().rstrip(". ")
+    return name or "attachment"
+
 def save(out, name, data):
+    name = safe_name(name)
     path = os.path.join(out, name); n = 1
     while os.path.exists(path):
         stem, ext = os.path.splitext(name)
@@ -82,18 +91,17 @@ def save(out, name, data):
     open(path, "wb").write(data)
     return os.path.basename(path)
 
-# ---------- core ----------
-def extract_embedded(src):
-    out = os.path.join(os.path.dirname(os.path.abspath(src)), "extracted")
-    os.makedirs(out, exist_ok=True)
+# ---------- Office containers (.xlsx/.docx/.pptx) ----------
+def extract_office_embeddings(src, out):
     names = []
     with zipfile.ZipFile(src) as z:
         embeds = [n for n in z.namelist() if "embeddings/" in n and not n.endswith("/")]
-        for i, n in enumerate(embeds, 1):
+        for n in embeds:
             raw = z.read(n)
-            base = os.path.basename(n)
+            base = os.path.basename(n)              # e.g. oleObject1.bin
+            stem = os.path.splitext(base)[0]        # oleObject1
 
-            if not base.endswith(".bin"):              # already a real file
+            if not base.endswith(".bin"):           # already a real file
                 names.append(save(out, base, raw)); continue
 
             ole = olefile.OleFileIO(io.BytesIO(raw))
@@ -105,25 +113,82 @@ def extract_embedded(src):
                       "ppt" if "powerpoint document" in low else
                       "msg" if "__properties_version1.0" in low or any(s.startswith("__substg1.0_") for s in streams) else None)
             if native:
-                ole.close(); names.append(save(out, f"embedded_{i}.{native}", raw)); continue
+                ole.close(); names.append(save(out, f"{stem}.{native}", raw)); continue
 
             sn = next((s for s in ("CONTENTS", "Package", "\x01Ole10Native", "Ole10Native") if s in streams), None)
             if not sn:
-                ole.close(); names.append(save(out, f"embedded_{i}.bin", raw)); continue
+                ole.close(); names.append(save(out, f"{stem}.bin", raw)); continue
             payload = ole.openstream(sn).read(); ole.close()
 
-            name = None
+            oname = None
             if "Ole10Native" in sn:
-                name, payload = from_packager(payload)
+                oname, payload = from_packager(payload)   # recover true original name if present
             kind = sniff(payload)
             payload = trim(payload, kind)
-            names.append(save(out, name or f"embedded_{i}.{kind}", payload))
-    return out, names
+            names.append(save(out, oname or f"{stem}.{kind}", payload))
+    return names
+
+# ---------- Outlook .msg (MS-OXMSG, parsed with olefile) ----------
+def extract_msg_attachments(src, out):
+    ole = olefile.OleFileIO(src)
+    attach_dirs = sorted({e[0] for e in ole.listdir(streams=True, storages=False)
+                          if e and e[0].startswith("__attach_version1.0_")})
+    names = []
+    for d in attach_dirs:
+        def rd(tagtype):
+            p = [d, f"__substg1.0_{tagtype}"]
+            return ole.openstream(p).read() if ole.exists(p) else None
+        data = rd("37010102")                      # PidTagAttachDataBinary
+        if not data:
+            continue                               # embedded message / no file bytes -> skip
+        fn = None
+        for tt in ("3707001F", "3704001F"):        # long, then short filename (Unicode)
+            raw = rd(tt)
+            if raw:
+                fn = raw.decode("utf-16-le", "replace").rstrip("\x00")
+                if fn:
+                    break
+        if not fn:
+            for tt in ("3707001E", "3704001E"):    # ASCII fallbacks
+                raw = rd(tt)
+                if raw:
+                    fn = raw.decode("latin-1", "replace").rstrip("\x00")
+                    if fn:
+                        break
+        names.append(save(out, fn or "attachment", data))
+    ole.close()
+    return names
+
+# ---------- .eml (MIME, stdlib) ----------
+def extract_eml_attachments(src, out):
+    with open(src, "rb") as f:
+        msg = email.message_from_binary_file(f, policy=policy.default)
+    names = []
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        fn = part.get_filename()
+        if fn or part.get_content_disposition() == "attachment":
+            payload = part.get_payload(decode=True)
+            if payload:
+                names.append(save(out, fn or "attachment", payload))
+    return names
+
+# ---------- dispatcher ----------
+def extract_any(src):
+    out = os.path.join(os.path.dirname(os.path.abspath(src)), "extracted")
+    os.makedirs(out, exist_ok=True)
+    ext = os.path.splitext(src)[1].lower()
+    if ext == ".eml":
+        return out, extract_eml_attachments(src, out)
+    if ext == ".msg":
+        return out, extract_msg_attachments(src, out)
+    return out, extract_office_embeddings(src, out)
 
 # ---------- CLI ----------
 def clean_path(p):
     p = p.strip()
-    if len(p) >= 2 and p[0] == p[-1] and p[0] in "\"'":   # cmd wraps spaced paths in quotes
+    if len(p) >= 2 and p[0] == p[-1] and p[0] in "\"'":
         p = p[1:-1]
     return p.strip()
 
@@ -132,15 +197,15 @@ def handle(path):
     if not os.path.isfile(path):
         print("  ! File not found:", path); return
     try:
-        out, names = extract_embedded(path)
+        out, names = extract_any(path)
         if names:
             print(f"  Extracted {len(names)} file(s) to: {out}")
             for nm in names:
                 print("     -", nm)
         else:
-            print("  No embedded objects found in this file.")
+            print("  Nothing to extract (no embedded files or attachments found).")
     except zipfile.BadZipFile:
-        print("  ! Not a valid Office file (.xlsx/.docx/.pptx).")
+        print("  ! Unreadable file (expected .xlsx/.docx/.pptx/.msg/.eml).")
     except Exception as e:
         print("  ! Error:", e)
     print()
@@ -152,7 +217,8 @@ def main():
         handle(sys.argv[1])
         input("Press Enter to exit...")
     else:
-        print("Drag your Excel file into this window and press Enter.")
+        print("Drag a file into this window and press Enter.")
+        print("Accepts: .xlsx .docx .pptx .msg .eml")
         print("(leave blank and press Enter to quit)\n")
         while True:
             p = input("File: ").strip()
