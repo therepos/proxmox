@@ -35,9 +35,8 @@ services:
     environment:
       # Sensitive values supplied via the Portainer stack env vars
       APP_KEY: ${APP_KEY}
-      APP_URL=${APP_URL}
+      APP_URL: ${APP_URL}
       DB_PASSWORD: ${DB_PASSWORD}
-      FIREFLY_III_URL=${FIREFLY_III_URL}
       STATIC_CRON_TOKEN: ${STATIC_CRON_TOKEN}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
@@ -82,6 +81,7 @@ services:
       - firefly3.env
     environment:
       FIREFLY_III_ACCESS_TOKEN: ${FIREFLY_III_ACCESS_TOKEN}
+      FIREFLY_III_URL: ${FIREFLY_III_URL}
     ports:
       - '3017:8080'
     depends_on:
