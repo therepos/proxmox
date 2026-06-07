@@ -5,7 +5,6 @@
 
 set -euo pipefail
 
-# --- Helpers -----------------------------------------------------------------
 LOG_DIR="/var/log"
 LOG_FILE="$LOG_DIR/dockerhost-install-$(date +%F).log"
 mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"
@@ -13,6 +12,7 @@ mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"
 exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
 trap 'err "Error on line $LINENO"' ERR
 
+# --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
@@ -24,10 +24,12 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< ui-block <<<
+
 # Back-compat aliases used within this script:
 log() { ok "$@"; }
 err() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; }   # print-only (no exit)
 
+# --- Prerequisites -----------------------------------------------------------
 require_root() { [[ $EUID -eq 0 ]] || { err "Run as root (no sudo on Proxmox)."; exit 1; }; }
 
 detect_os() {
@@ -79,6 +81,7 @@ apt_prep() {
   log "Prerequisites installed"
 }
 
+# --- Install -----------------------------------------------------------------
 install_repo() {
   # remove any malformed docker entries first (surgical cleanup)
   if [[ -f /etc/apt/sources.list.d/docker.list ]]; then

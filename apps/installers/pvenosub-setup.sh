@@ -24,6 +24,7 @@ export NEEDRESTART_SUSPEND=1
 export APT_LISTCHANGES_FRONTEND=none
 export UCF_FORCE_CONFFOLD=1
 
+# --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
