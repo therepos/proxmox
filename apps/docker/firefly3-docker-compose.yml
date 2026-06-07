@@ -35,7 +35,6 @@ services:
       # Sensitive values supplied via the Portainer stack env vars
       APP_KEY: ${APP_KEY}
       APP_URL: ${APP_URL}
-      DB_PASSWORD: ${DB_PASSWORD}
       STATIC_CRON_TOKEN: ${STATIC_CRON_TOKEN}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
