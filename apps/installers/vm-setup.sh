@@ -14,7 +14,7 @@
 #     1. Webmin          — web-based system admin (via webmin-setup.sh)
 #     2. Docker          — container runtime (from official Docker repo)
 #     3. LVM expand      — grow root LV to fill the disk
-#     4. NVIDIA driver   — headless driver + container toolkit (via gpu-driver.sh)
+#     4. NVIDIA driver   — headless driver + container toolkit (via gpu-setup.sh)
 #     5. [REBOOT]        — required to load NVIDIA kernel module (auto-resumes)
 #     6. Kasm Workspaces — browser-based desktops/apps (via kasm-setup.sh)
 #     7. VirtIO-FS mount — mounts the host share at MOUNT_POINT (persisted, nofail)
@@ -91,6 +91,21 @@ set_state() {
     echo "$1" > "$STATE_FILE"
 }
 
+# Fetch and execute a standalone installer from the repo. This keeps the
+# standalone scripts the single source of truth — update them once and every
+# caller (including this orchestrator) picks up the change. The ?$(date +%s)
+# cache-buster forces the always-latest copy from 'main'. Extra args after the
+# script name are passed through to the script (e.g. run_remote gpu-setup.sh driver -y).
+# Returns the remote script's own exit code so callers can act on it.
+run_remote() {
+    local script="$1"; shift
+    local url="${GITHUB_BASE}/${script}?$(date +%s)"
+    local body
+    body="$(wget -qLO- "$url")" || fail "Failed to download ${script} from ${GITHUB_BASE}."
+    [[ -n "$body" ]] || fail "Downloaded ${script} but it was empty (bad URL?)."
+    bash -c "$body" "$script" "$@"
+}
+
 # --- Resume hook (runs remaining steps after reboot) ------------------------
 RESUME_SERVICE="/etc/systemd/system/setup-vm-resume.service"
 RESUME_SCRIPT="/var/lib/setup-vm/resume.sh"
@@ -159,7 +174,7 @@ step_webmin() {
         ok "Webmin is already installed. Skipping."
         return 0
     fi
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/webmin-setup.sh?$(date +%s)")"
+    run_remote webmin-setup.sh
 }
 
 step_docker() {
@@ -167,31 +182,13 @@ step_docker() {
         ok "Docker is already installed. Skipping."
         return 0
     fi
-    info "Installing Docker from official repository..."
-    export DEBIAN_FRONTEND=noninteractive
 
-    apt-get update -qq
-    apt-get install -y -qq ca-certificates curl gnupg > /dev/null 2>&1
+    # Delegate the install to the standalone (single source of truth). It handles
+    # repo setup, codename fallback, and verification.
+    run_remote docker-setup.sh
 
-    install -m 0755 -d /etc/apt/keyrings
-    if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-        chmod a+r /etc/apt/keyrings/docker.asc
-    fi
-
-    if [[ ! -f /etc/apt/sources.list.d/docker.list ]]; then
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-            > /etc/apt/sources.list.d/docker.list
-    fi
-
-    apt-get update -qq
-    apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
-
-    systemctl enable --now docker
-    ok "Docker installed and running."
-
-    # Add invoking user to docker group
+    # docker-setup.sh doesn't manage user groups; do it here so the invoking
+    # user can run docker without sudo.
     REAL_USER="${SUDO_USER:-root}"
     if [[ "$REAL_USER" != "root" ]]; then
         usermod -aG docker "$REAL_USER" 2>/dev/null || true
@@ -242,21 +239,19 @@ step_lvm_expand() {
 }
 
 step_gpudriver() {
-    # If nvidia-smi works, driver is loaded — skip
-    if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-        ok "NVIDIA driver is loaded. Skipping."
-        # Still run the script to pick up container toolkit if Docker was added
-        if command -v docker &>/dev/null && ! docker info 2>/dev/null | grep -q "nvidia"; then
-            info "Re-running GPU driver script to configure Docker NVIDIA runtime..."
-            bash -c "$(wget -qLO- "${GITHUB_BASE}/gpu-driver.sh?$(date +%s)")"
-        fi
-        return 0
-    fi
+    # Delegate to the standalone. gpu-setup.sh is idempotent: if the driver is
+    # already loaded it skips the driver install and only (re)configures the
+    # NVIDIA container toolkit for Docker. We pass 'driver -y' for unattended use
+    # (the post-reboot resume has no TTY).
+    #
+    # Exit-code contract from gpu-setup.sh:
+    #   0  = driver present/loaded, no reboot needed
+    #   10 = driver freshly installed, REBOOT REQUIRED to load the kernel module
+    #   *  = genuine failure
+    local rc=0
+    run_remote gpu-setup.sh driver -y || rc=$?
 
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/gpu-driver.sh?$(date +%s)")"
-
-    # If driver was freshly installed, we need to reboot
-    if ! nvidia-smi &>/dev/null 2>&1; then
+    if [[ $rc -eq 10 ]]; then
         set_state "post-reboot"
         install_resume_hook
         echo ""
@@ -269,6 +264,8 @@ step_gpudriver() {
         sleep 3
         reboot
         exit 0  # unreachable, but keeps shellcheck happy
+    elif [[ $rc -ne 0 ]]; then
+        fail "NVIDIA driver setup failed (gpu-setup.sh exit ${rc})."
     fi
 }
 
@@ -283,7 +280,7 @@ step_kasm() {
             return 0
         fi
     fi
-    bash -c "$(wget -qLO- "${GITHUB_BASE}/kasm-setup.sh?$(date +%s)")"
+    run_remote kasm-setup.sh
 }
 
 step_virtiofs() {
@@ -636,17 +633,9 @@ case "$STATE" in
             else
                 fail "NVIDIA driver failed to load after reboot. Check dmesg for errors."
             fi
-
-            # Ensure container toolkit is configured (gpu-driver.sh does this,
-            # but we rebooted so let's make sure Docker picked it up)
-            if command -v docker &>/dev/null; then
-                if command -v nvidia-ctk &>/dev/null; then
-                    info "Ensuring Docker NVIDIA runtime is configured..."
-                    nvidia-ctk runtime configure --runtime=docker > /dev/null 2>&1 || true
-                    systemctl restart docker
-                    ok "Docker NVIDIA runtime ready."
-                fi
-            fi
+            # The NVIDIA container toolkit + Docker runtime were already configured
+            # by gpu-setup.sh before the reboot (Docker is installed at step 2,
+            # before the driver step), and that config persists across reboot.
         fi
 
         set_state "kasm"
