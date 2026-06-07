@@ -8,6 +8,11 @@
 # https://docs.firefly-iii.org/how-to/firefly-iii/installation/portainer/
 #
 # =====
+# APP_KEY=<32-character-random string>
+# APL_URL=https://host.com
+# STATIC_CRON_TOKEN=<32-character-random string>
+# TZ=Asia/Singapore
+# =====
 # Mailer Setup using Zoho:
 # MAIL_MAILER=smtp
 # MAIL_HOST=smtp.zoho.com
@@ -18,10 +23,9 @@
 # MAIL_FROM_ADDRESS=username@email.com
 # MAIL_FROM_NAME="Firefly III"
 # MAIL_FROM=username@email.com
-#
 # =====
 # Password is mininum 16 characters
-#
+# =====
 
 services:
   app:
