@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# Settings
+# --- Settings ----------------------------------------------------------------
 IMAGE="portainer/portainer-ce:lts"
 NAME="portainer"
 PORT_HTTPS="9443"
@@ -37,7 +37,7 @@ asknum(){ # asknum "prompt" "min" "max" "default"
   done
 }
 
-# Prechecks
+# --- Prechecks ---------------------------------------------------------------
 command -v docker >/dev/null || fail "Docker not found"
 [[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 [[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"

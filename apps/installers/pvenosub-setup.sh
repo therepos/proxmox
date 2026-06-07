@@ -247,7 +247,7 @@ Enabled: false
 EOF
 fi
 
-# --- Subscription nag (web + mobile, via Helper-Scripts method) ---------------
+# --- Subscription nag (web + mobile, via Helper-Scripts method) --------------
 status_message "info" "Disabling subscription nag..."
 mkdir -p /usr/local/bin
 cat > /usr/local/bin/pve-remove-nag.sh <<'EOF'

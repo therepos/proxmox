@@ -41,7 +41,7 @@
 
 set -euo pipefail
 
-# --- Helpers ----------------------------------------------------------------
+# --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
@@ -116,7 +116,7 @@ BASE_STEPS=(webmin lvm docker nvidia virtiofs)
 # App phase: order-free, user-configurable (env override; default kasm).
 VM_APPS="${VM_APPS:-kasm}"
 
-# --- Resume hook (re-runs this orchestrator after a reboot) -----------------
+# --- Resume hook (re-runs this orchestrator after a reboot) ------------------
 RESUME_SERVICE="/etc/systemd/system/setup-vm-resume.service"
 RESUME_SCRIPT="${STATE_DIR}/resume.sh"
 
@@ -164,7 +164,7 @@ remove_resume_hook() {
     fi
 }
 
-# --- Completed-step tracking ------------------------------------------------
+# --- Completed-step tracking -------------------------------------------------
 step_completed() { [[ -f "$COMPLETED_FILE" ]] && grep -qxF "$1" "$COMPLETED_FILE"; }
 mark_completed() { step_completed "$1" || echo "$1" >> "$COMPLETED_FILE"; }
 
@@ -195,7 +195,7 @@ step_docker() {
     fi
 }
 
-# --- Step dispatch + titles -------------------------------------------------
+# --- Step dispatch + titles --------------------------------------------------
 # Returns the action's exit code (10 = reboot required).
 dispatch_step() {
     case "$1" in
@@ -220,7 +220,7 @@ step_title() {
     esac
 }
 
-# --- The resumable plan loop ------------------------------------------------
+# --- The resumable plan loop -------------------------------------------------
 run_plan() {
     local plan=("$@")
     local total=${#plan[@]} idx=0 step rc
@@ -264,14 +264,14 @@ run_plan() {
     done
 }
 
-# --- Friendly one-line summary of everything Full setup will run ------------
+# --- Friendly one-line summary of everything Full setup will run -------------
 full_summary() {
     local apps_disp="" a
     for a in $VM_APPS; do apps_disp+=", ${a^}"; done   # capitalize each app name
     echo "Webmin, LVM, Docker, NVIDIA, VirtIO-FS${apps_disp}"
 }
 
-# --- Status (menu option) ---------------------------------------------------
+# --- Status (menu option) ----------------------------------------------------
 vm_status() {
     echo ""
     echo "================================================="
@@ -395,7 +395,7 @@ fi
 # skipped, so this is safe to re-enter after the reboot.
 run_plan "${BASE_STEPS[@]}" $VM_APPS
 
-# --- Done -------------------------------------------------------------------
+# --- Done --------------------------------------------------------------------
 remove_resume_hook
 
 echo ""

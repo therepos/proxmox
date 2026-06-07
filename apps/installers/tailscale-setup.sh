@@ -29,7 +29,7 @@ status_message() {
     esac
 }
 
-# Config
+# --- Config ------------------------------------------------------------------
 HOSTNAME="tailscale"
 CTID_DEFAULT=100
 MEMORY=512
@@ -39,7 +39,7 @@ STORAGE="local-lvm"
 TEMPLATE_STORAGE="local"
 BRIDGE="vmbr0"
 
-# Precheck
+# --- Precheck ----------------------------------------------------------------
 if ! command -v pct &> /dev/null; then
     status_message "error" "pct not found. Run this on the Proxmox host."
 fi
@@ -56,7 +56,7 @@ find_ctid() {
 
 EXISTING_CTID=$(find_ctid)
 
-# ===== Actions =====
+# --- Actions -----------------------------------------------------------------
 
 action_install() {
     if [[ -n "$EXISTING_CTID" ]]; then
@@ -207,7 +207,7 @@ action_status() {
     pct exec "$EXISTING_CTID" -- tailscale version 2>/dev/null | head -1 || true
 }
 
-# ===== Menu =====
+# --- Menu --------------------------------------------------------------------
 
 echo ""
 echo "================================================================"
