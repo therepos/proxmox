@@ -42,10 +42,16 @@
 set -euo pipefail
 
 # --- Helpers ----------------------------------------------------------------
-info()  { echo "[*] $*"; }
-ok()    { echo "[+] $*"; }
-warn()  { echo "[!] $*"; }
-fail()  { echo "[x] $*" >&2; exit 1; }
+# UI (standard; see docs/policy-installers.md)
+if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
+else
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
+fi
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
 asknum() { # asknum "prompt" min max default
@@ -100,6 +106,7 @@ STATE_DIR="/var/lib/setup-vm"
 COMPLETED_FILE="${STATE_DIR}/completed"   # one completed step name per line
 APPS_FILE="${STATE_DIR}/apps"             # persisted VM_APPS selection (resume-safe)
 VERIFY_NVIDIA_FLAG="${STATE_DIR}/verify-nvidia"
+LOG_FILE="/var/log/setup-vm.log"
 mkdir -p "$STATE_DIR"
 
 # Base phase: fixed order. The reboot lives here (NVIDIA).
@@ -115,9 +122,7 @@ RESUME_SCRIPT="${STATE_DIR}/resume.sh"
 install_resume_hook() {
     cat > "$RESUME_SCRIPT" <<'INNEREOF'
 #!/usr/bin/env bash
-exec &> >(tee -a /var/log/setup-vm.log)
-echo ""
-echo "[$(date)] setup-vm resuming after reboot..."
+# vm-setup.sh tees its own output to the log, so we don't duplicate it here.
 INNEREOF
 
     # Persist env overrides the standalones consume so they survive the reboot.
@@ -258,28 +263,81 @@ run_plan() {
     done
 }
 
-# --- VM status (menu option) ------------------------------------------------
+# --- Friendly one-line summary of everything Full setup will run ------------
+full_summary() {
+    local apps_disp="" a
+    for a in $VM_APPS; do apps_disp+=", ${a^}"; done   # capitalize each app name
+    echo "Webmin, LVM, Docker, NVIDIA, VirtIO-FS${apps_disp}"
+}
+
+# --- Status (menu option) ---------------------------------------------------
 vm_status() {
     echo ""
-    echo "  VM Status"
-    echo "  ---------"
-    echo "  Docker:   $(command -v docker >/dev/null && echo installed || echo missing)"
-    echo "  NVIDIA:   $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
-    echo "  Webmin:   $(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
-    if mountpoint -q "/mnt/sec" 2>/dev/null; then
-        echo "  /mnt/sec: mounted (virtiofs)"
-    else
-        echo "  /mnt/sec: not mounted"
+    echo "================================================="
+    echo "  Status"
+    echo "================================================="
+    echo "  Webmin    $(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
+    echo "  Docker    $(command -v docker >/dev/null && echo installed || echo missing)"
+    echo "  NVIDIA    $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
+    echo "  Kasm      $([[ -d /opt/kasm/current ]] && echo installed || echo missing)"
+    echo "  /mnt/sec  $(mountpoint -q /mnt/sec 2>/dev/null && echo 'mounted (virtiofs)' || echo 'not mounted')"
+    echo "================================================="
+    echo ""
+}
+
+# --- Access info -------------------------------------------------------------
+# Computes everything LIVE (current IP, ports from config) so it is never stale.
+# Used both by the menu and the completion summary.
+print_access_block() {
+    local ip webmin_port kasm_port
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [[ -n "$ip" ]] || ip="<this-vm-ip>"
+    webmin_port="$(awk -F= '/^port=/{print $2; exit}' /etc/webmin/miniserv.conf 2>/dev/null)"
+    [[ -n "$webmin_port" ]] || webmin_port=10000
+    kasm_port="$(docker port kasm_proxy 2>/dev/null | awk -F: 'NR==1{print $2}')"
+    [[ -n "$kasm_port" ]] || kasm_port="${KASM_PORT:-443}"
+
+    echo "  IP address   ${ip}"
+    echo ""
+    if dpkg -l webmin &>/dev/null 2>&1; then
+        echo "  Webmin       https://${ip}:${webmin_port}"
+        echo "               login: your system root credentials"
+        echo ""
     fi
+    if [[ -d /opt/kasm/current ]]; then
+        echo "  Kasm         https://${ip}:${kasm_port}"
+        echo "               user: admin@kasm.local   (password: as you set it)"
+        echo ""
+    fi
+    echo "  VirtIO-FS    $(mountpoint -q /mnt/sec 2>/dev/null && echo '/mnt/sec (mounted)' || echo '/mnt/sec (not mounted)')"
+    echo ""
+    echo "  Full log     ${LOG_FILE}"
+}
+
+access_info() {
+    echo ""
+    echo "================================================="
+    echo "  Access info"
+    echo "================================================="
+    print_access_block
+    echo "================================================="
     echo ""
 }
 
 # ============================================================================
 # DISPATCH (VM side)
 # ============================================================================
+# Log the whole VM-side run — both the initial run and the post-reboot resume —
+# to a single persistent file. (The resume hook no longer tees, to avoid dupes.)
+# Decide colour from the real terminal first, force it on for delegated child
+# scripts so colour survives the tee pipe, and strip ANSI on the way to the log
+# so the log file stays clean text.
+[[ -t 1 ]] && export FORCE_COLOR=1
+exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
+
 echo ""
 echo "================================================="
-echo "  Ubuntu VM Setup — Orchestrator"
+echo "  Ubuntu VM Setup"
 echo "================================================="
 echo ""
 
@@ -289,19 +347,24 @@ RESUMING=0
 [[ -f "$COMPLETED_FILE" ]] && RESUMING=1
 
 if [[ $RESUMING -eq 0 ]]; then
-    # Fresh run: show the interactive menu (skipped entirely on resume so the
-    # headless post-reboot service never blocks on input).
-    echo "  1) Full setup    (base: Webmin, LVM, Docker, NVIDIA, mount; apps: ${VM_APPS})"
-    echo "  2) Mount share   (VirtIO-FS only)"
-    echo "  3) Status"
-    echo "  0) Exit"
-    choice="$(asknum 'Choose' 0 3 1)"
-    case "$choice" in
-        0) ok "Bye."; exit 0 ;;
-        2) run_remote virtiofs-setup.sh mount; exit 0 ;;
-        3) vm_status; exit 0 ;;
-        1) : ;;  # fall through to full setup
-    esac
+    # Fresh run: interactive menu loop (skipped entirely on resume so the
+    # headless post-reboot service never blocks on input). Mount/Status/Access
+    # info return to the menu; only Full setup and Exit end the loop.
+    while true; do
+        echo "  1) Full setup    ($(full_summary))"
+        echo "  2) Mount share   (VirtIO-FS only)"
+        echo "  3) Status"
+        echo "  4) Access info"
+        echo "  0) Exit"
+        choice="$(asknum 'Choose' 0 4 0)"
+        case "$choice" in
+            0) ok "Bye."; exit 0 ;;
+            1) echo ""; break ;;                         # proceed to full setup
+            2) run_remote virtiofs-setup.sh mount; echo "" ;;
+            3) vm_status ;;
+            4) access_info ;;
+        esac
+    done
 
     # Lock in the chosen app list (resume-safe) and mark the run as started.
     echo "$VM_APPS" > "$APPS_FILE"
@@ -334,40 +397,17 @@ run_plan "${BASE_STEPS[@]}" $VM_APPS
 # --- Done -------------------------------------------------------------------
 remove_resume_hook
 
-SERVER_IP=$(hostname -I | awk '{print $1}')
-KASM_PORT="${KASM_PORT:-443}"
-
 echo ""
 echo "================================================="
 echo "  VM Setup Complete!"
 echo "================================================="
 echo ""
-if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
-    echo "  NVIDIA GPU"
-    echo "    $(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1)"
-    echo "    Docker GPU:  docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi"
-    echo ""
-fi
-echo "  Webmin"
-echo "    https://${SERVER_IP}:10000   (system root credentials)"
-echo ""
-if echo " $VM_APPS " | grep -q " kasm "; then
-    echo "  Kasm Workspaces"
-    echo "    https://${SERVER_IP}:${KASM_PORT}"
-    echo "    admin@kasm.local / password   (CHANGE IMMEDIATELY)"
-    echo ""
-fi
-echo "  VirtIO-FS Mount"
-if mountpoint -q "/mnt/sec" 2>/dev/null; then
-    echo "    mounted at /mnt/sec"
-else
-    echo "    /mnt/sec not mounted — run 'virtiofs-setup setup' on the host, then restart the VM."
-fi
+print_access_block
 echo ""
 echo "  A self-signed certificate warning is expected for the web UIs."
 echo ""
 
-# Cleanup state
+# Cleanup state (the log at $LOG_FILE is kept — it lives outside STATE_DIR).
 rm -rf "$STATE_DIR"
 ok "Setup state cleaned up. All done!"
 echo ""

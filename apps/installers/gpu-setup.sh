@@ -74,18 +74,20 @@ SCRIPT_VERSION="2.0.0"
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 for _arg in "$@"; do [[ "$_arg" == "-y" || "$_arg" == "--yes" ]] && NONINTERACTIVE=1; done
 
-if [[ "$NONINTERACTIVE" == "1" ]] || [[ ! -t 1 ]]; then
-  say()  { echo "[ok] $*"; }
-  warn() { echo "[warn] $*" >&2; }
-  err()  { echo "[err] $*" >&2; }
-  info() { echo "[info] $*"; }
+# UI (standard; see docs/policy-installers.md)
+if [[ -n "${FORCE_COLOR:-}" || ( -t 1 && "$NONINTERACTIVE" != "1" ) ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
 else
-  say()  { echo -e "\033[1;32m[ok]\033[0m $*"; }
-  warn() { echo -e "\033[1;33m[warn]\033[0m $*" >&2; }
-  err()  { echo -e "\033[1;31m[err]\033[0m $*" >&2; }
-  info() { echo -e "\033[1;36m[info]\033[0m $*"; }
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
 fi
-die()  { err "$*"; exit 1; }
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# Back-compat aliases used within this script:
+say()  { ok "$@"; }
+err()  { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; }   # print-only (no exit)
+die()  { fail "$@"; }
 
 prompt_yn() {
   local q="$1" default="${2:-n}"
