@@ -8,7 +8,7 @@ services:
          - 3002:80
       restart: unless-stopped
       environment:
-        - DOMAIN=https://domain.com
+        - DOMAIN=${DOMAIN}                          # https://domain.com
         - ADMIN_TOKEN=${ADMIN_TOKEN}                # 64-char
         - SMTP_HOST=smtp.zoho.com
         - SMTP_PORT=587
