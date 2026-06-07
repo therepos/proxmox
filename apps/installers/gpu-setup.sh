@@ -1510,6 +1510,14 @@ mode_driver_install() {
     fi
   fi
   echo ""
+
+  # Exit-code contract for orchestrators (e.g. vm-setup.sh):
+  #   0  = driver present/loaded, no reboot needed
+  #   10 = driver freshly installed, REBOOT REQUIRED to load the kernel module
+  # Any other non-zero is a genuine failure (die ...). This lets callers tell
+  # "success, pending reboot" apart from "install broke" without re-probing.
+  [[ "${NEEDS_REBOOT}" == "true" ]] && exit 10
+  return 0
 }
 
 mode_driver_uninstall() {
