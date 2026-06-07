@@ -42,10 +42,16 @@
 set -euo pipefail
 
 # --- Helpers ----------------------------------------------------------------
-info()  { echo "[*] $*"; }
-ok()    { echo "[+] $*"; }
-warn()  { echo "[!] $*"; }
-fail()  { echo "[x] $*" >&2; exit 1; }
+# UI (standard; see docs/policy-installers.md)
+if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
+else
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
+fi
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
 asknum() { # asknum "prompt" min max default
@@ -323,7 +329,11 @@ access_info() {
 # ============================================================================
 # Log the whole VM-side run — both the initial run and the post-reboot resume —
 # to a single persistent file. (The resume hook no longer tees, to avoid dupes.)
-exec &> >(tee -a "$LOG_FILE")
+# Decide colour from the real terminal first, force it on for delegated child
+# scripts so colour survives the tee pipe, and strip ANSI on the way to the log
+# so the log file stays clean text.
+[[ -t 1 ]] && export FORCE_COLOR=1
+exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
 
 echo ""
 echo "================================================="
