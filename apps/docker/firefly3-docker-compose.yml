@@ -32,7 +32,6 @@ services:
     restart: always
     volumes:
       - /mnt/sec/apps/firefly3/upload:/var/www/html/storage/upload
-    env_file: stack.env
     ports:
       - '3019:8080'
     depends_on:
