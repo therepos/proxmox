@@ -22,17 +22,25 @@ SERVICE_FILE="/etc/systemd/system/filebrowser.service"
 INSTALL_URL="https://raw.githubusercontent.com/filebrowser/get/master/get.sh"
 
 # --- Helpers -----------------------------------------------------------------
-GREEN="\e[32m✔\e[0m"
-RED="\e[31m✘\e[0m"
+# >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
+if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
+else
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
+fi
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# <<< ui-block <<<
 
+# Back-compat wrapper used within this script:
 status_message() {
-    local status=$1 message=$2
-    if [[ "$status" == "success" ]]; then
-        echo -e "${GREEN} ${message}"
-    else
-        echo -e "${RED} ${message}"
-        exit 1
-    fi
+    case "$1" in
+        success) ok "$2" ;;
+        info)    info "$2" ;;
+        *)       fail "$2" ;;   # error → print + exit
+    esac
 }
 
 # --- Uninstall ---------------------------------------------------------------
