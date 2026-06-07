@@ -4,7 +4,7 @@ services:
     container_name: opengist
     restart: unless-stopped
     ports:
-      - "3014:6157" # HTTP port
+      - "3006:6157" # HTTP port
       # - "2222:2222" # SSH port, can be removed if you don't use SSH
     volumes:
       - "/mnt/sec/apps/opengist:/opengist"
