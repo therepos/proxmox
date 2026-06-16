@@ -3,15 +3,14 @@
 # Purpose: Deploys and manages GitLab CE with Runner, Container Registry and Pages (Ubuntu/PVE9)
 # =============================================================================
 # Usage:
-#   Interactive menu to install and configure GitLab CE
 #   1) Install GitLab        - fresh deploy via Docker Compose
 #   2) Update default email  - change root user email via Rails console
 #   3) Register runner       - register a CI runner with a token
 #   4) Show status           - display service health and credentials
 #   5) Upgrade GitLab        - backup secrets, pull latest, recreate
-#   Supports optional environment variables:
-#     GITLAB_HOST       - hostname or IP (default: auto-detected LAN IP)
-#     GITLAB_DATA_DIR   - persistent data root (default: /mnt/sec/apps/gitlab)
+#
+# Config (env): GITLAB_HOST (default: auto-detected LAN IP),
+#   GITLAB_DATA_DIR (default: /mnt/sec/apps/gitlab).
 # =============================================================================
 
 set -euo pipefail
