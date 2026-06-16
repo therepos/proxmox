@@ -30,12 +30,35 @@ a generator — see §5. So: standalone at runtime, single-edit at author time.
 
 ## 3. File header (required)
 
+Keep the top doc-block **concise and sharp** — it is quick reference, not prose.
+A reader should grasp what the script does in seconds. Required first lines:
+
 ```bash
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/<name>-setup.sh?$(date +%s))"
-# Purpose: <one line: what this installs/does, and target OS if relevant>
+# Purpose: <one sharp line: what it does, target OS if relevant>
 # =============================================================================
 ```
+
+If the script is interactive or needs caveats, add a short block **below** the
+fence — terse and scannable, no paragraphs:
+
+```bash
+# Usage:
+#   1) Install / Update
+#   2) Uninstall
+#   3) Exit
+#
+# Note: <one-line caveat, only if it matters>
+# =============================================================================
+```
+
+Rules:
+- `Purpose:` is **one line**. No multi-sentence descriptions.
+- Prefer a `Usage:` list (menu items / subcommands) over prose explanation.
+- Notes and config hints are **one line each**, never paragraphs.
+- Don't narrate architecture or rationale in the header — that lives in the
+  code comments or in this policy.
 
 ## 4. Safety preamble (required)
 

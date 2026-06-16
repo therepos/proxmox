@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/dufs-setup.sh?$(date +%s))"
 # Purpose: Install / Update / Change creds / Uninstall Dufs on Proxmox host
+# =============================================================================
 
 set -euo pipefail
 

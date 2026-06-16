@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/pvenosub-setup.sh?$(date +%s))"
-# Purpose: Automate the Proxmox VE Helper-Scripts post-install with single-node
-#          homelab defaults. Primary objective: remove the subscription nag.
+# Purpose: Apply Proxmox VE post-install homelab defaults + remove the sub nag
 # =============================================================================
 # Defaults applied (no prompts):
 #   - Correct Proxmox/Debian base sources

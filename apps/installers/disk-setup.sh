@@ -1,31 +1,15 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/disk-setup.sh?$(date +%s))"
-# Purpose: VM disk capacity — check usage + expand end-to-end (host & VM aware)
+# Purpose: Check VM disk capacity and expand it end-to-end (host & VM aware)
 # =============================================================================
-# Auto-detects whether it runs on a Proxmox host or inside the Ubuntu VM, and
-# exposes the half that makes sense for that side. The goal is that a
-# non-technical user can answer two questions with one command: "am I running
-# out of disk?" and "grow it for me".
+# Usage (auto-detects side):
+#   Host:  disk-setup status   VM disk size + guest df / + VG free (via agent)
+#          disk-setup expand   Resize disk -> grow partition/PV/LV/filesystem
+#   VM:    disk-setup status   Usage diagnostic (df, docker, VG free + advice)
+#          disk-setup expand   Claim free space already on disk (idempotent)
 #
-#   On the Proxmox HOST (this is the only side that can grow the virtual disk):
-#     disk-setup            Interactive menu
-#     disk-setup status     VM disk size + live guest df / + VG free (via agent)
-#     disk-setup expand     End-to-end grow: resize disk -> grow partition ->
-#                           PV -> LV -> filesystem, all via the guest agent.
-#                           No SSH, no downtime.
-#
-#   Inside the Ubuntu VM:
-#     disk-setup            Interactive menu
-#     disk-setup status     Disk-usage diagnostic (df, docker, VG free, advice)
-#     disk-setup expand     Claim free space already on the disk: grow partition
-#                           -> PV -> LV -> filesystem (idempotent; exit 0 no-op).
-#
-# The VM side cannot enlarge the virtual disk itself (only the host can). When
-# the VG is already full, the diagnostic tells you to run 'disk-setup expand'
-# on the host.
-#
-# Config (override via env): VMID, DISK (host disk name, e.g. scsi0 — auto-
-#   detected from the boot order if unset), ADD_GB (host unattended: GB to add).
+# Note: only the host can enlarge the virtual disk; the VM side just claims it.
+# Config (env): VMID, DISK (auto from boot order), ADD_GB (host unattended).
 # =============================================================================
 
 set -euo pipefail

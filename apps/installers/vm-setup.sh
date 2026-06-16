@@ -2,41 +2,16 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/vm-setup.sh?$(date +%s))"
 # Purpose: Orchestrate Ubuntu VM setup (delegates to standalone installers)
 # =============================================================================
-# This script auto-detects where it runs and does the matching half. It is a
-# PURE ORCHESTRATOR: every install is a standalone script in this folder, so the
-# installers remain the single source of truth — update one and every caller
-# (including this script) picks up the change automatically.
+# Usage (auto-detects side; run on host first, then inside the VM):
+#   Host:  delegates to virtiofs-setup.sh (map host dir + attach to VM)
+#   VM:    BASE steps (fixed order): webmin -> disk -> docker -> nvidia -> virtiofs
+#          APPS (order-free, env VM_APPS; default kasm): each 'foo' -> foo-setup.sh
 #
-#   RUN IT ON THE PROXMOX HOST FIRST:
-#     Delegates to virtiofs-setup.sh to map a host directory and attach it to
-#     the VM as a virtiofs device.
-#
-#   THEN RUN THE SAME SCRIPT INSIDE THE UBUNTU VM:
-#     It runs two phases.
-#
-#     BASE (fixed order, always runs — every useful VM needs these):
-#       1. Webmin        — web-based system admin        (webmin-setup.sh)
-#       2. Disk expand   — grow root LV to fill the disk   (disk-setup.sh expand)
-#       3. Docker        — container runtime              (docker-setup.sh)
-#       4. NVIDIA driver — driver + container toolkit     (gpu-setup.sh driver)
-#                          Auto-skips if no GPU passthrough is present. If the
-#                          driver is freshly installed it reboots (exit 10) and
-#                          setup resumes automatically afterwards.
-#       5. VirtIO-FS     — mount the host share           (virtiofs-setup.sh mount)
-#
-#     APPS (order-free, configurable via VM_APPS — this is the expandable part):
-#       Default: kasm
-#       Each name 'foo' runs 'foo-setup.sh' from this folder, so adding an app is
-#       just adding its name. Override (resume-safe — persisted across reboot):
-#         VM_APPS="kasm portainer filebrowser" \
-#           bash -c "$(wget -qLO- .../vm-setup.sh?$(date +%s))"
-#
-# Two runs, one file. The host/VM split is physical (different machines), so
-# that is the safest automation boundary.
-#
-# Config (override via env): VMID, VIRTIOFS_TAG, MOUNT_POINT, HOST_SHARE_PATH,
-#   CHOWN_ENABLE, CHOWN_PATH, CHOWN_UID, CHOWN_GID, SHUTDOWN_TIMEOUT,
-#   KASM_VERSION, KASM_PORT, NVIDIA_DRIVER_VERSION, VM_APPS
+# Note: NVIDIA auto-skips without GPU; a fresh driver reboots (exit 10) and
+#   setup resumes automatically. VM_APPS is persisted resume-safe across reboot.
+# Config (env): VMID, VIRTIOFS_TAG, MOUNT_POINT, HOST_SHARE_PATH, CHOWN_ENABLE,
+#   CHOWN_PATH, CHOWN_UID, CHOWN_GID, SHUTDOWN_TIMEOUT, KASM_VERSION, KASM_PORT,
+#   NVIDIA_DRIVER_VERSION, VM_APPS.
 # =============================================================================
 
 set -euo pipefail

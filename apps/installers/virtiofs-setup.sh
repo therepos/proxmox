@@ -2,26 +2,17 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/virtiofs-setup.sh?$(date +%s))"
 # Purpose: VirtIO-FS share — Proxmox host setup + Ubuntu VM mount (auto-detects)
 # =============================================================================
-# Auto-detects whether it runs on a Proxmox host or inside a VM.
+# Usage (auto-detects side):
+#   Host (run first):  virtiofs-setup setup    Map host dir + attach to VM
+#                      virtiofs-setup status   Show mapping + device state
+#                      virtiofs-setup remove   Detach device + delete mapping
+#   VM:                virtiofs-setup mount    Mount + persist in fstab
+#                      virtiofs-setup status   Show mount state
+#                      virtiofs-setup unmount  Unmount + remove fstab entry
 #
-#   On the Proxmox HOST (run this first):
-#     virtiofs-setup            Interactive menu
-#     virtiofs-setup setup      Map a host dir + attach virtiofs to the VM
-#                               (gracefully stops/starts the VM as needed)
-#     virtiofs-setup status     Show mapping + device state
-#     virtiofs-setup remove     Detach device + delete mapping
-#
-#   Inside the Ubuntu VM:
-#     virtiofs-setup            Interactive menu
-#     virtiofs-setup mount      Mount the share + persist in fstab (idempotent)
-#     virtiofs-setup status     Show mount state
-#     virtiofs-setup unmount    Unmount + remove the fstab entry
-#
-# Config (override via env): VMID, VIRTIOFS_TAG, MOUNT_POINT, HOST_SHARE_PATH,
-#   CHOWN_ENABLE, CHOWN_PATH, CHOWN_UID, CHOWN_GID, SHUTDOWN_TIMEOUT
-#
-# NOTE: pvesh '/cluster/mapping/dir' and 'qm set -virtiofsN' are PVE 8.x/9.x
-# syntax. Verified on PVE 9.2.x. Older/newer majors may differ.
+# Note: PVE 8.x/9.x syntax (pvesh dir mapping, qm set -virtiofsN); verified 9.2.x.
+# Config (env): VMID, VIRTIOFS_TAG, MOUNT_POINT, HOST_SHARE_PATH, CHOWN_ENABLE,
+#   CHOWN_PATH, CHOWN_UID, CHOWN_GID, SHUTDOWN_TIMEOUT.
 # =============================================================================
 
 set -euo pipefail
