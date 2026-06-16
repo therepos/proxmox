@@ -16,7 +16,7 @@
 #
 #     BASE (fixed order, always runs — every useful VM needs these):
 #       1. Webmin        — web-based system admin        (webmin-setup.sh)
-#       2. LVM expand    — grow root LV to fill the disk   (lvm-setup.sh)
+#       2. Disk expand   — grow root LV to fill the disk   (disk-setup.sh expand)
 #       3. Docker        — container runtime              (docker-setup.sh)
 #       4. NVIDIA driver — driver + container toolkit     (gpu-setup.sh driver)
 #                          Auto-skips if no GPU passthrough is present. If the
@@ -111,7 +111,7 @@ LOG_FILE="/var/log/setup-vm.log"
 mkdir -p "$STATE_DIR"
 
 # Base phase: fixed order. The reboot lives here (NVIDIA).
-BASE_STEPS=(webmin lvm docker nvidia virtiofs)
+BASE_STEPS=(webmin disk docker nvidia virtiofs)
 
 # App phase: order-free, user-configurable (env override; default kasm).
 VM_APPS="${VM_APPS:-kasm}"
@@ -201,7 +201,7 @@ dispatch_step() {
     case "$1" in
         webmin)     step_webmin ;;
         docker)     step_docker ;;
-        lvm)        run_remote lvm-setup.sh ;;
+        disk)       run_remote disk-setup.sh expand ;;
         nvidia)     run_remote gpu-setup.sh driver -y ;;
         virtiofs)   run_remote virtiofs-setup.sh mount ;;
         *)          run_remote "${1}-setup.sh" ;;   # convention: <app> -> <app>-setup.sh
@@ -212,7 +212,7 @@ step_title() {
     case "$1" in
         webmin)     echo "Webmin" ;;
         docker)     echo "Docker" ;;
-        lvm)        echo "LVM Expand" ;;
+        disk)       echo "Disk Expand" ;;
         nvidia)     echo "NVIDIA Driver" ;;
         virtiofs)   echo "VirtIO-FS Mount" ;;
         kasm)       echo "Kasm Workspaces" ;;
@@ -268,7 +268,7 @@ run_plan() {
 full_summary() {
     local apps_disp="" a
     for a in $VM_APPS; do apps_disp+=", ${a^}"; done   # capitalize each app name
-    echo "Webmin, LVM, Docker, NVIDIA, VirtIO-FS${apps_disp}"
+    echo "Webmin, Disk, Docker, NVIDIA, VirtIO-FS${apps_disp}"
 }
 
 # --- Status (menu option) ----------------------------------------------------
@@ -281,6 +281,7 @@ vm_status() {
     echo "  Docker    $(command -v docker >/dev/null && echo installed || echo missing)"
     echo "  NVIDIA    $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
     echo "  Kasm      $([[ -d /opt/kasm/current ]] && echo installed || echo missing)"
+    echo "  Root disk $(df -h / 2>/dev/null | awk 'NR==2{print $3"/"$2" used ("$5")"}')"
     echo "  /mnt/sec  $(mountpoint -q /mnt/sec 2>/dev/null && echo 'mounted (virtiofs)' || echo 'not mounted')"
     echo "================================================="
     echo ""
@@ -354,16 +355,18 @@ if [[ $RESUMING -eq 0 ]]; then
     while true; do
         echo "  1) Full setup    ($(full_summary))"
         echo "  2) Mount share   (VirtIO-FS only)"
-        echo "  3) Status"
-        echo "  4) Access info"
+        echo "  3) Disk          (check usage / expand)"
+        echo "  4) Status"
+        echo "  5) Access info"
         echo "  0) Exit"
-        choice="$(asknum 'Choose' 0 4 0)"
+        choice="$(asknum 'Choose' 0 5 0)"
         case "$choice" in
             0) ok "Bye."; exit 0 ;;
             1) echo ""; break ;;                         # proceed to full setup
             2) run_remote virtiofs-setup.sh mount; echo "" ;;
-            3) vm_status ;;
-            4) access_info ;;
+            3) run_remote disk-setup.sh; echo "" ;;
+            4) vm_status ;;
+            5) access_info ;;
         esac
     done
 
