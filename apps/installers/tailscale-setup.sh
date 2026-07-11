@@ -40,6 +40,23 @@ STORAGE="local-lvm"
 TEMPLATE_STORAGE="local"
 BRIDGE="vmbr0"
 
+# --- Shared output -----------------------------------------------------------
+print_subnet_instructions() {
+    local subnet="$1"
+    echo ""
+    echo -e "${CYAN}=============================================="
+    echo "  Enable Subnet Routing"
+    echo -e "==============================================${RESET}"
+    echo ""
+    echo "  1. Go to https://login.tailscale.com/admin/machines"
+    echo "  2. Find '$HOSTNAME' -> ... -> Edit route settings"
+    echo "  3. Tick $subnet and Save"
+    echo ""
+    echo "  Reach any LAN device from your tailnet at its normal IP,"
+    echo "  e.g. 192.168.0.90:8080"
+    echo ""
+}
+
 # --- Precheck ----------------------------------------------------------------
 if ! command -v pct &> /dev/null; then
     status_message "error" "pct not found. Run this on the Proxmox host."
@@ -128,7 +145,7 @@ EOF
         export LANG=C
         echo 'LC_ALL=C' > /etc/default/locale
         apt update -qq >/dev/null 2>&1
-        apt install -y -qq curl >/dev/null 2>&1
+        apt install -y -qq curl jq >/dev/null 2>&1
         curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
         echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
         echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.conf
@@ -146,8 +163,7 @@ EOF
 
     echo ""
     status_message "success" "Setup complete (CTID $ctid, subnet $lan_subnet)."
-    echo ""
-    echo "  Next: approve subnet route at https://login.tailscale.com/admin/machines"
+    print_subnet_instructions "$lan_subnet"
 }
 
 action_update() {
@@ -197,15 +213,72 @@ action_status() {
         status_message "info" "Tailscale LXC: not installed"
         return
     fi
+
+    local state ip
+    state=$(pct status "$EXISTING_CTID" | awk '{print $2}')
+    ip=$(pct exec "$EXISTING_CTID" -- ip route get 1.1.1.1 2>/dev/null \
+         | grep -oP 'src \K\S+' || true)
+
     echo ""
     echo "LXC $EXISTING_CTID status:"
-    pct status "$EXISTING_CTID"
+    echo "${ip:-(no ip)}  ${state}"
+
     echo ""
     echo "Tailscale status:"
-    pct exec "$EXISTING_CTID" -- tailscale status 2>/dev/null || echo "  (LXC not running or tailscale not authenticated)"
+    pct exec "$EXISTING_CTID" -- tailscale status 2>/dev/null \
+        || echo "  (LXC not running or tailscale not authenticated)"
+
     echo ""
     echo "Tailscale version:"
     pct exec "$EXISTING_CTID" -- tailscale version 2>/dev/null | head -1 || true
+
+    # --- Subnet route approval check ---
+    echo ""
+    echo "Subnet route:"
+
+    local json advertised approved
+    json=$(pct exec "$EXISTING_CTID" -- tailscale status --json 2>/dev/null || true)
+
+    if [[ -z "$json" ]]; then
+        warn "Could not query tailscale (LXC stopped or not authenticated)"
+        return
+    fi
+
+    # Routes this node offers, minus the auto-added /32 and /128 self-routes
+    advertised=$(echo "$json" | jq -r '
+        (.Self.AllowedIPs // [])
+        - (.Self.TailscaleIPs // [] | map(. + "/32", . + "/128"))
+        | .[]' 2>/dev/null | grep -v '^$' || true)
+
+    # Fall back to the prefs file if AllowedIPs is unhelpful
+    if [[ -z "$advertised" ]]; then
+        advertised=$(pct exec "$EXISTING_CTID" -- \
+            jq -r '.AdvertiseRoutes // [] | .[]' /var/lib/tailscale/tailscaled.state 2>/dev/null || true)
+    fi
+
+    if [[ -z "$advertised" ]]; then
+        info "No subnet routes advertised"
+        return
+    fi
+
+    approved=$(echo "$json" | jq -r '.Self.PrimaryRoutes // [] | .[]' 2>/dev/null || true)
+
+    local pending=0 route
+    local LAST_PENDING_ROUTE=""
+    while IFS= read -r route; do
+        [[ -z "$route" ]] && continue
+        if echo "$approved" | grep -qx "$route"; then
+            ok "$route (approved)"
+        else
+            warn "$route advertised but NOT approved"
+            pending=1
+            LAST_PENDING_ROUTE="$route"
+        fi
+    done <<< "$advertised"
+
+    if [[ "$pending" -eq 1 ]]; then
+        print_subnet_instructions "$LAST_PENDING_ROUTE"
+    fi
 }
 
 # --- Menu --------------------------------------------------------------------
