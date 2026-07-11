@@ -1,40 +1,93 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/smb-setup.sh?$(date +%s))"
-# Purpose: Setup Samba server on Proxmox host or mount SMB/CIFS shares in VM
+# Purpose: Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu)
 # =============================================================================
 # Usage:
-#   bash -c "$(wget -qLO- ...)"                                          # Interactive mode
-#   bash -c "$(wget -qLO- ...)" --server-install                         # Install Samba server
-#   bash -c "$(wget -qLO- ...)" --server-uninstall                       # Remove all Samba shares
-#   bash -c "$(wget -qLO- ...)" --server-uninstall mediadb               # Remove specific share
-#   bash -c "$(wget -qLO- ...)" --client-install                         # Mount SMB shares in VM
-#   bash -c "$(wget -qLO- ...)" --client-uninstall                       # Unmount all SMB shares
-#   bash -c "$(wget -qLO- ...)" --client-uninstall /mnt/sec/media        # Unmount specific share
+#   1) Proxmox host  -> install / repair / uninstall Samba server
+#   2) VM            -> install / uninstall SMB client mounts
+#
+# Flags: --server-install | --server-repair | --server-uninstall [share]
+#        --client-install | --client-uninstall [path] | -y
+#
+# Note: Samba runs as root (force user) to match FileBrowser, so its files stay editable.
+# Config (env): HOST_IP, SMB_USER, SMB_PASS, ASSUME_YES.
 # =============================================================================
 
-set -e
+set -euo pipefail
 
-HOST_IP="192.168.1.111"
+# --- Helpers -----------------------------------------------------------------
+# >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
+if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
+else
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
+fi
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# <<< ui-block <<<
+
+[[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
+
+# Prompt that still works when piped from wget (reads the real terminal).
+askstr() { # askstr "prompt" [default]
+    local p="$1" def="${2:-}" in=""
+    if [[ "${ASSUME_YES:-0}" == "1" ]]; then echo "$def"; return; fi
+    if [[ -r /dev/tty ]]; then
+        read -rp "$p" in </dev/tty || in="$def"
+    else
+        in="$def"
+    fi
+    echo "${in:-$def}"
+}
+
+# --- Variables ---------------------------------------------------------------
+ASSUME_YES="${ASSUME_YES:-0}"
+
+# Host IP is auto-detected (never hardcode — it differs per machine and changes
+# with DHCP). Override by exporting HOST_IP before running.
+HOST_IP="${HOST_IP:-$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || hostname -I | awk '{print $1}')}"
+
 SAMBA_GROUP="sambausers"
 SAMBA_USERS=("toor")
 
 # Server shares: "share_name:share_path"
 SHARES=(
-    "mediadb:/mnt/sec/media"
+    "sec:/mnt/sec"
 )
 
 # Client mounts: "share_name:mount_path"
+# NOTE: For host->VM sharing use virtiofs, not SMB (see virtiofs-setup.sh).
 MOUNTS=(
-    "mediadb:/mnt/sec/media"
+    "sec:/mnt/sec"
 )
 
-SMB_USER="toor"
-SMB_PASS="password"
+# Samba runs all file operations as root (force user = root). This is deliberate:
+# FileBrowser also runs as root, so files it creates are root-owned. Matching the
+# identity is what keeps those files editable over SMB.
+SHARE_OWNER="root"
+SHARE_OWNER_GROUP="root"
+
+SMB_USER="${SMB_USER:-toor}"
+SMB_PASS="${SMB_PASS:-}"   # prompted at install time; never hardcoded
 SMB_CREDS_FILE="/etc/samba/.smbcreds"
 
-# =============================================================================
-# Server functions (run on Proxmox host)
-# =============================================================================
+prompt_smb_pass() {
+    [[ -n "$SMB_PASS" ]] && return 0
+    [[ -r /dev/tty ]] || fail "No password set. Export SMB_PASS=... for headless runs."
+    local p1 p2
+    while true; do
+        read -rsp "Set Samba password for '${SMB_USER}': " p1 </dev/tty; echo ""
+        read -rsp "Confirm password: " p2 </dev/tty; echo ""
+        [[ -z "$p1" ]] && { warn "Password cannot be empty."; continue; }
+        [[ "$p1" != "$p2" ]] && { warn "Passwords do not match."; continue; }
+        SMB_PASS="$p1"
+        return 0
+    done
+}
+
+# --- Server functions (Proxmox host) -----------------------------------------
 
 check_server() {
     local found=0
@@ -61,27 +114,30 @@ check_server() {
 }
 
 server_install() {
-    echo "=== Setting up Samba server ==="
+    info "Setting up Samba server..."
 
     # Install samba if not present
     if ! dpkg -s samba &>/dev/null; then
-        echo "Installing samba and dependencies..."
+        info "Installing samba and dependencies..."
         apt update -y && apt install -y samba samba-common-bin acl
     else
-        echo "Samba already installed"
+        ok "Samba already installed."
     fi
 
     # Create samba group
     getent group "$SAMBA_GROUP" &>/dev/null || groupadd "$SAMBA_GROUP"
-    echo "Group '$SAMBA_GROUP' ready."
+    ok "Group '$SAMBA_GROUP' ready."
 
-    # Create users and samba credentials
+    prompt_smb_pass
+
+    # Create users and samba credentials.
+    # The Samba password is what you type from Windows/Mac; it is set from the
+    # prompt above rather than being the username (the old behaviour).
     for u in "${SAMBA_USERS[@]}"; do
         id "$u" &>/dev/null || useradd -m "$u"
-        echo "$u:$u" | chpasswd
-        (echo "$u"; echo "$u") | smbpasswd -s -a "$u"
+        (echo "$SMB_PASS"; echo "$SMB_PASS") | smbpasswd -s -a "$u"
         usermod -aG "$SAMBA_GROUP" "$u"
-        echo "User '$u' added to '$SAMBA_GROUP' and enabled for Samba."
+        ok "User '$u' enabled for Samba."
     done
 
     # Backup existing config
@@ -108,27 +164,35 @@ GLOBAL_EOF
     for ENTRY in "${SHARES[@]}"; do
         local SHARE_NAME="${ENTRY%%:*}"
         local SHARE_PATH="${ENTRY#*:}"
-        # FIX: use first samba user as owner to match force user in smb.conf
-        local SHARE_OWNER="${SAMBA_USERS[0]}"
 
         echo ""
         echo "--- [$SHARE_NAME] -> $SHARE_PATH ---"
 
-        # Create share directory with permissions
-        mkdir -p "$SHARE_PATH"
-        # FIX: chown to SAMBA_USERS[0] instead of root so ownership matches force user
-        chown -R "$SHARE_OWNER":"$SAMBA_GROUP" "$SHARE_PATH"
+        if [[ ! -d "$SHARE_PATH" ]]; then
+            echo "ERROR: $SHARE_PATH does not exist. Mount the drive first"
+            echo "       (see drivemount-setup.sh). Aborting."
+            exit 1
+        fi
+
+        # Samba operates as root on this share (see 'force user' below), so the
+        # on-disk owner is root too. Do NOT chown to a normal user here: that is
+        # what broke editing before — FileBrowser (running as root) creates
+        # root-owned files that a non-root Samba then cannot modify.
+        chown -R "${SHARE_OWNER}:${SHARE_OWNER_GROUP}" "$SHARE_PATH"
+
+        # 2775 = setgid + group-writable. Group inheritance keeps new files
+        # consistent even if something else writes here later.
         chmod -R 2775 "$SHARE_PATH"
         chmod g+s "$SHARE_PATH"
 
-        # Set POSIX ACLs
-        setfacl -R -m g:"$SAMBA_GROUP":rwX "$SHARE_PATH"
-        setfacl -R -m d:g:"$SAMBA_GROUP":rwX "$SHARE_PATH"
+        ok "Permissions set on '$SHARE_PATH' (owner ${SHARE_OWNER})."
 
-        echo "Permissions and ACLs set on '$SHARE_PATH'."
-
-        # Append share config
-        # FIX: added force user to match filesystem ownership set above
+        # force user = root is the key line. Clients still authenticate as
+        # '$SMB_USER', but every read/write executes as root — so anything
+        # FileBrowser wrote (as root) is fully editable from Windows/Mac.
+        # Trade-off: an authenticated client has root-level write access to
+        # this path. Acceptable here because it is Tailscale-only and
+        # FileBrowser already exposes the filesystem as root.
         cat >>/etc/samba/smb.conf <<SHARE_EOF
 
 [$SHARE_NAME]
@@ -140,30 +204,53 @@ GLOBAL_EOF
    directory mask = 2775
    force create mode = 0664
    force directory mode = 2775
-   inherit permissions = yes
-   force group = $SAMBA_GROUP
    force user = $SHARE_OWNER
+   force group = $SHARE_OWNER_GROUP
    valid users = @${SAMBA_GROUP}
    write list = @${SAMBA_GROUP}
 SHARE_EOF
     done
 
     # Validate and restart
-    testparm -s || { echo "ERROR: Samba config invalid"; exit 1; }
+    testparm -s >/dev/null || fail "Samba config invalid."
     systemctl enable --now smbd
     systemctl restart smbd
 
-    local IP
-    IP=$(hostname -I | awk '{print $1}')
+    local SHARE1="${SHARES[0]%%:*}"
     echo ""
     echo "=== Samba server setup complete ==="
-    echo "Share ready: \\\\${IP}\\${SHARES[0]%%:*}"
-    echo "Users: ${SAMBA_USERS[*]}"
+    echo ""
+    echo "  Windows:  \\\\${HOST_IP}\\${SHARE1}"
+    echo "  Mac:      smb://${HOST_IP}/${SHARE1}"
+    echo "  Login:    ${SMB_USER}  (password as just set)"
+    echo ""
+    echo "  Works from any Tailscale device, provided the ${HOST_IP%.*}.0/24"
+    echo "  subnet route is approved in the Tailscale admin console."
+    echo ""
+}
+
+# Repair ownership on files created before this fix (or by any writer that used
+# a different UID). Safe to re-run; idempotent.
+server_repair() {
+    info "Repairing share permissions..."
+    echo ""
+    for ENTRY in "${SHARES[@]}"; do
+        local SHARE_PATH="${ENTRY#*:}"
+        [[ -d "$SHARE_PATH" ]] || { echo "Skipping $SHARE_PATH (not present)"; continue; }
+        echo "Repairing $SHARE_PATH ..."
+        chown -R "${SHARE_OWNER}:${SHARE_OWNER_GROUP}" "$SHARE_PATH"
+        chmod -R u+rwX,g+rwX "$SHARE_PATH"
+        find "$SHARE_PATH" -type d -exec chmod g+s {} + 2>/dev/null || true
+        ok "  done."
+    done
+    echo ""
+    echo "=== Repair complete ==="
+    echo "Existing files are now owned by ${SHARE_OWNER} and editable over SMB."
 }
 
 server_uninstall() {
     local filter_names=("$@")
-    echo "=== Uninstalling Samba server ==="
+    info "Uninstalling Samba server..."
     echo ""
 
     # Build list of all shares from smb.conf
@@ -182,7 +269,7 @@ server_uninstall() {
     done < <(grep '^\[' /etc/samba/smb.conf 2>/dev/null || true)
 
     if [[ ${#entries[@]} -eq 0 ]]; then
-        echo "No Samba shares found."
+        ok "No Samba shares found. Nothing to do."
         return 0
     fi
 
@@ -201,7 +288,7 @@ server_uninstall() {
                 fi
             done
             if [[ "$matched" -eq 0 ]]; then
-                echo "Warning: share '$fn' not found, skipping."
+                warn "Share '$fn' not found, skipping."
             fi
         done
     elif [[ ! -t 0 ]]; then
@@ -218,7 +305,7 @@ server_uninstall() {
         echo "  a) All"
         echo ""
 
-        read -rp "Select shares to remove (e.g. 1, 1 3, or a): " selection
+        read -rp "Select shares to remove (e.g. 1, 1 3, or a): " selection </dev/tty
 
         if [[ "$selection" == "a" || "$selection" == "A" ]]; then
             for i in "${!entries[@]}"; do
@@ -230,14 +317,14 @@ server_uninstall() {
                 if [[ $idx -ge 0 && $idx -lt ${#entries[@]} ]]; then
                     selected+=("$idx")
                 else
-                    echo "Invalid selection: $num"
+                    warn "Invalid selection: $num"
                 fi
             done
         fi
     fi
 
     if [[ ${#selected[@]} -eq 0 ]]; then
-        echo "No valid entries selected. Cancelled."
+        info "No valid entries selected. Cancelled."
         return 0
     fi
 
@@ -246,7 +333,7 @@ server_uninstall() {
     # Remove selected share sections from smb.conf
     for idx in "${selected[@]}"; do
         local share_name="${entries[$idx]}"
-        echo "Removing share: [$share_name]"
+        info "Removing share: [$share_name]"
         # Remove share section from config
         sed -i "/^\[$share_name\]/,/^\[/{/^\[/!d}" /etc/samba/smb.conf
         sed -i "/^\[$share_name\]/d" /etc/samba/smb.conf
@@ -264,7 +351,7 @@ server_uninstall() {
     done < <(grep '^\[' /etc/samba/smb.conf 2>/dev/null || true)
 
     if [[ "$remaining" -eq 0 ]]; then
-        echo "No shares remaining. Stopping Samba..."
+        info "No shares remaining. Stopping Samba..."
         systemctl disable --now smbd 2>/dev/null || true
 
         # Remove samba users from group
@@ -273,21 +360,19 @@ server_uninstall() {
         done
 
         if dpkg -s samba &>/dev/null; then
-            echo "Removing samba..."
+            info "Removing samba..."
             apt remove -y samba samba-common-bin acl
         fi
     else
-        echo "Other shares remain. Restarting Samba..."
+        info "Other shares remain. Restarting Samba..."
         systemctl restart smbd
     fi
 
     echo ""
-    echo "=== Samba server uninstall complete ==="
+    ok "Samba server uninstalled."
 }
 
-# =============================================================================
-# Client functions (run on VM)
-# =============================================================================
+# --- Client functions (VM) ---------------------------------------------------
 
 check_client() {
     local found=0
@@ -341,15 +426,17 @@ check_client() {
 }
 
 client_install() {
-    echo "=== Setting up SMB mounts ==="
+    info "Setting up SMB mounts..."
 
     # Install cifs-utils if not present
     if ! dpkg -s cifs-utils &>/dev/null; then
-        echo "Installing cifs-utils..."
+        info "Installing cifs-utils..."
         sudo apt update && sudo apt install -y cifs-utils
     else
-        echo "cifs-utils already installed"
+        ok "cifs-utils already installed."
     fi
+
+    prompt_smb_pass
 
     # Create credentials file
     echo "Setting up credentials file at $SMB_CREDS_FILE..."
@@ -359,7 +446,7 @@ username=$SMB_USER
 password=$SMB_PASS
 EOF
     sudo chmod 600 "$SMB_CREDS_FILE"
-    echo "Credentials file created (root-only readable)."
+    ok "Credentials file created (root-only readable)."
 
     # Clean up any existing cifs entries for this host first
     if grep -q "//$HOST_IP/.*cifs" /etc/fstab 2>/dev/null; then
@@ -400,11 +487,10 @@ EOF
 
         # Verify mount
         if mountpoint -q "$MOUNT_PATH"; then
-            echo "Mount successful!"
+            ok "Mount successful."
             ls "$MOUNT_PATH" | head -10
         else
-            echo "ERROR: Mount failed for $MOUNT_PATH"
-            exit 1
+            fail "Mount failed for $MOUNT_PATH"
         fi
 
         # Add to fstab
@@ -416,13 +502,13 @@ EOF
     sudo systemctl daemon-reload
 
     echo ""
-    echo "=== SMB mount setup complete ==="
+    ok "SMB mounts configured and persisted in /etc/fstab."
     echo "All mounts configured and persisted in /etc/fstab"
 }
 
 client_uninstall() {
     local filter_paths=("$@")
-    echo "=== Uninstalling SMB mounts ==="
+    info "Uninstalling SMB mounts..."
     echo ""
 
     # Build list of all CIFS entries for this host
@@ -462,7 +548,7 @@ client_uninstall() {
     done < <(mount | grep "//$HOST_IP/" 2>/dev/null || true)
 
     if [[ ${#entries[@]} -eq 0 ]]; then
-        echo "No SMB entries found for $HOST_IP."
+        ok "No SMB entries found. Nothing to do."
         return 0
     fi
 
@@ -481,7 +567,7 @@ client_uninstall() {
                 fi
             done
             if [[ "$matched" -eq 0 ]]; then
-                echo "Warning: $fp not found in SMB entries, skipping."
+                warn "$fp not found in SMB entries, skipping."
             fi
         done
     elif [[ ! -t 0 ]]; then
@@ -496,7 +582,7 @@ client_uninstall() {
         echo "  a) All"
         echo ""
 
-        read -rp "Select entries to uninstall (e.g. 1, 1 3, or a): " selection
+        read -rp "Select entries to uninstall (e.g. 1, 1 3, or a): " selection </dev/tty
 
         if [[ "$selection" == "a" || "$selection" == "A" ]]; then
             selected=("${entries[@]}")
@@ -506,14 +592,14 @@ client_uninstall() {
                 if [[ $idx -ge 0 && $idx -lt ${#entries[@]} ]]; then
                     selected+=("${entries[$idx]}")
                 else
-                    echo "Invalid selection: $num"
+                    warn "Invalid selection: $num"
                 fi
             done
         fi
     fi
 
     if [[ ${#selected[@]} -eq 0 ]]; then
-        echo "No valid entries selected. Cancelled."
+        info "No valid entries selected. Cancelled."
         return 0
     fi
 
@@ -553,20 +639,35 @@ client_uninstall() {
     fi
 
     echo ""
-    echo "=== SMB mount uninstall complete ==="
+    ok "SMB mounts uninstalled."
 }
 
-# =============================================================================
-# Main
-# =============================================================================
+# --- Main --------------------------------------------------------------------
 
-echo "=== SMB Setup Manager ==="
+# Consume -y/--yes anywhere in the args (§7: non-interactive path).
+args=()
+for a in "$@"; do
+    case "$a" in
+        -y|--yes) ASSUME_YES=1 ;;
+        *) args+=("$a") ;;
+    esac
+done
+set -- "${args[@]:-}"
+-----------------------------------------------------------------
+
+echo "================================================================"
+echo "  SMB Setup Manager"
+echo "================================================================"
 echo ""
 
 # Non-interactive mode via flags
 case "${1:-}" in
     --server-install)
         server_install
+        exit 0
+        ;;
+    --server-repair)
+        server_repair
         exit 0
         ;;
     --server-uninstall)
@@ -589,7 +690,7 @@ esac
 echo "Where are you running this?"
 echo "  1) Proxmox host (Samba server)"
 echo "  2) VM (SMB client)"
-read -rp "Select (1/2): " mode
+read -rp "Select (1/2): " mode </dev/tty
 
 case "$mode" in
     1)
@@ -597,18 +698,22 @@ case "$mode" in
         if check_server; then
             echo ""
             echo "Existing Samba config detected (shown above)."
-            read -rp "Do you want to [u]ninstall or [r]einstall? (u/r): " choice
+            echo "  r) Reinstall"
+            echo "  p) Repair permissions (fix files you cannot edit)"
+            echo "  u) Uninstall"
+            read -rp "Select (r/p/u): " choice </dev/tty
             case "$choice" in
                 u|U) server_uninstall ;;
                 r|R) server_install ;;
-                *) echo "Cancelled."; exit 0 ;;
+                p|P) server_repair ;;
+                *) info "Cancelled."; exit 0 ;;
             esac
         else
             echo "No Samba config found."
-            read -rp "Do you want to set up Samba server? (y/n): " choice
+            read -rp "Do you want to set up Samba server? (y/n): " choice </dev/tty
             case "$choice" in
                 y|Y) server_install ;;
-                *) echo "Cancelled."; exit 0 ;;
+                *) info "Cancelled."; exit 0 ;;
             esac
         fi
         ;;
@@ -617,18 +722,18 @@ case "$mode" in
         if check_client; then
             echo ""
             echo "Existing SMB mounts detected (shown above)."
-            read -rp "Do you want to [u]ninstall or [r]einstall? (u/r): " choice
+            read -rp "Do you want to [u]ninstall or [r]einstall? (u/r): " choice </dev/tty
             case "$choice" in
                 u|U) client_uninstall ;;
                 r|R) client_install ;;
-                *) echo "Cancelled."; exit 0 ;;
+                *) info "Cancelled."; exit 0 ;;
             esac
         else
             echo "No existing SMB mounts found."
-            read -rp "Do you want to set up SMB mounts? (y/n): " choice
+            read -rp "Do you want to set up SMB mounts? (y/n): " choice </dev/tty
             case "$choice" in
                 y|Y) client_install ;;
-                *) echo "Cancelled."; exit 0 ;;
+                *) info "Cancelled."; exit 0 ;;
             esac
         fi
         ;;
