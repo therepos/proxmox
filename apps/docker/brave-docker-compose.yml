@@ -7,7 +7,7 @@
 
 services:
   brave:
-    image: kasmweb/brave:1.18.0
+    image: kasmweb/brave:1.19.0-rolling-daily
     container_name: brave
     ports:
       - "3003:6901"
