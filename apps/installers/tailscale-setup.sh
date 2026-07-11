@@ -40,7 +40,22 @@ STORAGE="local-lvm"
 TEMPLATE_STORAGE="local"
 BRIDGE="vmbr0"
 
-# --- Shared output -----------------------------------------------------------
+# --- Shared helpers ----------------------------------------------------------
+# jq runs on the Proxmox host (parsing JSON piped out of the container),
+# so the container itself never needs it. Install on demand if absent.
+ensure_jq() {
+    if command -v jq &>/dev/null; then
+        return 0
+    fi
+    info "Installing jq (required to check route status)..."
+    if apt-get install -y -qq jq >/dev/null 2>&1; then
+        ok "jq installed."
+    else
+        warn "Could not install jq; skipping route check."
+        return 1
+    fi
+}
+
 print_subnet_instructions() {
     local subnet="$1"
     echo ""
@@ -145,7 +160,7 @@ EOF
         export LANG=C
         echo 'LC_ALL=C' > /etc/default/locale
         apt update -qq >/dev/null 2>&1
-        apt install -y -qq curl jq >/dev/null 2>&1
+        apt install -y -qq curl >/dev/null 2>&1
         curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
         echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.conf
         echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.conf
@@ -236,6 +251,10 @@ action_status() {
     echo ""
     echo "Subnet route:"
 
+    if ! ensure_jq; then
+        return
+    fi
+
     local json advertised approved
     json=$(pct exec "$EXISTING_CTID" -- tailscale status --json 2>/dev/null || true)
 
@@ -249,12 +268,6 @@ action_status() {
         (.Self.AllowedIPs // [])
         - (.Self.TailscaleIPs // [] | map(. + "/32", . + "/128"))
         | .[]' 2>/dev/null | grep -v '^$' || true)
-
-    # Fall back to the prefs file if AllowedIPs is unhelpful
-    if [[ -z "$advertised" ]]; then
-        advertised=$(pct exec "$EXISTING_CTID" -- \
-            jq -r '.AdvertiseRoutes // [] | .[]' /var/lib/tailscale/tailscaled.state 2>/dev/null || true)
-    fi
 
     if [[ -z "$advertised" ]]; then
         info "No subnet routes advertised"
