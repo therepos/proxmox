@@ -3,10 +3,11 @@
 # Purpose: Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu)
 # =============================================================================
 # Usage:
-#   1) Proxmox host  -> install / repair / uninstall Samba server
+#   1) Proxmox host  -> install / status / passwd / add user / repair / uninstall
 #   2) VM            -> install / uninstall SMB client mounts
 #
-# Flags: --server-install | --server-repair | --server-uninstall [share]
+# Flags: --server-install | --server-status | --server-passwd
+#        --server-adduser [name] | --server-repair | --server-uninstall [share]
 #        --client-install | --client-uninstall [path] | -y
 #
 # Note: Samba runs as root (force user) to match FileBrowser, so its files stay editable.
@@ -88,6 +89,29 @@ prompt_smb_pass() {
 }
 
 # --- Server functions (Proxmox host) -----------------------------------------
+
+# Populate SHARE_NAMES / SHARE_PATHS from smb.conf (skips global/printers).
+enum_shares() {
+    SHARE_NAMES=(); SHARE_PATHS=()
+    local line name path
+    while IFS= read -r line; do
+        name=$(echo "$line" | sed 's/[][]//g' | xargs)
+        [[ -z "$name" || "$name" == "global" || "$name" == "printers" || "$name" == "print$" ]] && continue
+        path=$(sed -n "/^\[$name\]/,/^\[/{ /path/s/.*= *//p; }" /etc/samba/smb.conf 2>/dev/null | head -1)
+        SHARE_NAMES+=("$name"); SHARE_PATHS+=("$path")
+    done < <(grep '^\[' /etc/samba/smb.conf 2>/dev/null || true)
+}
+
+# Print the client connection details for a share (the summary shown after install).
+print_connection_info() {
+    local share="$1" user="$2" note="${3:-}"
+    echo "  Windows:  \\\\${HOST_IP}\\${share}"
+    echo "  Mac:      smb://${HOST_IP}/${share}"
+    echo "  Login:    ${user}  ${note}"
+    echo ""
+    echo "  Works from any Tailscale device, provided the ${HOST_IP%.*}.0/24"
+    echo "  subnet route is approved in the Tailscale admin console."
+}
 
 check_server() {
     local found=0
@@ -220,13 +244,115 @@ SHARE_EOF
     echo ""
     echo "=== Samba server setup complete ==="
     echo ""
-    echo "  Windows:  \\\\${HOST_IP}\\${SHARE1}"
-    echo "  Mac:      smb://${HOST_IP}/${SHARE1}"
-    echo "  Login:    ${SMB_USER}  (password as just set)"
+    print_connection_info "$SHARE1" "$SMB_USER" "(password as just set)"
     echo ""
-    echo "  Works from any Tailscale device, provided the ${HOST_IP%.*}.0/24"
-    echo "  subnet route is approved in the Tailscale admin console."
+}
+
+# Show running state, configured shares, Samba users, and the client
+# connection details (the same summary printed after install).
+server_status() {
+    echo "=== SMB Server Status ==="
     echo ""
+
+    if systemctl is-active --quiet smbd 2>/dev/null; then
+        ok "Samba service: running"
+    else
+        warn "Samba service: not running"
+    fi
+
+    if [[ ! -f /etc/samba/smb.conf ]]; then
+        echo ""
+        warn "No /etc/samba/smb.conf found — server not configured."
+        return 0
+    fi
+
+    enum_shares
+    echo ""
+    if [[ ${#SHARE_NAMES[@]} -eq 0 ]]; then
+        echo "  Shares: none configured"
+    else
+        echo "  Shares:"
+        for i in "${!SHARE_NAMES[@]}"; do
+            printf '    [%s] -> %s\n' "${SHARE_NAMES[$i]}" "${SHARE_PATHS[$i]}"
+        done
+    fi
+
+    # Samba-enabled accounts (pdbedit lists the passdb, not just /etc/passwd).
+    local users
+    users=$(pdbedit -L 2>/dev/null | cut -d: -f1 | paste -sd', ' - || true)
+    echo ""
+    echo "  Samba users: ${users:-none}"
+
+    # Client connection details (per share).
+    if [[ ${#SHARE_NAMES[@]} -gt 0 ]]; then
+        local login_user
+        login_user=$(pdbedit -L 2>/dev/null | cut -d: -f1 | head -1 || true)
+        login_user="${login_user:-${SAMBA_USERS[0]:-$SMB_USER}}"
+        echo ""
+        echo "  --- Connection details ---"
+        echo ""
+        for name in "${SHARE_NAMES[@]}"; do
+            print_connection_info "$name" "$login_user" "(password as set)"
+            echo ""
+        done
+    fi
+}
+
+# Change the Samba password for an existing user (does not touch the Linux login).
+server_passwd() {
+    info "Change Samba password"
+    echo ""
+
+    local users user
+    mapfile -t users < <(pdbedit -L 2>/dev/null | cut -d: -f1)
+    if [[ ${#users[@]} -eq 0 ]]; then
+        fail "No Samba users found. Run the server install first."
+    fi
+
+    if [[ ${#users[@]} -eq 1 ]]; then
+        user="${users[0]}"
+        info "Changing password for '$user'."
+    else
+        echo "Samba users:"
+        for i in "${!users[@]}"; do echo "  $((i + 1))) ${users[$i]}"; done
+        echo ""
+        local sel
+        read -rp "Select user: " sel </dev/tty
+        local idx=$((sel - 1))
+        [[ $idx -ge 0 && $idx -lt ${#users[@]} ]] || fail "Invalid selection."
+        user="${users[$idx]}"
+    fi
+
+    # Reuse prompt_smb_pass (prompts twice, honours SMB_PASS for headless runs).
+    SMB_USER="$user"; SMB_PASS="${SMB_PASS:-}"
+    prompt_smb_pass
+    (echo "$SMB_PASS"; echo "$SMB_PASS") | smbpasswd -s "$user"
+    ok "Password updated for '$user'."
+}
+
+# Add a new Samba user: create the Linux account if needed, set a Samba
+# password, and add it to the share group so it can access all shares.
+server_adduser() {
+    info "Add Samba user"
+    echo ""
+
+    dpkg -s samba &>/dev/null || fail "Samba not installed. Run the server install first."
+
+    local newuser="${1:-}"
+    [[ -n "$newuser" ]] || newuser=$(askstr "New username: " "")
+    [[ -n "$newuser" ]] || fail "Username cannot be empty."
+
+    getent group "$SAMBA_GROUP" &>/dev/null || groupadd "$SAMBA_GROUP"
+    id "$newuser" &>/dev/null || useradd -m "$newuser"
+
+    SMB_USER="$newuser"; SMB_PASS="${SMB_PASS:-}"
+    prompt_smb_pass
+    (echo "$SMB_PASS"; echo "$SMB_PASS") | smbpasswd -s -a "$newuser"
+    usermod -aG "$SAMBA_GROUP" "$newuser"
+
+    ok "User '$newuser' enabled for Samba and added to '$SAMBA_GROUP'."
+    echo ""
+    info "This user can now access all shares (valid users = @${SAMBA_GROUP})."
 }
 
 # Repair ownership on files created before this fix (or by any writer that used
@@ -669,6 +795,19 @@ case "${1:-}" in
         server_repair
         exit 0
         ;;
+    --server-status)
+        server_status
+        exit 0
+        ;;
+    --server-passwd)
+        server_passwd
+        exit 0
+        ;;
+    --server-adduser)
+        shift
+        server_adduser "$@"
+        exit 0
+        ;;
     --server-uninstall)
         shift
         server_uninstall "$@"
@@ -697,11 +836,17 @@ case "$mode" in
         if check_server; then
             echo ""
             echo "Existing Samba config detected (shown above)."
+            echo "  s) Show status / connection details"
+            echo "  c) Change a user's password"
+            echo "  a) Add a user"
             echo "  r) Reinstall"
             echo "  p) Repair permissions (fix files you cannot edit)"
             echo "  u) Uninstall"
-            read -rp "Select (r/p/u): " choice </dev/tty
+            read -rp "Select (s/c/a/r/p/u): " choice </dev/tty
             case "$choice" in
+                s|S) server_status ;;
+                c|C) server_passwd ;;
+                a|A) server_adduser ;;
                 u|U) server_uninstall ;;
                 r|R) server_install ;;
                 p|P) server_repair ;;
