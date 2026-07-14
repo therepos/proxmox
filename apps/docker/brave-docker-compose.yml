@@ -22,5 +22,5 @@ services:
       - seccomp=unconfined
     volumes:
       - /mnt/sec/media/shared:/home/kasm-user/Downloads
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+    # labels:
+    #   - "com.centurylinklabs.watchtower.enable=true"
