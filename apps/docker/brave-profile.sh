@@ -67,24 +67,30 @@ do_backup(){
   info "Backing up profile from ${CONTAINER}:${PROFILE_PATH}"
   mkdir -p "$BACKUP_DIR"
 
-  # Clear old backup contents first. The share (/mnt/sec) is root-owned, so
-  # only root can write it — do the delete via docker (the daemon runs as
-  # root). chmod +w before rm in case a prior run left read-only files.
-  docker run --rm -v "${BACKUP_DIR:?}:/b" busybox \
-    sh -c 'chmod -R u+w /b 2>/dev/null; rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
+  # Backup is a two-step copy, not a straight `docker cp` onto the share:
+  #   * /mnt/sec is a virtiofs share on a root-owned host dir. A root
+  #     `docker run` container writes it fine (the daemon is root), but
+  #     `docker cp` unpacks on the host as the *calling* user and can't.
+  #   * Brave's BrowserMetrics-spare.pma (and the BrowserMetrics dir) are
+  #     4 MiB *sparse* transient metrics buffers. docker cp cannot write
+  #     them onto virtiofs at all ("open: permission denied"), and Brave
+  #     recreates them on launch — so they don't belong in a backup.
+  # So: docker cp to a local staging dir (plain fs, copies everything),
+  # drop the transient metrics files, then mirror to the share from inside
+  # a root container and make the result readable so restore can read it.
+  local stage
+  stage="$(mktemp -d "${TMPDIR:-/tmp}/brave-backup.XXXXXX")" || fail "Could not create staging dir."
 
-  # Make the SOURCE profile writable before copying. Chromium writes some
-  # files read-only (e.g. BrowserMetrics-spare.pma, mode 0400). docker cp
-  # reproduces that mode on the destination, and /mnt/sec is a virtiofs
-  # share backed by a root-owned host dir where the mapped writer gets no
-  # DAC bypass — so creating a mode-0400 file there fails with
-  # "open ...: permission denied" while every 0644 file copies fine.
-  # Clearing +w on the source means every copied file lands writable.
-  docker exec -u 0 "$CONTAINER" chmod -R u+w "$PROFILE_PATH" 2>/dev/null || true
+  docker cp "${CONTAINER}:${PROFILE_PATH}/." "${stage}/" \
+    || { rm -rf "$stage"; fail "docker cp (backup) failed."; }
 
-  # Copy profile CONTENTS into BACKUP_DIR (trailing /. copies contents)
-  docker cp "${CONTAINER}:${PROFILE_PATH}/." "${BACKUP_DIR}/" \
-    || fail "docker cp (backup) failed."
+  docker run --rm -v "${stage}:/src" -v "${BACKUP_DIR:?}:/dst" busybox sh -c '
+      rm -rf /src/BrowserMetrics-spare.pma /src/BrowserMetrics 2>/dev/null
+      rm -rf /dst/* /dst/.[!.]* /dst/..?*                     2>/dev/null
+      cp -a /src/. /dst/ && chmod -R a+rX,u+w /dst
+    ' || { rm -rf "$stage"; fail "Copy to backup share failed."; }
+
+  rm -rf "$stage"
 
   ok "Backup complete -> ${BACKUP_DIR}"
   local sz; sz=$(du -sh "$BACKUP_DIR" 2>/dev/null | awk '{print $1}')
