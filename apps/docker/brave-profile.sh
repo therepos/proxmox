@@ -67,8 +67,10 @@ do_backup(){
   info "Backing up profile from ${CONTAINER}:${PROFILE_PATH}"
   mkdir -p "$BACKUP_DIR"
 
-  # Single backup: clear the target first so removed files don't linger.
-  rm -rf "${BACKUP_DIR:?}/"* 2>/dev/null || true
+  # Single backup: clear the target as root (via docker) so leftover
+  # root-owned files like BrowserMetrics-spare.pma can't block the copy.
+  docker run --rm -v "${BACKUP_DIR:?}:/b" busybox \
+    sh -c 'rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
 
   # Copy profile CONTENTS into BACKUP_DIR (trailing /. copies contents)
   docker cp "${CONTAINER}:${PROFILE_PATH}/." "${BACKUP_DIR}/" \
