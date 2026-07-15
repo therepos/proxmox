@@ -67,14 +67,20 @@ do_backup(){
   info "Backing up profile from ${CONTAINER}:${PROFILE_PATH}"
   mkdir -p "$BACKUP_DIR"
 
-  # Single backup: clear the target via docker (daemon has host access).
-  # chmod -R u+w FIRST: files like BrowserMetrics-spare.pma are written
-  # read-only, and on an SMB/CIFS share a read-only file can't be unlinked
-  # or overwritten until that attribute is cleared — which is why an rm
-  # alone (as root or as the owner) left it behind and docker cp then
-  # choked opening it. Clearing +w, then rm, works regardless of uid.
+  # Clear old backup contents first. The share (/mnt/sec) is root-owned, so
+  # only root can write it — do the delete via docker (the daemon runs as
+  # root). chmod +w before rm in case a prior run left read-only files.
   docker run --rm -v "${BACKUP_DIR:?}:/b" busybox \
     sh -c 'chmod -R u+w /b 2>/dev/null; rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
+
+  # Make the SOURCE profile writable before copying. Chromium writes some
+  # files read-only (e.g. BrowserMetrics-spare.pma, mode 0400). docker cp
+  # reproduces that mode on the destination, and /mnt/sec is a virtiofs
+  # share backed by a root-owned host dir where the mapped writer gets no
+  # DAC bypass — so creating a mode-0400 file there fails with
+  # "open ...: permission denied" while every 0644 file copies fine.
+  # Clearing +w on the source means every copied file lands writable.
+  docker exec -u 0 "$CONTAINER" chmod -R u+w "$PROFILE_PATH" 2>/dev/null || true
 
   # Copy profile CONTENTS into BACKUP_DIR (trailing /. copies contents)
   docker cp "${CONTAINER}:${PROFILE_PATH}/." "${BACKUP_DIR}/" \
