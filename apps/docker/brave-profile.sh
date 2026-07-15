@@ -67,9 +67,12 @@ do_backup(){
   info "Backing up profile from ${CONTAINER}:${PROFILE_PATH}"
   mkdir -p "$BACKUP_DIR"
 
-  # Single backup: clear the target as root (via docker) so leftover
-  # root-owned files like BrowserMetrics-spare.pma can't block the copy.
-  docker run --rm -v "${BACKUP_DIR:?}:/b" busybox \
+  # Single backup: clear the target via docker, running as the profile's
+  # owner (KASM_UID:KASM_GID) rather than root. On a network share like
+  # /mnt/sec (CIFS/NFS) root is squashed and cannot unlink the uid-1000
+  # files docker cp left behind (e.g. BrowserMetrics-spare.pma), but their
+  # actual owner can — so the copy no longer chokes overwriting them.
+  docker run --rm --user "${KASM_UID}:${KASM_GID}" -v "${BACKUP_DIR:?}:/b" busybox \
     sh -c 'rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
 
   # Copy profile CONTENTS into BACKUP_DIR (trailing /. copies contents)
