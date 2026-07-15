@@ -67,13 +67,14 @@ do_backup(){
   info "Backing up profile from ${CONTAINER}:${PROFILE_PATH}"
   mkdir -p "$BACKUP_DIR"
 
-  # Single backup: clear the target via docker, running as the profile's
-  # owner (KASM_UID:KASM_GID) rather than root. On a network share like
-  # /mnt/sec (CIFS/NFS) root is squashed and cannot unlink the uid-1000
-  # files docker cp left behind (e.g. BrowserMetrics-spare.pma), but their
-  # actual owner can — so the copy no longer chokes overwriting them.
-  docker run --rm --user "${KASM_UID}:${KASM_GID}" -v "${BACKUP_DIR:?}:/b" busybox \
-    sh -c 'rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
+  # Single backup: clear the target via docker (daemon has host access).
+  # chmod -R u+w FIRST: files like BrowserMetrics-spare.pma are written
+  # read-only, and on an SMB/CIFS share a read-only file can't be unlinked
+  # or overwritten until that attribute is cleared — which is why an rm
+  # alone (as root or as the owner) left it behind and docker cp then
+  # choked opening it. Clearing +w, then rm, works regardless of uid.
+  docker run --rm -v "${BACKUP_DIR:?}:/b" busybox \
+    sh -c 'chmod -R u+w /b 2>/dev/null; rm -rf /b/* /b/.[!.]* /b/..?* 2>/dev/null' || true
 
   # Copy profile CONTENTS into BACKUP_DIR (trailing /. copies contents)
   docker cp "${CONTAINER}:${PROFILE_PATH}/." "${BACKUP_DIR}/" \
