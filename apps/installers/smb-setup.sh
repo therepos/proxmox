@@ -65,10 +65,20 @@ MOUNTS=(
 )
 
 # Samba runs all file operations as root (force user = root). This is deliberate:
-# FileBrowser also runs as root, so files it creates are root-owned. Matching the
-# identity is what keeps those files editable over SMB.
+# FileBrowser also runs as root, so files it creates are root-owned. Files stay
+# owned by root, but the share is group 'sambausers' with setgid + default ACLs
+# (see apply_share_access) so VM users and containers reaching /mnt/sec over
+# virtiofs can read/write too — not just root over SMB.
 SHARE_OWNER="root"
-SHARE_OWNER_GROUP="root"
+SHARE_OWNER_GROUP="$SAMBA_GROUP"   # group-own the share so members can write
+
+# Extra UIDs that get direct read/write via a default ACL. These are the VM
+# users and containers (e.g. the Brave/Kasm container, uid 1000) that reach the
+# share through virtiofs. Naming the UID directly is deliberate: the
+# 'sambausers' group has different GID numbers on the host and inside the VM, so
+# group membership alone does not carry across virtiofs — a named-UID ACL does.
+# Space-separated; override via env. Set to "" to disable.
+SHARE_ACCESS_UIDS="${SHARE_ACCESS_UIDS:-1000}"
 
 SMB_USER="${SMB_USER:-toor}"
 SMB_PASS="${SMB_PASS:-}"   # prompted at install time; never hardcoded
@@ -137,6 +147,34 @@ check_server() {
     return $((1 - found))
 }
 
+# Make a share path writable by everyone who needs it — SMB clients (via
+# force user = root), FileBrowser (root), and VM users / containers (uid 1000)
+# reaching it over virtiofs. Files stay root-owned; access for the rest comes
+# from group ownership + setgid + ACLs:
+#   * chgrp to $SAMBA_GROUP + setgid on dirs  -> new files inherit the group.
+#   * default ACLs for the group AND each $SHARE_ACCESS_UIDS -> every file,
+#     existing or created later by ANY app, is writable by them regardless of
+#     the creator's umask (this is what tames root-owned FileBrowser/SMB files).
+# Requires the 'acl' package (installed by server_install). Idempotent.
+apply_share_access() {
+    local path="$1"
+    [[ -d "$path" ]] || return 0
+
+    chgrp -R "$SAMBA_GROUP" "$path" 2>/dev/null || true
+    chmod -R g+rwX "$path"
+    find "$path" -type d -exec chmod g+s {} + 2>/dev/null || true
+
+    if command -v setfacl >/dev/null 2>&1; then
+        local spec="g:${SAMBA_GROUP}:rwX" u
+        for u in $SHARE_ACCESS_UIDS; do spec="${spec},u:${u}:rwX"; done
+        # Apply to existing tree and as the inherited default for new entries.
+        setfacl -R    -m "$spec" "$path" 2>/dev/null || warn "setfacl (existing) failed on $path"
+        setfacl -R -d -m "$spec" "$path" 2>/dev/null || warn "setfacl (default) failed on $path"
+    else
+        warn "acl tools not found; skipping ACLs (install the 'acl' package)."
+    fi
+}
+
 server_install() {
     info "Setting up Samba server..."
 
@@ -198,18 +236,15 @@ GLOBAL_EOF
             exit 1
         fi
 
-        # Samba operates as root on this share (see 'force user' below), so the
-        # on-disk owner is root too. Do NOT chown to a normal user here: that is
-        # what broke editing before — FileBrowser (running as root) creates
-        # root-owned files that a non-root Samba then cannot modify.
+        # Owner stays root (FileBrowser and force-user=root Samba create files
+        # as root), but the share is group-owned by $SAMBA_GROUP and made
+        # writable to the group + the VM/container UIDs via setgid and ACLs, so
+        # VM users reaching /mnt/sec over virtiofs can read/write too.
         chown -R "${SHARE_OWNER}:${SHARE_OWNER_GROUP}" "$SHARE_PATH"
-
-        # 2775 = setgid + group-writable. Group inheritance keeps new files
-        # consistent even if something else writes here later.
         chmod -R 2775 "$SHARE_PATH"
-        chmod g+s "$SHARE_PATH"
+        apply_share_access "$SHARE_PATH"
 
-        ok "Permissions set on '$SHARE_PATH' (owner ${SHARE_OWNER})."
+        ok "Permissions set on '$SHARE_PATH' (owner ${SHARE_OWNER}, group ${SAMBA_GROUP} + ACLs)."
 
         # force user = root is the key line. Clients still authenticate as
         # '$SMB_USER', but every read/write executes as root — so anything
@@ -355,8 +390,9 @@ server_adduser() {
     info "This user can now access all shares (valid users = @${SAMBA_GROUP})."
 }
 
-# Repair ownership on files created before this fix (or by any writer that used
-# a different UID). Safe to re-run; idempotent.
+# Repair ownership/permissions on files created before this fix (or by any
+# writer that used a different UID). Safe to re-run; idempotent. Run this to
+# retro-fix VM/container write access on an already-installed share.
 server_repair() {
     info "Repairing share permissions..."
     echo ""
@@ -365,13 +401,14 @@ server_repair() {
         [[ -d "$SHARE_PATH" ]] || { echo "Skipping $SHARE_PATH (not present)"; continue; }
         echo "Repairing $SHARE_PATH ..."
         chown -R "${SHARE_OWNER}:${SHARE_OWNER_GROUP}" "$SHARE_PATH"
-        chmod -R u+rwX,g+rwX "$SHARE_PATH"
-        find "$SHARE_PATH" -type d -exec chmod g+s {} + 2>/dev/null || true
+        chmod -R u+rwX "$SHARE_PATH"
+        apply_share_access "$SHARE_PATH"
         ok "  done."
     done
     echo ""
     echo "=== Repair complete ==="
-    echo "Existing files are now owned by ${SHARE_OWNER} and editable over SMB."
+    echo "Files stay owned by ${SHARE_OWNER}; group ${SAMBA_GROUP} + ACLs make"
+    echo "them read/write for VM users, containers (uid ${SHARE_ACCESS_UIDS// /, }), and SMB."
 }
 
 server_uninstall() {
