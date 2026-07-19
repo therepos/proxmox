@@ -1,4 +1,4 @@
-# docker pull ghcr.io/therepos/kasm-images/upscayl:latest
+# docker pull ghcr.io/therepos/kasm/upscayl:latest
 # deploy via portainer stack
 
 services:
