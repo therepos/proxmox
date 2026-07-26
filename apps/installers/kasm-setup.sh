@@ -3,9 +3,10 @@
 # Purpose: Install Kasm Workspaces (Ubuntu)
 # =============================================================================
 # Usage:
-#   - No existing install       -> fresh install
-#   - Existing install found    -> upgrade (with database backup)
-#   - Already on target version -> skip, nothing to do
+#   No args (interactive):
+#     - No existing install     -> fresh install
+#     - Existing install found  -> menu: upgrade / uninstall / exit
+#   CLI arg (non-interactive):  install | upgrade | uninstall
 #
 # Defaults:
 #   Password                                            (default: password)
@@ -14,6 +15,12 @@
 #   KASM_PORT           Web UI port                     (default: 443)
 #   SKIP_QEMU_AGENT     Set "true" to skip              (default: false)
 #   SKIP_PERSISTENT     Set "true" to skip dirs         (default: false)
+#
+# Uninstall flags (opt-in; also prompted interactively):
+#   REMOVE_DATA         Delete /data/kasm-profiles + -shared  (default: false)
+#   REMOVE_SWAP         Remove the install swap file          (default: false)
+#   REMOVE_DOCKER       Purge the Docker engine               (default: false)
+#   FORCE               Skip the uninstall confirmation       (default: false)
 # =============================================================================
 
 set -euo pipefail
@@ -42,21 +49,212 @@ KASM_SWAP_GB="${KASM_SWAP_GB:-4}"
 KASM_PORT="${KASM_PORT:-443}"
 SKIP_QEMU_AGENT="${SKIP_QEMU_AGENT:-false}"
 SKIP_PERSISTENT="${SKIP_PERSISTENT:-false}"
+FORCE="${FORCE:-false}"
 DEFAULT_PASS="password"
 
-# Auto-detect mode
-MODE="install"
-EXISTING_VERSION=""
+# --- Menu helpers ------------------------------------------------------------
+asknum(){ # asknum "prompt" "min" "max" "default"
+  local p="$1" min="$2" max="$3" def="$4" in
+  while true; do
+    if [[ -r /dev/tty ]]; then
+      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
+    else
+      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in || in="$def"
+    fi
+    in="${in:-$def}"
+    [[ "$in" =~ ^[0-9]+$ ]] || { echo "Enter a number."; continue; }
+    (( in==0 || (in>=min && in<=max) )) && { echo "$in"; return; }
+  done
+}
 
-if [[ -d /opt/kasm/current ]]; then
-    EXISTING_VERSION=$(readlink -f /opt/kasm/current | grep -oP '\d+\.\d+\.\d+' || true)
+askyn(){ # askyn "prompt"  -> exit 0 if yes
+  local p="$1" in=""
+  if [[ -r /dev/tty ]]; then
+    read -rp "$p [y/N]: " in </dev/tty || in=""
+  else
+    read -rp "$p [y/N]: " in || in=""
+  fi
+  [[ "$in" =~ ^[Yy]([Ee][Ss])?$ ]]
+}
 
-    if [[ "$EXISTING_VERSION" == "$KASM_VERSION" ]]; then
-        ok "Kasm ${KASM_VERSION} is already installed. Nothing to do."
-        exit 0
+# --- Uninstall ---------------------------------------------------------------
+uninstall_kasm(){
+  local HAVE_DOCKER=false
+  command -v docker >/dev/null 2>&1 && HAVE_DOCKER=true
+
+  # Optional removals: an explicit env flag wins; otherwise ask when interactive.
+  local remove_data="${REMOVE_DATA:-false}"
+  local remove_swap="${REMOVE_SWAP:-false}"
+  local remove_docker="${REMOVE_DOCKER:-false}"
+
+  if [[ "$FORCE" != "true" && -r /dev/tty ]]; then
+    askyn "Uninstall Kasm? Removes all containers, images and /opt/kasm" \
+      || { warn "Aborted. Nothing was changed."; return 0; }
+    if [[ "$remove_data" != "true" ]] && { [[ -d /data/kasm-profiles ]] || [[ -d /data/kasm-shared ]]; }; then
+      askyn "Also delete user data in /data/kasm-profiles and /data/kasm-shared?" && remove_data=true
+    fi
+    if [[ "$remove_swap" != "true" && -f "/mnt/${KASM_SWAP_GB}GiB.swap" ]]; then
+      askyn "Also remove the swap file /mnt/${KASM_SWAP_GB}GiB.swap?" && remove_swap=true
+    fi
+    if [[ "$remove_docker" != "true" && "$HAVE_DOCKER" == "true" ]]; then
+      askyn "Also purge the Docker engine? (other containers will be lost)" && remove_docker=true
+    fi
+  fi
+
+  echo ""
+
+  # Stop services
+  if [[ -x /opt/kasm/current/bin/stop ]]; then
+    info "Stopping Kasm services..."
+    bash /opt/kasm/current/bin/stop >/dev/null 2>&1 || warn "Stop script returned an error - continuing."
+    ok "Kasm services stopped."
+  fi
+
+  if [[ "$HAVE_DOCKER" == "true" ]]; then
+    info "Removing Kasm containers..."
+    mapfile -t _containers < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep '^kasm_' || true)
+    if [[ ${#_containers[@]} -gt 0 ]]; then
+      docker rm -f "${_containers[@]}" >/dev/null 2>&1 || true
+      ok "Removed ${#_containers[@]} container(s)."
+    else
+      ok "No Kasm containers found."
     fi
 
+    info "Removing Kasm images..."
+    mapfile -t _images < <(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -i '^kasmweb/' || true)
+    if [[ ${#_images[@]} -gt 0 ]]; then
+      docker rmi -f "${_images[@]}" >/dev/null 2>&1 || true
+      ok "Removed ${#_images[@]} image(s)."
+    else
+      ok "No Kasm images found."
+    fi
+
+    info "Removing Kasm networks..."
+    mapfile -t _networks < <(docker network ls --format '{{.Name}}' 2>/dev/null | grep -i 'kasm' || true)
+    if [[ ${#_networks[@]} -gt 0 ]]; then
+      docker network rm "${_networks[@]}" >/dev/null 2>&1 || true
+      ok "Removed ${#_networks[@]} network(s)."
+    else
+      ok "No Kasm networks found."
+    fi
+
+    info "Removing Kasm volumes..."
+    mapfile -t _volumes < <(docker volume ls --format '{{.Name}}' 2>/dev/null | grep -i 'kasm' || true)
+    if [[ ${#_volumes[@]} -gt 0 ]]; then
+      docker volume rm "${_volumes[@]}" >/dev/null 2>&1 || true
+      ok "Removed ${#_volumes[@]} volume(s)."
+    else
+      ok "No Kasm volumes found."
+    fi
+  else
+    warn "Docker not found - skipping container/image cleanup."
+  fi
+
+  if [[ -d /opt/kasm ]]; then
+    info "Removing /opt/kasm..."
+    rm -rf /opt/kasm
+    ok "Removed /opt/kasm."
+  fi
+
+  if [[ "$remove_swap" == "true" ]]; then
+    local swap_file="/mnt/${KASM_SWAP_GB}GiB.swap"
+    if [[ -f "$swap_file" ]]; then
+      info "Removing swap file ${swap_file}..."
+      swapoff "$swap_file" 2>/dev/null || true
+      sed -i "\#^${swap_file} #d" /etc/fstab 2>/dev/null || true
+      rm -f "$swap_file"
+      ok "Swap file removed and fstab entry cleaned."
+    else
+      warn "Swap file ${swap_file} not found - skipping."
+    fi
+  fi
+
+  if [[ "$remove_data" == "true" ]]; then
+    local d
+    for d in /data/kasm-profiles /data/kasm-shared; do
+      if [[ -d "$d" ]]; then
+        info "Removing ${d}..."
+        rm -rf "$d"
+        ok "Removed ${d}."
+      fi
+    done
+  elif [[ -d /data/kasm-profiles || -d /data/kasm-shared ]]; then
+    info "Keeping user data (set REMOVE_DATA=true to delete):"
+    [[ -d /data/kasm-profiles ]] && echo "    /data/kasm-profiles"
+    [[ -d /data/kasm-shared ]]   && echo "    /data/kasm-shared"
+  fi
+
+  if [[ "$remove_docker" == "true" && "$HAVE_DOCKER" == "true" ]]; then
+    info "Purging Docker engine..."
+    export DEBIAN_FRONTEND=noninteractive
+    systemctl disable --now docker 2>/dev/null || true
+    systemctl disable --now containerd 2>/dev/null || true
+    apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null 2>&1 || true
+    apt-get autoremove -y -qq >/dev/null 2>&1 || true
+    rm -rf /var/lib/docker /var/lib/containerd
+    ok "Docker engine purged."
+  fi
+
+  echo ""
+  echo "Uninstall Complete"
+  echo "================================================="
+  echo ""
+  echo "  Kasm Workspaces has been removed."
+  [[ "$remove_data" != "true" && ( -d /data/kasm-profiles || -d /data/kasm-shared ) ]] && \
+    echo "  User data was preserved under /data (see above)."
+  [[ "$remove_docker" != "true" && "$HAVE_DOCKER" == "true" ]] && \
+    echo "  Docker was left installed (other containers may depend on it)."
+  echo ""
+}
+
+# --- Determine action --------------------------------------------------------
+ACTION="${1:-}"
+
+MODE="install"
+EXISTING_VERSION=""
+if [[ -d /opt/kasm/current ]]; then
+    EXISTING_VERSION=$(readlink -f /opt/kasm/current | grep -oP '\d+\.\d+\.\d+' || true)
     MODE="upgrade"
+fi
+
+if [[ -n "$ACTION" ]]; then
+    # Non-interactive dispatch (e.g. Webmin, automation).
+    case "$ACTION" in
+        uninstall)      uninstall_kasm; exit 0 ;;
+        install|upgrade) MODE="$ACTION" ;;
+        help|-h|--help)  echo "Usage: kasm-setup.sh [install|upgrade|uninstall]"; exit 0 ;;
+        *) fail "Unknown action '$ACTION' (try: install|upgrade|uninstall)" ;;
+    esac
+elif [[ -d /opt/kasm/current ]]; then
+    # Existing install found.
+    if [[ -r /dev/tty ]]; then
+        echo ""
+        echo "Kasm ${EXISTING_VERSION:-unknown} is installed (target ${KASM_VERSION})."
+        if [[ "$EXISTING_VERSION" == "$KASM_VERSION" ]]; then
+            echo "  1) Uninstall"
+            echo "  0) Exit"
+            case "$(asknum 'Enter choice' 1 1 1)" in
+                0) ok "Nothing to do."; exit 0 ;;
+                1) uninstall_kasm; exit 0 ;;
+            esac
+        else
+            echo "  1) Upgrade to ${KASM_VERSION}"
+            echo "  2) Uninstall"
+            echo "  0) Exit"
+            case "$(asknum 'Enter choice' 1 2 1)" in
+                0) ok "Nothing to do."; exit 0 ;;
+                1) MODE="upgrade" ;;
+                2) uninstall_kasm; exit 0 ;;
+            esac
+        fi
+    else
+        # Non-interactive with no arg: preserve original automated behavior.
+        if [[ "$EXISTING_VERSION" == "$KASM_VERSION" ]]; then
+            ok "Kasm ${KASM_VERSION} is already installed. Nothing to do."
+            exit 0
+        fi
+        MODE="upgrade"
+    fi
 fi
 
 echo ""
