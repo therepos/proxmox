@@ -15,8 +15,15 @@
 #   gpu-setup snapshot                   Save diagnostics to /root/
 #
 # VM commands (Ubuntu VM only):
-#   gpu-setup driver                     Install NVIDIA driver + container toolkit
+#   gpu-setup driver                     Install NVIDIA driver (auto: desktop/compute)
+#   gpu-setup driver --desktop           Force full driver + Vulkan/OpenGL
+#   gpu-setup driver --compute           Force headless (CUDA/Docker only)
 #   gpu-setup driver --uninstall         Remove NVIDIA driver + container toolkit
+#
+# Env overrides:
+#   NVIDIA_DRIVER_VERSION=610            Pin driver branch
+#   GPU_PROFILE=desktop|compute          Override profile auto-detection
+#   USE_GRAPHICS_PPA=1                   Enable graphics-drivers PPA (off by default)
 #
 # Non-interactive (for Webmin custom commands):
 #   bash -c "$(wget -qLO- ...)" -- bind 200 -y
@@ -67,7 +74,7 @@ if is_proxmox_host; then
 fi
 
 # --- Version -----------------------------------------------------------------
-SCRIPT_VERSION="2.0.0"
+SCRIPT_VERSION="2.1.0"
 
 # --- UI ----------------------------------------------------------------------
 # Detect non-interactive mode early (full arg parsing happens in main)
@@ -1370,6 +1377,72 @@ require_host() {
   fi
 }
 
+# --- Driver profile + verification helpers -----------------------------------
+# GPU_PROFILE selects the driver stack:
+#   compute — nvidia-headless + nvidia-utils (CUDA/Docker only, no GL/Vulkan)
+#   desktop — full nvidia-driver + libnvidia-gl + Vulkan loader (graphics apps)
+resolve_gpu_profile() {
+  # Explicit override (env var or --desktop/--compute flag) always wins.
+  if [[ -n "${GPU_PROFILE:-}" ]]; then
+    case "$GPU_PROFILE" in
+      compute|desktop) return 0 ;;
+      *) die "Invalid GPU_PROFILE='${GPU_PROFILE}' (expected 'compute' or 'desktop')." ;;
+    esac
+  fi
+
+  # Auto-detect: desktop if a graphical stack is present, otherwise compute.
+  if dpkg -s xserver-xorg-core &>/dev/null \
+     || [[ -n "${XDG_SESSION_TYPE:-}" ]] \
+     || [[ -x /usr/bin/Xorg ]]; then
+    GPU_PROFILE="desktop"
+  else
+    GPU_PROFILE="compute"
+  fi
+}
+
+# Guard against NVIDIA branches whose libnvidia-glcore references glibc malloc
+# hooks (__malloc_hook etc.) removed in glibc 2.36. Such a library cannot be
+# dlopen'd, so Vulkan/GL silently fall back to CPU (llvmpipe). Desktop only —
+# the compute stack never loads libnvidia-glcore.
+check_glibc_compat() {
+  local glcore glibc_ver
+  glcore=$(ls /usr/lib/x86_64-linux-gnu/libnvidia-glcore.so.* 2>/dev/null | head -1) || return 0
+  [[ -n "$glcore" ]] || return 0
+  glibc_ver=$(ldd --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+$' || true)
+  [[ -n "$glibc_ver" ]] || return 0
+  if nm -D "$glcore" 2>/dev/null | grep -q '__malloc_hook'; then
+    if [[ "$(printf '%s\n2.36\n' "$glibc_ver" | sort -V | head -1)" == "2.36" ]]; then
+      warn "Driver branch ${BRANCH:-current} references glibc symbols removed in 2.36 (system has ${glibc_ver})."
+      warn "Graphics/Vulkan will NOT work on this branch. Use a newer branch:"
+      warn "  NVIDIA_DRIVER_VERSION=<newer> gpu-setup driver --desktop"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# Real verification of the installed stack for the active profile. Returns 0
+# only when the profile's graphics/compute path is actually usable.
+verify_gpu_stack() {
+  nvidia-smi &>/dev/null || return 1
+
+  if [[ "${GPU_PROFILE:-}" == "desktop" ]]; then
+    # Vulkan ICD manifest must be present.
+    [[ -f /usr/share/vulkan/icd.d/nvidia_icd.json ]] || return 1
+
+    # vulkaninfo must enumerate at least one real (non-CPU) device. Its benign
+    # headless errors (DISPLAY not set, XDG_RUNTIME_DIR, display-KHR probes) go
+    # to stderr and are irrelevant — grep only for enumerated deviceName lines.
+    local devices
+    devices=$(vulkaninfo --summary 2>/dev/null | grep -oP 'deviceName\s+=\s+\K.*' || true)
+    echo "$devices" | grep -viE 'llvmpipe|lavapipe' | grep -q . || return 1
+
+    # glibc symbol compatibility (silent CPU fallback otherwise).
+    check_glibc_compat || return 1
+  fi
+  return 0
+}
+
 mode_driver_install() {
   require_vm
 
@@ -1377,6 +1450,10 @@ mode_driver_install() {
   echo "NVIDIA GPU Driver — Install"
   echo "================================================="
   echo ""
+
+  # Resolve driver profile (compute vs desktop) and announce it.
+  resolve_gpu_profile
+  info "Driver profile: ${GPU_PROFILE}"
 
   # Check for NVIDIA GPU
   info "Checking for NVIDIA GPU..."
@@ -1393,55 +1470,100 @@ mode_driver_install() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq ubuntu-drivers-common curl gnupg2 ca-certificates > /dev/null 2>&1
+  # binutils provides 'nm', used by the glibc compatibility guard (desktop only).
+  [[ "${GPU_PROFILE}" == "desktop" ]] && apt-get install -y -qq binutils > /dev/null 2>&1
   say "Prerequisites installed."
 
   # Install NVIDIA driver
   local NEEDS_REBOOT=false
   local CURRENT_DRIVER=""
   local DRIVER_PKG=""
-  local UTILS_PKG=""
+  local BRANCH=""
+  local DRIVER_PKGS=()
 
-  if has_cmd nvidia-smi && nvidia-smi &> /dev/null; then
+  # "Already installed" fast-path: only skip when nvidia-smi works AND the
+  # profile's real verification passes. A working nvidia-smi with a broken
+  # graphics stack (the original bug) now falls through and repairs.
+  if has_cmd nvidia-smi && nvidia-smi &>/dev/null && verify_gpu_stack; then
     CURRENT_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
-    say "NVIDIA driver already installed (version: ${CURRENT_DRIVER}). Skipping driver install."
+    say "NVIDIA driver already installed and verified (version: ${CURRENT_DRIVER}, profile: ${GPU_PROFILE}). Skipping driver install."
   else
-    info "Installing NVIDIA driver..."
+    if has_cmd nvidia-smi && nvidia-smi &>/dev/null; then
+      warn "nvidia-smi works but the ${GPU_PROFILE} graphics stack failed verification — repairing."
+    fi
+    info "Installing NVIDIA driver (${GPU_PROFILE} profile)..."
 
-    add-apt-repository -y ppa:graphics-drivers/ppa > /dev/null 2>&1
     apt-get update -qq
 
+    # graphics-drivers PPA is opt-in (USE_GRAPHICS_PPA=1) and only added when the
+    # main archive genuinely has no nvidia-driver-* candidate.
+    if [[ "${USE_GRAPHICS_PPA:-0}" == "1" ]]; then
+      if apt-cache search --names-only '^nvidia-driver-[0-9]' 2>/dev/null | grep -q .; then
+        info "graphics-drivers PPA not needed (archive already provides nvidia-driver)."
+      else
+        info "Enabling graphics-drivers PPA (USE_GRAPHICS_PPA=1, no archive candidate)..."
+        add-apt-repository -y ppa:graphics-drivers/ppa > /dev/null 2>&1
+        apt-get update -qq
+      fi
+    fi
+
     if [[ -n "${NVIDIA_DRIVER_VERSION:-}" ]]; then
-      DRIVER_PKG="nvidia-headless-${NVIDIA_DRIVER_VERSION}"
-      UTILS_PKG="nvidia-utils-${NVIDIA_DRIVER_VERSION}"
-      info "Using specified driver branch: ${NVIDIA_DRIVER_VERSION}"
+      BRANCH="${NVIDIA_DRIVER_VERSION}"
+      info "Using specified driver branch: ${BRANCH}"
     else
       info "Detecting recommended driver..."
       local DRIVER_LIST
       DRIVER_LIST=$(ubuntu-drivers list 2>/dev/null || true)
 
-      local DRIVER_BRANCH
-      DRIVER_BRANCH=$(echo "$DRIVER_LIST" \
-        | grep -oP 'nvidia-driver-\K[0-9]+(?=-server)' \
-        | sort -n | tail -1)
-
-      if [[ -z "$DRIVER_BRANCH" ]]; then
-        DRIVER_BRANCH=$(echo "$DRIVER_LIST" \
+      if [[ "${GPU_PROFILE}" == "desktop" ]]; then
+        # Desktop: prefer the plain (non-server) branch; -server is fallback.
+        BRANCH=$(echo "$DRIVER_LIST" \
+          | grep -v -- '-server' \
           | grep -oP 'nvidia-driver-\K[0-9]+' \
           | sort -n | tail -1)
+        if [[ -z "$BRANCH" ]]; then
+          BRANCH=$(echo "$DRIVER_LIST" \
+            | grep -oP 'nvidia-driver-\K[0-9]+(?=-server)' \
+            | sort -n | tail -1)
+        fi
+      else
+        # Compute: prefer the -server branch; plain is fallback (original behaviour).
+        BRANCH=$(echo "$DRIVER_LIST" \
+          | grep -oP 'nvidia-driver-\K[0-9]+(?=-server)' \
+          | sort -n | tail -1)
+        if [[ -z "$BRANCH" ]]; then
+          BRANCH=$(echo "$DRIVER_LIST" \
+            | grep -oP 'nvidia-driver-\K[0-9]+' \
+            | sort -n | tail -1)
+        fi
       fi
 
-      [[ -n "$DRIVER_BRANCH" ]] || die "Could not detect a suitable NVIDIA driver. Try setting NVIDIA_DRIVER_VERSION manually."
-
-      DRIVER_PKG="nvidia-headless-${DRIVER_BRANCH}"
-      UTILS_PKG="nvidia-utils-${DRIVER_BRANCH}"
-      info "Recommended driver branch: ${DRIVER_BRANCH}"
+      [[ -n "$BRANCH" ]] || die "Could not detect a suitable NVIDIA driver. Try setting NVIDIA_DRIVER_VERSION manually."
+      info "Recommended driver branch: ${BRANCH}"
     fi
 
-    apt-get install -y -qq "${DRIVER_PKG}" "${UTILS_PKG}" > /dev/null 2>&1 \
-      || die "Failed to install ${DRIVER_PKG}. Try a different NVIDIA_DRIVER_VERSION."
+    # Package selection by profile. nvidia-driver-* already pulls the GL/Vulkan
+    # libraries, but libnvidia-gl-* is listed explicitly so a partial/mismatched
+    # install fails at apt time rather than silently at runtime.
+    if [[ "${GPU_PROFILE}" == "desktop" ]]; then
+      DRIVER_PKGS=("nvidia-driver-${BRANCH}" "libnvidia-gl-${BRANCH}" "libvulkan1" "vulkan-tools")
+      DRIVER_PKG="nvidia-driver-${BRANCH}"
+    else
+      DRIVER_PKGS=("nvidia-headless-${BRANCH}" "nvidia-utils-${BRANCH}")
+      DRIVER_PKG="nvidia-headless-${BRANCH}"
+    fi
+
+    apt-get install -y -qq "${DRIVER_PKGS[@]}" > /dev/null 2>&1 \
+      || die "Failed to install ${DRIVER_PKGS[*]}. Try a different NVIDIA_DRIVER_VERSION."
 
     say "NVIDIA driver installed (${DRIVER_PKG})."
     NEEDS_REBOOT=true
+
+    # glibc compatibility guard (desktop only). A hard stop is preferable to a
+    # silent CPU fallback, so die rather than warn.
+    if [[ "${GPU_PROFILE}" == "desktop" ]]; then
+      check_glibc_compat || die "Selected driver branch ${BRANCH} is incompatible with this system's glibc — aborting."
+    fi
   fi
 
   # Docker integration (optional)
@@ -1515,6 +1637,19 @@ mode_driver_install() {
   fi
   echo ""
 
+  # Post-install verification. The kernel module is not loaded until reboot, so
+  # skip verification (with a note) when a reboot is pending.
+  if [[ "${NEEDS_REBOOT}" == "true" ]]; then
+    info "Skipping stack verification until reboot (kernel module not yet loaded)."
+  else
+    info "Verifying ${GPU_PROFILE} GPU stack..."
+    if verify_gpu_stack; then
+      say "GPU stack verified (${GPU_PROFILE})."
+    else
+      die "GPU stack verification failed for the ${GPU_PROFILE} profile. See warnings above."
+    fi
+  fi
+
   # Exit-code contract for orchestrators (e.g. vm-setup.sh):
   #   0  = driver present/loaded, no reboot needed
   #   10 = driver freshly installed, REBOOT REQUIRED to load the kernel module
@@ -1568,16 +1703,23 @@ except:
     fi
   fi
 
-  # Remove NVIDIA driver packages
+  # Remove NVIDIA driver packages. Match every nvidia-/libnvidia- userspace
+  # package (the old regex missed libnvidia-*, nvidia-firmware-*,
+  # nvidia-compute-utils-*, leaving orphaned libs that later trip
+  # "Failed to initialize NVML: Driver/library version mismatch"). The
+  # container toolkit (nvidia-container-*) is handled separately above.
   local nvidia_pkgs
-  nvidia_pkgs=$(dpkg -l | grep -E '^ii\s+(nvidia-headless|nvidia-utils|nvidia-driver|nvidia-dkms|nvidia-kernel)' | awk '{print $2}' || true)
+  nvidia_pkgs=$(dpkg -l | awk '/^ii/ && $2 ~ /^(nvidia-|libnvidia-)/ && $2 !~ /^nvidia-container/ {print $2}' || true)
   if [[ -n "$nvidia_pkgs" ]]; then
     info "Removing NVIDIA driver packages..."
     # shellcheck disable=SC2086
-    apt-get remove -y -qq $nvidia_pkgs > /dev/null 2>&1
+    apt-get purge -y -qq $nvidia_pkgs > /dev/null 2>&1
     apt-get autoremove -y -qq > /dev/null 2>&1
+    # Refresh the linker cache so no stale NVIDIA .so entries linger.
+    ldconfig
     say "NVIDIA driver packages removed."
     removed_something=true
+    # vulkan-tools / libvulkan1 are shared, harmless, and left in place.
   fi
 
   # Remove PPA if added
@@ -1625,11 +1767,13 @@ case "$MODE" in
   revert)    require_host; mode_revert ;;
   # VM commands
   driver)
-    if [[ "${2:-}" == "--uninstall" ]]; then
-      mode_driver_uninstall
-    else
-      mode_driver_install
-    fi
+    case "${2:-}" in
+      --uninstall) mode_driver_uninstall ;;
+      --desktop)   GPU_PROFILE="desktop"; mode_driver_install ;;
+      --compute)   GPU_PROFILE="compute"; mode_driver_install ;;
+      "")          mode_driver_install ;;
+      *) err "Unknown driver option: ${2}"; echo "Valid: --desktop | --compute | --uninstall"; exit 1 ;;
+    esac
     ;;
   --version|-v) echo "gpu-setup v${SCRIPT_VERSION}" ;;
   --help|-h)
@@ -1642,9 +1786,16 @@ case "$MODE" in
     echo "  bind [VMID|free]    Assign GPU to a VM (or free it)"
     echo "  revert              Undo all changes made by this script"
     echo
-    echo "VM commands:"
-    echo "  driver              Install NVIDIA driver + container toolkit"
+    echo "VM commands (Ubuntu VM only):"
+    echo "  driver              Install NVIDIA driver (auto: desktop/compute)"
+    echo "  driver --desktop    Force full driver + Vulkan/OpenGL"
+    echo "  driver --compute    Force headless (CUDA/Docker only)"
     echo "  driver --uninstall  Remove NVIDIA driver + container toolkit"
+    echo
+    echo "Env overrides:"
+    echo "  NVIDIA_DRIVER_VERSION=610      Pin driver branch"
+    echo "  GPU_PROFILE=desktop|compute    Override profile auto-detection"
+    echo "  USE_GRAPHICS_PPA=1             Enable graphics-drivers PPA (off by default)"
     echo
     echo "Options:"
     echo "  -y, --yes           Non-interactive mode (auto-confirm all prompts)"
