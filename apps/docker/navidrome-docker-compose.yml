@@ -11,9 +11,10 @@ services:
       ND_LOGLEVEL: info
       ND_PORT: 4533
       ND_SESSIONTIMEOUT: "168h"
-      # Do not index the public downloads staging folder (metube writes here);
-      # keeps public grabs out of the library and avoids 'missing' ghosts on move.
-      ND_SCANNER_IGNOREDPATTERNS: "downloads/**"
+      # The public downloads staging folder (metube writes to /music/downloads) is
+      # kept out of the library by a blank .ndignore file in that folder, which the
+      # metube-tag overlay creates. Scanner.IgnoredPatterns does NOT reliably exclude
+      # it (still indexed on Navidrome 0.63), so .ndignore is the mechanism used.
       # Purge DB entries whose files are gone (e.g. moved out of downloads) on full scans.
       ND_SCANNER_PURGEMISSING: "full"
     volumes:
