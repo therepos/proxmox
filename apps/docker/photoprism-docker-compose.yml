@@ -30,13 +30,14 @@ services:
     ## Use photoprism/photoprism:preview for testing preview builds:
     image: photoprism/photoprism:latest
     container_name: photoprism
-    ## Don't enable automatic restarts until PhotoPrism has been properly configured and tested!
     ## If the service gets stuck in a restart loop, this points to a memory, filesystem, network, or database issue:
     ## https://docs.photoprism.app/getting-started/troubleshooting/#fatal-server-errors
-    # restart: unless-stopped
+    restart: unless-stopped
     stop_grace_period: 10s
+    ## Wait for MariaDB to be healthy (not just started) so PhotoPrism doesn't exit on a not-yet-ready database:
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
     security_opt:
       - seccomp=unconfined
       - apparmor:unconfined
@@ -129,6 +130,13 @@ services:
       - seccomp=unconfined
       - apparmor:unconfined
     command: --innodb-buffer-pool-size=512M --transaction-isolation=READ-COMMITTED --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --max-connections=512 --innodb-rollback-on-timeout=OFF --innodb-lock-wait-timeout=120
+    ## Healthcheck so PhotoPrism's "condition: service_healthy" only starts it once the database is ready:
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     ## Never store database files on an unreliable device such as a USB flash drive, an SD card, or a shared network folder:
     volumes:
       - "./database:/var/lib/mysql" # DO NOT REMOVE
