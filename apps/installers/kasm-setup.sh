@@ -4,9 +4,9 @@
 # =============================================================================
 # Usage:
 #   No args (interactive):
-#     - No existing install     -> fresh install
-#     - Existing install found  -> menu: upgrade / uninstall / exit
-#   CLI arg (non-interactive):  install | upgrade | uninstall
+#     - No existing install     -> menu: install / guide / exit
+#     - Existing install found  -> menu: update / uninstall / guide / exit
+#   CLI arg (non-interactive):  install | upgrade | uninstall | guide
 #
 # Defaults:
 #   Password                                            (default: password)
@@ -257,6 +257,78 @@ uninstall_kasm(){
   echo ""
 }
 
+# --- Post-install guide ------------------------------------------------------
+# Login credentials, getting-started steps and the persistent-profiles guide.
+# Shown after a fresh install and on demand via the menu / `guide` argument.
+show_guide(){
+  local ip port
+  ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"; [[ -n "$ip" ]] || ip="<this-vm-ip>"
+  port="$(docker port kasm_proxy 2>/dev/null | awk -F: 'NR==1{print $2}' || true)"
+  [[ -n "$port" ]] || port="${KASM_PORT}"
+
+  echo ""
+  echo "Kasm UI Login Credentials"
+  echo "================================================="
+  echo ""
+  echo "  Web UI        https://${ip}:${port}"
+  echo ""
+  echo "  Admin login   admin@kasm.local"
+  echo "  User login    user@kasm.local"
+  echo "  Password      ${DEFAULT_PASS}   (default; change it if you haven't)"
+  echo ""
+  echo "  A self-signed certificate warning is expected."
+  echo ""
+  echo ""
+  echo "Getting Started"
+  echo "================================================="
+  echo ""
+  echo "  1. Open https://${ip}:${port} in your browser."
+  echo "     Accept the self-signed certificate warning."
+  echo ""
+  echo "  2. Log in as admin@kasm.local with password: ${DEFAULT_PASS}"
+  echo ""
+  echo "  3. CHANGE BOTH PASSWORDS IMMEDIATELY."
+  echo "     Admin > Users > select user > edit > update password."
+  echo ""
+  echo ""
+  echo "Persistent Profiles Setup Guide"
+  echo "================================================="
+  echo ""
+  echo "  Kasm does not persist user data between sessions by default."
+  echo "  To enable it, configure each workspace in the Admin UI:"
+  echo ""
+  echo "    1. Go to Admin > Workspaces > edit the workspace image."
+  echo "    2. Under 'Persistent Profile Path', enter:"
+  echo "       /data/kasm-profiles/<workspace-name>/{user_id}"
+  echo ""
+  echo "       Examples:"
+  echo "       /data/kasm-profiles/brave/{user_id}"
+  echo "       /data/kasm-profiles/desktop/{user_id}"
+  echo ""
+  echo "       Use any name that identifies the workspace. Kasm creates"
+  echo "       the subdirectories automatically on first session launch."
+  echo ""
+  echo "    3. Under 'Docker Run Config Override', add a shared volume:"
+  echo '       {'
+  echo '         "/data/kasm-shared": {'
+  echo '           "bind": "/home/kasm-user/shared",'
+  echo '           "mode": "rw",'
+  echo '           "uid": 1000,'
+  echo '           "gid": 1000'
+  echo '         }'
+  echo '       }'
+  echo ""
+  echo "       This mounts /data/kasm-shared on the host to"
+  echo "       /home/kasm-user/shared inside every workspace,"
+  echo "       giving users a common folder to share files across"
+  echo "       different workspace types."
+  echo ""
+  echo "  Storage locations:"
+  echo "    Profiles    /data/kasm-profiles/"
+  echo "    Shared      /data/kasm-shared/"
+  echo ""
+}
+
 # --- Determine action --------------------------------------------------------
 ACTION="${1:-}"
 
@@ -267,28 +339,44 @@ if [[ -d /opt/kasm/current ]]; then
     MODE="upgrade"
 fi
 
-# Uninstall never needs to resolve a version / touch the network.
+# These actions never resolve a version / touch the network.
 case "$ACTION" in
     uninstall)      uninstall_kasm; exit 0 ;;
-    help|-h|--help) echo "Usage: kasm-setup.sh [install|upgrade|uninstall]"; exit 0 ;;
+    guide)          show_guide; exit 0 ;;
+    help|-h|--help) echo "Usage: kasm-setup.sh [install|upgrade|uninstall|guide]"; exit 0 ;;
     install)        MODE="install" ;;
     upgrade)        MODE="upgrade" ;;
     "")             : ;;  # interactive / automated default handled below
-    *)              fail "Unknown action '$ACTION' (try: install|upgrade|uninstall)" ;;
+    *)              fail "Unknown action '$ACTION' (try: install|upgrade|uninstall|guide)" ;;
 esac
 
-# Interactive menu for an existing install invoked with no argument.
-if [[ -z "$ACTION" && -d /opt/kasm/current && -r /dev/tty ]]; then
+# Interactive menu (only when a real terminal is present). Never auto-installs:
+# a fresh box asks first. Non-interactive runs fall through to the default MODE.
+if [[ -z "$ACTION" && -r /dev/tty ]]; then
     echo ""
-    echo "Kasm ${EXISTING_VERSION:-unknown} is installed."
-    echo "  1) Update to the latest version"
-    echo "  2) Uninstall"
-    echo "  0) Exit"
-    case "$(asknum 'Enter choice' 1 2 1)" in
-        0) ok "Nothing to do."; exit 0 ;;
-        1) MODE="upgrade" ;;
-        2) uninstall_kasm; exit 0 ;;
-    esac
+    if [[ -d /opt/kasm/current ]]; then
+        echo "Kasm ${EXISTING_VERSION:-unknown} is installed."
+        echo "  1) Update to the latest version"
+        echo "  2) Uninstall"
+        echo "  3) Guide (login, getting started, persistent profiles)"
+        echo "  0) Exit"
+        case "$(asknum 'Enter choice' 1 3 1)" in
+            0) ok "Nothing to do."; exit 0 ;;
+            1) MODE="upgrade" ;;
+            2) uninstall_kasm; exit 0 ;;
+            3) show_guide; exit 0 ;;
+        esac
+    else
+        echo "Kasm Workspaces is not installed."
+        echo "  1) Install the latest version"
+        echo "  2) Guide (login, getting started, persistent profiles)"
+        echo "  0) Exit"
+        case "$(asknum 'Enter choice' 1 2 1)" in
+            0) ok "Bye."; exit 0 ;;
+            1) MODE="install" ;;
+            2) show_guide; exit 0 ;;
+        esac
+    fi
 fi
 
 # We are installing or upgrading -> resolve the target version now.
@@ -421,10 +509,9 @@ rm -rf /tmp/kasm_release /tmp/"${KASM_TARBALL}"
 ok "Cleanup done."
 
 # --- Summary -----------------------------------------------------------------
-SERVER_IP=$(hostname -I | awk '{print $1}')
-
 echo ""
 if [[ "$MODE" == "upgrade" ]]; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
     echo "Upgrade Complete"
     echo "================================================="
     echo ""
@@ -434,66 +521,11 @@ if [[ "$MODE" == "upgrade" ]]; then
     echo ""
     echo "  Log in with your existing credentials."
     echo "  Check the Workspace Registry for updated images."
+    echo ""
+    echo "  Tip: re-run this script and choose 'Guide' to see setup info."
+    echo ""
 else
     echo "Install Complete"
     echo "================================================="
-    echo ""
-    echo "  Web UI        https://${SERVER_IP}:${KASM_PORT}"
-    echo ""
-    echo "  Admin login   admin@kasm.local"
-    echo "  User login    user@kasm.local"
-    echo "  Password      ${DEFAULT_PASS}"
+    show_guide
 fi
-
-echo ""
-echo "  A self-signed certificate warning is expected."
-echo ""
-echo ""
-echo "Getting Started"
-echo "================================================="
-echo ""
-echo "  1. Open https://${SERVER_IP}:${KASM_PORT} in your browser."
-echo "     Accept the self-signed certificate warning."
-echo ""
-echo "  2. Log in as admin@kasm.local with password: ${DEFAULT_PASS}"
-echo ""
-echo "  3. CHANGE BOTH PASSWORDS IMMEDIATELY."
-echo "     Admin > Users > select user > edit > update password."
-echo ""
-echo ""
-echo "Persistent Profiles Setup Guide"
-echo "================================================="
-echo ""
-echo "  Kasm does not persist user data between sessions by default."
-echo "  To enable it, configure each workspace in the Admin UI:"
-echo ""
-echo "    1. Go to Admin > Workspaces > edit the workspace image."
-echo "    2. Under 'Persistent Profile Path', enter:"
-echo "       /data/kasm-profiles/<workspace-name>/{user_id}"
-echo ""
-echo "       Examples:"
-echo "       /data/kasm-profiles/brave/{user_id}"
-echo "       /data/kasm-profiles/desktop/{user_id}"
-echo ""
-echo "       Use any name that identifies the workspace. Kasm creates"
-echo "       the subdirectories automatically on first session launch."
-echo ""
-echo "    3. Under 'Docker Run Config Override', add a shared volume:"
-echo '       {'
-echo '         "/data/kasm-shared": {'
-echo '           "bind": "/home/kasm-user/shared",'
-echo '           "mode": "rw",'
-echo '           "uid": 1000,'
-echo '           "gid": 1000'
-echo '         }'
-echo '       }'
-echo ""
-echo "       This mounts /data/kasm-shared on the host to"
-echo "       /home/kasm-user/shared inside every workspace,"
-echo "       giving users a common folder to share files across"
-echo "       different workspace types."
-echo ""
-echo "  Storage locations:"
-echo "    Profiles    /data/kasm-profiles/"
-echo "    Shared      /data/kasm-shared/"
-echo ""
