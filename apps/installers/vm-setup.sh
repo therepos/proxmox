@@ -5,7 +5,8 @@
 # Usage (auto-detects side; run on host first, then inside the VM):
 #   Host:  delegates to virtiofs-setup.sh (map host dir + attach to VM)
 #   VM:    BASE steps (fixed order): webmin -> disk -> docker -> nvidia -> virtiofs
-#          APPS (order-free, env VM_APPS; default kasm): each 'foo' -> foo-setup.sh
+#          APPS (order-free, env VM_APPS; none by default): each 'foo' -> foo-setup.sh
+#          Kasm is not installed here anymore; use kasm-setup.sh directly.
 #
 # Note: NVIDIA auto-skips without GPU; a fresh driver reboots (exit 10) and
 #   setup resumes automatically. VM_APPS is persisted resume-safe across reboot.
@@ -88,8 +89,10 @@ mkdir -p "$STATE_DIR"
 # Base phase: fixed order. The reboot lives here (NVIDIA).
 BASE_STEPS=(webmin disk docker nvidia virtiofs)
 
-# App phase: order-free, user-configurable (env override; default kasm).
-VM_APPS="${VM_APPS:-kasm}"
+# App phase: order-free, opt-in via VM_APPS (none by default). Kasm is no longer
+# installed here — install it manually with kasm-setup.sh if wanted. To opt an
+# app back in: VM_APPS="kasm" bash -c "$(wget ... vm-setup.sh ...)".
+VM_APPS="${VM_APPS:-}"
 
 # --- Resume hook (re-runs this orchestrator after a reboot) ------------------
 RESUME_SERVICE="/etc/systemd/system/setup-vm-resume.service"
