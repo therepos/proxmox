@@ -19,7 +19,6 @@
 # Uninstall flags (opt-in; also prompted interactively):
 #   REMOVE_DATA         Delete /data/kasm-profiles + -shared  (default: false)
 #   REMOVE_SWAP         Remove the install swap file          (default: false)
-#   REMOVE_DOCKER       Purge the Docker engine               (default: false)
 #   FORCE               Skip the uninstall confirmation       (default: false)
 # =============================================================================
 
@@ -149,7 +148,6 @@ uninstall_kasm(){
   # Optional removals: an explicit env flag wins; otherwise ask when interactive.
   local remove_data="${REMOVE_DATA:-false}"
   local remove_swap="${REMOVE_SWAP:-false}"
-  local remove_docker="${REMOVE_DOCKER:-false}"
 
   if [[ "$FORCE" != "true" && -r /dev/tty ]]; then
     askyn "Uninstall Kasm? Removes all containers, images and /opt/kasm" \
@@ -159,9 +157,6 @@ uninstall_kasm(){
     fi
     if [[ "$remove_swap" != "true" && -f "/mnt/${KASM_SWAP_GB}GiB.swap" ]]; then
       askyn "Also remove the swap file /mnt/${KASM_SWAP_GB}GiB.swap?" && remove_swap=true
-    fi
-    if [[ "$remove_docker" != "true" && "$HAVE_DOCKER" == "true" ]]; then
-      askyn "Also purge the Docker engine? (other containers will be lost)" && remove_docker=true
     fi
   fi
 
@@ -248,17 +243,6 @@ uninstall_kasm(){
     [[ -d /data/kasm-shared ]]   && echo "    /data/kasm-shared"
   fi
 
-  if [[ "$remove_docker" == "true" && "$HAVE_DOCKER" == "true" ]]; then
-    info "Purging Docker engine..."
-    export DEBIAN_FRONTEND=noninteractive
-    systemctl disable --now docker 2>/dev/null || true
-    systemctl disable --now containerd 2>/dev/null || true
-    apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null 2>&1 || true
-    apt-get autoremove -y -qq >/dev/null 2>&1 || true
-    rm -rf /var/lib/docker /var/lib/containerd
-    ok "Docker engine purged."
-  fi
-
   echo ""
   echo "Uninstall Complete"
   echo "================================================="
@@ -266,8 +250,10 @@ uninstall_kasm(){
   echo "  Kasm Workspaces has been removed."
   [[ "$remove_data" != "true" && ( -d /data/kasm-profiles || -d /data/kasm-shared ) ]] && \
     echo "  User data was preserved under /data (see above)."
-  [[ "$remove_docker" != "true" && "$HAVE_DOCKER" == "true" ]] && \
-    echo "  Docker was left installed (other containers may depend on it)."
+  if [[ "$HAVE_DOCKER" == "true" ]]; then
+    echo "  Docker was left installed. To remove it too (only if nothing"
+    echo "  else uses it): apt-get purge docker-ce docker-ce-cli containerd.io"
+  fi
   echo ""
 }
 
