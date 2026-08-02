@@ -253,7 +253,11 @@ do_create() {
     # --- Prompts (env pre-seeds the defaults) --------------------------------
     VMID="$(asknum 'VMID' 100 999999 "$VMID")"
     VM_NAME="$(askstr 'Hostname' "$VM_NAME")"
-    VM_CORES="$(asknum 'CPU cores' 1 512 "$VM_CORES")"
+    # Show host core count so the user doesn't accidentally over-allocate. CPU
+    # over-commit is allowed (vCPUs are time-shared) so this is informational,
+    # not a hard limit.
+    local host_cores; host_cores="$(nproc 2>/dev/null || echo '?')"
+    VM_CORES="$(asknum "CPU cores (host has ${host_cores})" 1 512 "$VM_CORES")"
     VM_MEMORY="$(asknum 'Memory max (MiB)' 512 4194304 "$VM_MEMORY")"
     VM_BALLOON="$(asknum 'Memory min / balloon (MiB)' 0 "$VM_MEMORY" "$VM_BALLOON")"
     VM_DISK="$(asknum 'Disk size (GiB)' 8 65536 "$VM_DISK")"
