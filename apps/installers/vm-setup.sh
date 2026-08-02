@@ -3,7 +3,9 @@
 # Purpose: Orchestrate Ubuntu VM setup (delegates to standalone installers)
 # =============================================================================
 # Usage (auto-detects side; run on host first, then inside the VM):
-#   Host:  delegates to virtiofs-setup.sh (map host dir + attach to VM)
+#   Host:  menu -> 1) Create VM (vm-create.sh)  2) Mount share (virtiofs-setup.sh)
+#          Passing args (e.g. 'setup') skips the menu and delegates straight to
+#          virtiofs-setup.sh, preserving the previous host behaviour.
 #   VM:    BASE steps (fixed order): webmin -> disk -> docker -> nvidia -> virtiofs
 #          APPS (order-free, env VM_APPS; none by default): each 'foo' -> foo-setup.sh
 #          Kasm is not installed here anymore; use kasm-setup.sh directly.
@@ -68,12 +70,32 @@ run_remote() {
 }
 
 # ============================================================================
-# HOST SIDE — the host's only job is the virtiofs share; delegate it entirely.
+# HOST SIDE — thin router. Real work lives in the standalones (vm-create.sh
+# creates the VM + GPU passthrough; virtiofs-setup.sh maps + attaches the share).
 # ============================================================================
 if is_proxmox_host; then
-    info "Proxmox host detected — delegating to virtiofs-setup.sh."
-    run_remote virtiofs-setup.sh "$@"
-    exit $?
+    # Preserve prior behaviour: any explicit args go straight to virtiofs-setup.sh
+    # (e.g. 'vm-setup.sh setup' / 'status' / 'remove') without showing the menu.
+    if [[ $# -gt 0 ]]; then
+        run_remote virtiofs-setup.sh "$@"
+        exit $?
+    fi
+
+    echo ""
+    echo "================================================="
+    echo "  Proxmox Host Setup"
+    echo "================================================="
+    echo ""
+    echo "  1) Create VM      (new Ubuntu VM + GPU passthrough)"
+    echo "  2) Mount share    (VirtIO-FS only)"
+    echo "  0) Exit"
+    choice="$(asknum 'Choose' 0 2 1)"
+    case "$choice" in
+        0) ok "Bye."; exit 0 ;;
+        1) run_remote vm-create.sh; exit $? ;;
+        2) run_remote virtiofs-setup.sh "$@"; exit $? ;;
+    esac
+    exit 0
 fi
 
 # ============================================================================
