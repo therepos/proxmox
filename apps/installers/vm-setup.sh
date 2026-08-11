@@ -81,19 +81,127 @@ if is_proxmox_host; then
         exit $?
     fi
 
+    # --- Memory adjustment ---------------------------------------------------
+    # Changing memory needs the VM off. Two hard-won rules are enforced here:
+    #   * Ballooning is incompatible with PCI passthrough (guest pages must stay
+    #     pinned), so any VM with hostpci gets balloon forced to 0.
+    #   * ALWAYS shut down gracefully. A hard `qm stop` can leave a passed-through
+    #     GPU in a state where the VM starts but hangs before networking, with a
+    #     black console and no obvious cause. Recovery is a full host reboot.
+    adjust_memory() {
+        echo ""
+        echo "================================================="
+        echo "  Adjust VM RAM"
+        echo "================================================="
+        echo ""
+        printf "  %-6s %-20s %-10s %s\n" "VMID" "NAME" "STATUS" "MEMORY"
+        qm list | awk 'NR>1 {printf "  %-6s %-20s %-10s %s MB\n", $1, $2, $3, $4}'
+        echo ""
+
+        local ids first last vmid
+        mapfile -t ids < <(qm list | awk 'NR>1 {print $1}')
+        (( ${#ids[@]} )) || { warn "No VMs found."; return; }
+        first="${ids[0]}"; last="${ids[-1]}"
+
+        vmid="$(asknum '  VMID to modify' "$first" "$last" "$first")"
+        qm status "$vmid" &>/dev/null || { warn "VM $vmid does not exist."; return; }
+
+        local cur_mem cur_balloon has_gpu host_total_mb
+        cur_mem="$(qm config "$vmid" | awk -F': ' '/^memory:/{print $2}')"
+        cur_balloon="$(qm config "$vmid" | awk -F': ' '/^balloon:/{print $2}')"
+        has_gpu="$(qm config "$vmid" | grep -c '^hostpci' || true)"
+        host_total_mb="$(free -m | awk '/^Mem:/{print $2}')"
+
+        echo ""
+        echo "  Current memory : ${cur_mem} MB"
+        echo "  Ballooning     : ${cur_balloon:-not set}"
+        echo "  PCI passthrough: $( ((has_gpu)) && echo "yes (${has_gpu} device(s))" || echo no )"
+        echo "  Host total RAM : ${host_total_mb} MB"
+        echo ""
+        echo "  Leave at least ~4096 MB for the Proxmox host itself."
+        echo ""
+
+        local new_gb max_gb
+        max_gb=$(( host_total_mb / 1024 ))
+        new_gb="$(asknum '  New memory in GB' 1 "$max_gb" $(( cur_mem / 1024 )) )"
+        local new_mem=$(( new_gb * 1024 ))
+
+        if (( new_mem + 4096 > host_total_mb )); then
+            warn "That leaves under 4GB for the host. Choose a smaller value."
+            return
+        fi
+        if [[ "$new_mem" == "$cur_mem" ]]; then
+            info "Memory is already ${new_gb} GB. Nothing to do."
+            return
+        fi
+
+        local was_running=0
+        [[ "$(qm status "$vmid" | awk '{print $2}')" == "running" ]] && was_running=1
+
+        if (( was_running )); then
+            echo ""
+            warn "VM ${vmid} must be shut down. Anything running on it goes offline."
+            local c
+            read -rp "  Continue? [y/N]: " c </dev/tty
+            [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+
+            info "Shutting down gracefully (up to 180s)..."
+            qm shutdown "$vmid" --timeout 180 &>/dev/null || true
+
+            local waited=0
+            while [[ "$(qm status "$vmid" | awk '{print $2}')" == "running" ]]; do
+                sleep 5; waited=$((waited + 5))
+                if (( waited >= 180 )); then
+                    warn "VM did not shut down in time."
+                    if ((has_gpu)); then
+                        # Deliberately not offering a hard stop here: with a GPU
+                        # attached that is exactly what wedges the device.
+                        fail "Not forcing a stop on a passthrough VM. Shut it down from inside the guest, then re-run."
+                    fi
+                    read -rp "  Force stop? [y/N]: " c </dev/tty
+                    [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+                    qm stop "$vmid"
+                    break
+                fi
+            done
+            ok "VM stopped."
+        fi
+
+        qm set "$vmid" --memory "$new_mem" >/dev/null || fail "Could not set memory."
+        ok "Memory set to ${new_gb} GB."
+
+        if ((has_gpu)) && [[ "${cur_balloon:-0}" != "0" ]]; then
+            qm set "$vmid" --balloon 0 >/dev/null || true
+            ok "Ballooning disabled (required for PCI passthrough)."
+        fi
+
+        if (( was_running )); then
+            info "Starting VM..."
+            qm start "$vmid" || fail "VM failed to start. Check: qm config $vmid"
+            echo ""
+            info "Booting. Services may take a few minutes to come back."
+            ((has_gpu)) && info "If it does not respond, a host reboot clears a wedged GPU."
+        else
+            info "VM left powered off (it was not running)."
+        fi
+        echo ""
+    }
+
     echo ""
     echo "================================================="
     echo "  Proxmox Host Setup"
     echo "================================================="
     echo ""
-    echo "  1) Create VM      (new Ubuntu VM + GPU passthrough)"
-    echo "  2) Mount share    (VirtIO-FS only)"
+    echo "  1) Create VM        (new Ubuntu VM + GPU passthrough)"
+    echo "  2) Mount share      (VirtIO-FS only)"
+    echo "  3) Adjust VM RAM    (resize VM RAM)"
     echo "  0) Exit"
-    choice="$(asknum 'Choose' 0 2 1)"
+    choice="$(asknum 'Choose' 0 3 1)"
     case "$choice" in
         0) ok "Bye."; exit 0 ;;
         1) run_remote vm-create.sh; exit $? ;;
         2) run_remote virtiofs-setup.sh "$@"; exit $? ;;
+        3) adjust_memory; exit 0 ;;
     esac
     exit 0
 fi
@@ -257,7 +365,18 @@ run_plan() {
             reboot
             exit 0  # unreachable
         elif [[ $rc -ne 0 ]]; then
-            fail "[$(step_title "$step")] failed (exit ${rc})."
+            # Disarm the resume hook first, otherwise a failure that happened
+            # after an earlier reboot would re-run this on every boot forever.
+            remove_resume_hook
+            warn "[$(step_title "$step")] failed (exit ${rc})."
+            echo ""
+            echo "  Completed so far: $(tr '\n' ' ' < "$COMPLETED_FILE" 2>/dev/null)"
+            echo "  Log:              ${LOG_FILE}"
+            echo ""
+            echo "  Re-run this script to continue from '$(step_title "$step")',"
+            echo "  or choose 'Reset setup state' to start over."
+            echo ""
+            exit "$rc"
         fi
 
         mark_completed "$step"
@@ -345,10 +464,36 @@ echo ""
 
 # Resume vs fresh: the COMPLETED_FILE exists only once a full setup has started,
 # so its presence means "in progress" (e.g. resuming after the NVIDIA reboot).
+# A genuine post-reboot resume is headless and must not prompt. A previous run
+# that FAILED also leaves COMPLETED_FILE behind, but disarms the resume hook —
+# so the hook, not the file, is what distinguishes the two. Without this, a
+# failed run locks the user out of the menu permanently.
 RESUMING=0
-[[ -f "$COMPLETED_FILE" ]] && RESUMING=1
+if [[ -f "$COMPLETED_FILE" ]] && systemctl is-enabled setup-vm-resume.service &>/dev/null; then
+    RESUMING=1
+fi
+
+INTERRUPTED=0
+[[ -f "$COMPLETED_FILE" && $RESUMING -eq 0 ]] && INTERRUPTED=1
+
+reset_state() {
+    remove_resume_hook
+    rm -rf "$STATE_DIR"
+    mkdir -p "$STATE_DIR"
+    ok "Setup state cleared. The next Full setup starts from the beginning."
+    echo ""
+}
 
 if [[ $RESUMING -eq 0 ]]; then
+    if [[ $INTERRUPTED -eq 1 ]]; then
+        echo ""
+        warn "A previous setup did not finish."
+        echo "  Done so far: $(tr '\n' ' ' < "$COMPLETED_FILE" 2>/dev/null)"
+        echo "  'Full setup' resumes from where it stopped."
+        echo "  'Reset setup state' starts over from scratch."
+        echo ""
+    fi
+
     # Fresh run: interactive menu loop (skipped entirely on resume so the
     # headless post-reboot service never blocks on input). Mount/Status/Access
     # info return to the menu; only Full setup and Exit end the loop.
@@ -358,8 +503,9 @@ if [[ $RESUMING -eq 0 ]]; then
         echo "  3) Disk          (check usage / expand)"
         echo "  4) Status"
         echo "  5) Access info"
+        echo "  6) Reset setup state"
         echo "  0) Exit"
-        choice="$(asknum 'Choose' 0 5 0)"
+        choice="$(asknum 'Choose' 0 6 0)"
         case "$choice" in
             0) ok "Bye."; exit 0 ;;
             1) echo ""; break ;;                         # proceed to full setup
@@ -367,12 +513,19 @@ if [[ $RESUMING -eq 0 ]]; then
             3) run_remote disk-setup.sh; echo "" ;;
             4) vm_status ;;
             5) access_info ;;
+            6) reset_state; INTERRUPTED=0 ;;
         esac
     done
 
-    # Lock in the chosen app list (resume-safe) and mark the run as started.
-    echo "$VM_APPS" > "$APPS_FILE"
-    : > "$COMPLETED_FILE"
+    # Lock in the chosen app list, but only on a genuinely fresh run — a resume
+    # after failure must keep its completed-step list, or it starts over.
+    if [[ $INTERRUPTED -eq 0 ]]; then
+        echo "$VM_APPS" > "$APPS_FILE"
+        : > "$COMPLETED_FILE"
+    else
+        [[ -f "$APPS_FILE" ]] && VM_APPS="$(cat "$APPS_FILE")"
+        info "Resuming from the last completed step."
+    fi
 else
     info "Resuming setup after reboot..."
     # Use the app list chosen at the start of this run, not the current env.
