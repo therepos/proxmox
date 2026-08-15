@@ -2,6 +2,19 @@
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/portainer-setup.sh?$(date +%s))"
 # Purpose: Installs portainer docker (PVE9)
 # =============================================================================
+# Usage:
+#   portainer-setup                      Interactive menu
+#   portainer-setup install              Install and start Portainer
+#   portainer-setup update               Pull latest image, recreate container
+#   portainer-setup restore              Restore from latest backup tar
+#   portainer-setup uninstall            Remove container, volume and images
+#
+# Non-interactive (for Webmin custom commands):
+#   bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/portainer-setup.sh?$(date +%s))" -- update
+#
+# Note: keep the `--` placeholder — bash assigns the first word after the
+#       script body to $0, not $1, so without it the action is lost.
+# =============================================================================
 
 set -euo pipefail
 
@@ -23,11 +36,16 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< ui-block <<<
+# True only if a controlling terminal can actually be opened. Testing -r alone
+# is not enough: /dev/tty exists and looks readable even with no controlling
+# terminal, and the open then fails at runtime.
+have_tty(){ [[ -r /dev/tty ]] && { : </dev/tty; } 2>/dev/null; }
+
 asknum(){ # asknum "prompt" "min" "max" "default"
   local p="$1" min="$2" max="$3" def="$4" in
   while true; do
     # Read from /dev/tty if available (interactive) otherwise read from stdin
-    if [[ -r /dev/tty ]]; then
+    if have_tty; then
       read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
     else
       read -rp "$p [$min-$max, 0 to exit] (default: $def): " in || in="$def"
@@ -39,6 +57,7 @@ asknum(){ # asknum "prompt" "min" "max" "default"
 }
 
 # --- Prechecks ---------------------------------------------------------------
+[[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 command -v docker >/dev/null || fail "Docker not found"
 [[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 [[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"
@@ -120,34 +139,58 @@ restore_portainer(){
 usage(){
   cat <<'EOF'
 Usage:
-  install-portainer.sh                 # interactive menu (CLI)
-  install-portainer.sh install         # non-interactive
-  install-portainer.sh update
-  install-portainer.sh restore
-  install-portainer.sh uninstall
-  install-portainer.sh 1|2|3           # also accepted (context-sensitive)
+  portainer-setup.sh                   # interactive menu (CLI)
+  portainer-setup.sh install           # non-interactive
+  portainer-setup.sh update
+  portainer-setup.sh restore
+  portainer-setup.sh uninstall
+  portainer-setup.sh 1|2|3             # also accepted (context-sensitive)
+
+Piped from wget (Webmin custom command) — keep the '--' placeholder:
+  bash -c "$(wget -qLO- .../portainer-setup.sh?$(date +%s))" -- update
 EOF
 }
 
-# Parse optional CLI arg (works in Webmin)
+# Named actions work regardless of install state, so a Webmin button never has
+# to care whether the container exists yet. Numeric args stay context-sensitive
+# to match the menu.
+run_action(){
+  case "$1" in
+    install)        start_portainer ;;
+    update)         update_portainer ;;
+    restore)        restore_portainer ;;
+    uninstall)      uninstall_portainer ;;
+    help|-h|--help) usage ;;
+    1) if exists_container; then update_portainer; else start_portainer; fi ;;
+    2) exists_container || fail "Portainer is not installed (try: install)"
+       restore_portainer ;;
+    3) exists_container || fail "Portainer is not installed (try: install)"
+       uninstall_portainer ;;
+    *) usage >&2; fail "Unknown action '$1' (try: install|update|restore|uninstall)" ;;
+  esac
+}
+
+# Parse optional CLI arg (works in Webmin).
+# Under `bash -c "$(wget …)" update` the word lands in $0 rather than $1, so
+# accept it from there too — but only when it names a known action, so a real
+# $0 (a path, or the '--' placeholder) is never mistaken for one.
 arg="${1:-}"
+if [[ -z "$arg" && $# -eq 0 ]]; then
+  case "$0" in
+    install|update|restore|uninstall|help|-h|--help|1|2|3) arg="$0" ;;
+  esac
+fi
+
 if [[ -n "$arg" ]]; then
-  if exists_container; then
-    case "$arg" in
-      update|1) update_portainer ;;
-      restore|2) restore_portainer ;;
-      uninstall|3) uninstall_portainer ;;
-      help|-h|--help) usage; exit 0 ;;
-      *) fail "Unknown action '$arg' (try: update|restore|uninstall)" ;;
-    esac
-  else
-    case "$arg" in
-      install|1) start_portainer ;;
-      help|-h|--help) usage; exit 0 ;;
-      *) fail "Unknown action '$arg' (try: install)" ;;
-    esac
-  fi
+  run_action "$arg"
   exit 0
+fi
+
+# No action given: the menu needs a terminal. Fail loudly rather than hang or
+# silently pick a default when run headless (Webmin, cron, orchestrator).
+if ! have_tty; then
+  usage >&2
+  fail "No terminal for the interactive menu — pass an action (e.g. update)."
 fi
 
 # Interactive menu (CLI)
