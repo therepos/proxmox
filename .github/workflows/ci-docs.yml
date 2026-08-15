@@ -27,7 +27,7 @@ jobs:
 
       - name: Commit on change
         run: |
-          if git status --porcelain docs/bas.md | grep .; then
+          if git status --porcelain docs/templates.md | grep .; then
             git config user.name "${{ github.actor }}"
             git config user.email "${{ github.actor }}@users.noreply.github.com"
             git add docs/templates.md

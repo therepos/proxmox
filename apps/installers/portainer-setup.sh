@@ -6,7 +6,8 @@
 #   portainer-setup                      Interactive menu
 #   portainer-setup install              Install and start Portainer
 #   portainer-setup update               Pull latest image, recreate container
-#   portainer-setup restore              Restore from latest backup tar
+#   portainer-setup backup               Snapshot portainer_data to BACKUP_DIR
+#   portainer-setup restore              Restore from newest snapshot
 #   portainer-setup uninstall            Remove container, volume and images
 #
 # Non-interactive (for Webmin custom commands):
@@ -23,6 +24,8 @@ IMAGE="portainer/portainer-ce:lts"
 NAME="portainer"
 PORT_HTTPS="9443"
 HOST_BIND="/mnt/sec/apps"   # optional; leave empty to disable
+BACKUP_DIR="/mnt/sec/backup/portainer"
+HELPER_IMAGE="alpine:3"     # small image used for volume tar/untar
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -111,26 +114,78 @@ uninstall_portainer(){ # auto-clean everything
   ok "Uninstalled Portainer (container, volume, images)."
 }
 
+backup_portainer(){ # snapshot the portainer_data volume to BACKUP_DIR
+  local stamp out was_running=0
+
+  docker volume inspect portainer_data >/dev/null 2>&1 \
+    || fail "No 'portainer_data' volume to back up"
+  mkdir -p "${BACKUP_DIR}" || fail "Cannot create ${BACKUP_DIR}"
+
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  out="${BACKUP_DIR}/portainer-${stamp}.tar.gz"
+
+  # Portainer holds its database open, so stop it for a consistent snapshot.
+  if docker ps --format '{{.Names}}' | grep -qx "${NAME}"; then
+    was_running=1
+    info "Stopping ${NAME} for a consistent snapshot…"
+    docker stop "${NAME}" >/dev/null
+  fi
+
+  info "Archiving 'portainer_data' → ${out}"
+  if docker run --rm \
+       -v portainer_data:/data:ro \
+       -v "${BACKUP_DIR}:/backup" \
+       "${HELPER_IMAGE}" \
+       tar czf "/backup/portainer-${stamp}.tar.gz" -C /data . ; then
+    if (( was_running )); then
+      info "Restarting ${NAME}…"
+      docker start "${NAME}" >/dev/null
+    fi
+    ok "Backup written: ${out}"
+  else
+    if (( was_running )); then docker start "${NAME}" >/dev/null 2>&1 || true; fi
+    rm -f "${out}"
+    fail "Backup failed"
+  fi
+}
+
 restore_portainer(){
-  local dir="/mnt/sec/backup/portainer"
-  local latest
+  local latest tarflag f
+  local -a archives=()
 
-  [[ -d "$dir" ]] || fail "Backup directory not found: $dir"
-  latest=$(ls -t "$dir"/portainer-*.tar 2>/dev/null | head -n 1)
-  [[ -f "$latest" ]] || fail "No backup tar found in $dir"
+  [[ -d "${BACKUP_DIR}" ]] || fail "Backup directory not found: ${BACKUP_DIR}"
 
-  info "Using latest backup: $latest"
+  # Collect via globs rather than parsing ls: an unmatched glob makes ls exit
+  # non-zero, which pipefail turns into a silent death before the check below.
+  # .tar.gz is what backup writes; .tar is accepted so older snapshots restore.
+  shopt -s nullglob
+  archives=( "${BACKUP_DIR}"/portainer-*.tar.gz "${BACKUP_DIR}"/portainer-*.tar )
+  shopt -u nullglob
+  (( ${#archives[@]} )) || fail "No portainer-*.tar.gz backup found in ${BACKUP_DIR}"
+
+  latest="${archives[0]}"
+  for f in "${archives[@]}"; do
+    if [[ "$f" -nt "$latest" ]]; then latest="$f"; fi
+  done
+
+  info "Using latest backup: ${latest}"
   info "Stopping ${NAME} (if running)…"
   docker rm -f "${NAME}" >/dev/null 2>&1 || true
 
-  info "Restoring backup into 'portainer_data' volume…"
-  docker volume inspect portainer_data >/dev/null 2>&1 || docker volume create portainer_data >/dev/null
+  docker volume inspect portainer_data >/dev/null 2>&1 \
+    || docker volume create portainer_data >/dev/null
 
+  tarflag="xzf"
+  [[ "${latest}" == *.tar ]] && tarflag="xf"
+
+  # Clear the volume first so files deleted since the backup do not survive it.
+  info "Restoring into 'portainer_data'…"
   docker run --rm \
-    -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
-    -v "${latest}":/backup.tar \
-    "${IMAGE}" --restore /backup.tar
+    -v "${latest}:/backup.tar:ro" \
+    "${HELPER_IMAGE}" \
+    sh -c "rm -rf /data/..?* /data/.[!.]* /data/* 2>/dev/null; tar ${tarflag} /backup.tar -C /data" \
+    || fail "Restore failed — 'portainer_data' may be incomplete"
 
   ok "Restore complete. Starting Portainer…"
   start_portainer
@@ -142,9 +197,10 @@ Usage:
   portainer-setup.sh                   # interactive menu (CLI)
   portainer-setup.sh install           # non-interactive
   portainer-setup.sh update
+  portainer-setup.sh backup
   portainer-setup.sh restore
   portainer-setup.sh uninstall
-  portainer-setup.sh 1|2|3             # also accepted (context-sensitive)
+  portainer-setup.sh 1|2|3|4           # also accepted (context-sensitive)
 
 Piped from wget (Webmin custom command) — keep the '--' placeholder:
   bash -c "$(wget -qLO- .../portainer-setup.sh?$(date +%s))" -- update
@@ -158,15 +214,19 @@ run_action(){
   case "$1" in
     install)        start_portainer ;;
     update)         update_portainer ;;
+    backup)         backup_portainer ;;
     restore)        restore_portainer ;;
     uninstall)      uninstall_portainer ;;
     help|-h|--help) usage ;;
     1) if exists_container; then update_portainer; else start_portainer; fi ;;
     2) exists_container || fail "Portainer is not installed (try: install)"
-       restore_portainer ;;
+       backup_portainer ;;
     3) exists_container || fail "Portainer is not installed (try: install)"
+       restore_portainer ;;
+    4) exists_container || fail "Portainer is not installed (try: install)"
        uninstall_portainer ;;
-    *) usage >&2; fail "Unknown action '$1' (try: install|update|restore|uninstall)" ;;
+    *) usage >&2
+       fail "Unknown action '$1' (try: install|update|backup|restore|uninstall)" ;;
   esac
 }
 
@@ -177,7 +237,7 @@ run_action(){
 arg="${1:-}"
 if [[ -z "$arg" && $# -eq 0 ]]; then
   case "$0" in
-    install|update|restore|uninstall|help|-h|--help|1|2|3) arg="$0" ;;
+    install|update|backup|restore|uninstall|help|-h|--help|1|2|3|4) arg="$0" ;;
   esac
 fi
 
@@ -197,15 +257,17 @@ fi
 if exists_container; then
   echo "Portainer is already installed. What would you like to do?"
   echo "1) Update"
-  echo "2) Restore"
-  echo "3) Uninstall"
+  echo "2) Backup"
+  echo "3) Restore"
+  echo "4) Uninstall"
   echo "0) Exit"
-  choice="$(asknum 'Enter choice' 1 3 1)"
+  choice="$(asknum 'Enter choice' 1 4 1)"
   case "$choice" in
     0) ok "Bye."; exit 0 ;;
     1) update_portainer ;;
-    2) restore_portainer ;;
-    3) uninstall_portainer ;;
+    2) backup_portainer ;;
+    3) restore_portainer ;;
+    4) uninstall_portainer ;;
   esac
 else
   echo "Portainer is not installed. What would you like to do?"

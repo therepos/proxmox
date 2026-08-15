@@ -9,74 +9,64 @@
 - [Carvekit](https://github.com/therepos/proxmox/blob/main/apps/docker/carvekit-docker-compose.yml)  
 - [Clipcascade](https://github.com/therepos/proxmox/blob/main/apps/docker/clipcascade-docker-compose.yml)  
 - [Codeserver](https://github.com/therepos/proxmox/blob/main/apps/docker/codeserver-docker-compose.yml) – Codeserver with pyenv.  
+- [Comfyui](https://github.com/therepos/proxmox/blob/main/apps/docker/comfyui-docker-compose.yml)  
 - [Czkawka](https://github.com/therepos/proxmox/blob/main/apps/docker/czkawka-docker-compose.yml) – Remove duplicated photos.  
 - [Ffmpeg](https://github.com/therepos/proxmox/blob/main/apps/docker/ffmpeg-docker-compose.yml)  
 - [Firefly3](https://github.com/therepos/proxmox/blob/main/apps/docker/firefly3-docker-compose.yml)  
 - [Gimp](https://github.com/therepos/proxmox/blob/main/apps/docker/gimp-docker-compose.yml)  
 - [Gitea](https://github.com/therepos/proxmox/blob/main/apps/docker/gitea-docker-compose.yml)  
 - [Gitlab](https://github.com/therepos/proxmox/blob/main/apps/docker/gitlab-docker-compose.yml)  
-- [Grocy](https://github.com/therepos/proxmox/blob/main/apps/docker/grocy-docker-compose.yml)  
 - [Guacamole](https://github.com/therepos/proxmox/blob/main/apps/docker/guacamole-docker-compose.yml)  
 - [Hoarder](https://github.com/therepos/proxmox/blob/main/apps/docker/hoarder-docker-compose.yml)  
+- [Iopaint](https://github.com/therepos/proxmox/blob/main/apps/docker/iopaint-docker-compose.yml)  
 - [Jellyfin](https://github.com/therepos/proxmox/blob/main/apps/docker/jellyfin-docker-compose.yml)  
 - [Librephotos](https://github.com/therepos/proxmox/blob/main/apps/docker/librephotos-docker-compose.yml)  
+- [Mazanoke](https://github.com/therepos/proxmox/blob/main/apps/docker/mazanoke-docker-compose.yml)  
 - [Mediacms](https://github.com/therepos/proxmox/blob/main/apps/docker/mediacms-docker-compose.yml)  
 - [Meshcentral](https://github.com/therepos/proxmox/blob/main/apps/docker/meshcentral-docker-compose.yml)  
-- [Metube](https://github.com/therepos/proxmox/blob/main/apps/docker/metube-docker-compose.yml)  
 - [Navidrome](https://github.com/therepos/proxmox/blob/main/apps/docker/navidrome-docker-compose.yml)  
+- [Neko](https://github.com/therepos/proxmox/blob/main/apps/docker/neko-docker-compose.yml)  
 - [Nextcloud](https://github.com/therepos/proxmox/blob/main/apps/docker/nextcloud-docker-compose.yml)  
+- [Npm](https://github.com/therepos/proxmox/blob/main/apps/docker/npm-docker-compose.yml)  
 - [Ocrmypdf](https://github.com/therepos/proxmox/blob/main/apps/docker/ocrmypdf-docker-compose.yml)  
 - [Ollama](https://github.com/therepos/proxmox/blob/main/apps/docker/ollama-docker-compose.yml)  
+- [Openclaw](https://github.com/therepos/proxmox/blob/main/apps/docker/openclaw-docker-compose.yml)  
 - [Opengist](https://github.com/therepos/proxmox/blob/main/apps/docker/opengist-docker-compose.yml)  
 - [Paperless](https://github.com/therepos/proxmox/blob/main/apps/docker/paperless-docker-compose.yml)  
 - [Photoprism](https://github.com/therepos/proxmox/blob/main/apps/docker/photoprism-docker-compose.yml)  
 - [Samba](https://github.com/therepos/proxmox/blob/main/apps/docker/samba-docker-compose.yml)  
+- [Scriberr](https://github.com/therepos/proxmox/blob/main/apps/docker/scriberr-docker-compose.yml)  
 - [Stirlingpdf](https://github.com/therepos/proxmox/blob/main/apps/docker/stirlingpdf-docker-compose.yml)  
 - [Tailscale](https://github.com/therepos/proxmox/blob/main/apps/docker/tailscale-docker-compose.yml)  
 - [Textgrab](https://github.com/therepos/proxmox/blob/main/apps/docker/textgrab-docker-compose.yml)  
-- [Textreport](https://github.com/therepos/proxmox/blob/main/apps/docker/textreport-docker-compose.yml)  
 - [Torrent](https://github.com/therepos/proxmox/blob/main/apps/docker/torrent-docker-compose.yml)  
+- [Travel](https://github.com/therepos/proxmox/blob/main/apps/docker/travel-docker-compose.yml)  
+- [Upscayl](https://github.com/therepos/proxmox/blob/main/apps/docker/upscayl-docker-compose.yml)  
 - [Usememos](https://github.com/therepos/proxmox/blob/main/apps/docker/usememos-docker-compose.yml)  
+- [Watchtower](https://github.com/therepos/proxmox/blob/main/apps/docker/watchtower-docker-compose.yml)  
 - [Windows](https://github.com/therepos/proxmox/blob/main/apps/docker/windows-docker-compose.yml)  
-- [Zipfile](https://github.com/therepos/proxmox/blob/main/apps/docker/zipfile-docker-compose.yml)  
+- [Withoutbg](https://github.com/therepos/proxmox/blob/main/apps/docker/withoutbg-docker-compose.yml)  
+- [Zipline](https://github.com/therepos/proxmox/blob/main/apps/docker/zipline-docker-compose.yml)  
 
 ## Installers
-- [Dockerhost Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-dockerhost.sh) – Installs docker engine and docker compose.  
-- [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-filebrowser.sh) – Installs filebrowser.  
-- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-portainer.sh) – Installs portainer docker.  
-- [Samba Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/install-samba.sh) – Installs samba.  
+- [Cloudflared Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/cloudflared-setup.sh) – Install / Update / Uninstall Cloudflared tunnel LXC on Proxmox.  
+- [Disk Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/disk-setup.sh) – Check VM disk capacity and expand it end-to-end (host & VM aware).  
+- [Docker Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/docker-setup.sh) – Installs docker engine and docker compose (Ubuntu/PVE9).  
+- [Drivemount Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/drivemount-setup.sh) – Mount a drive and optionally register as Proxmox storage.  
+- [Filebrowser Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/filebrowser-setup.sh) – Installs FileBrowser via official binary (Ubuntu/PVE9).  
+- [Gitlab Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/gitlab-setup.sh) – Deploys and manages GitLab CE with Runner, Container Registry and Pages (Ubuntu/PVE9).  
+- [Gpu Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/gpu-setup.sh) – GPU passthrough (host) + NVIDIA driver install (VM) — combined.  
+- [Hermes Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/hermes-setup.sh) – Install / Update / Uninstall Hermes Agent LXC (Docker) on Proxmox.  
+- [Kasm Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/kasm-setup.sh) – Install Kasm Workspaces (Ubuntu).  
+- [Lmsensors Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/lmsensors-setup.sh) – Install/uninstall lm-sensors temperature monitoring on PVE9.  
+- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs portainer docker (PVE9).  
+- [Pvenosub Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/pvenosub-setup.sh) – Apply Proxmox VE post-install homelab defaults + remove the sub nag.  
+- [Smb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/smb-setup.sh) – Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu).  
+- [Tailscale Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/tailscale-setup.sh) – Install / Update / Uninstall Tailscale subnet router LXC on Proxmox.  
+- [Virtiofs Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/virtiofs-setup.sh) – VirtIO-FS share — Proxmox host setup + Ubuntu VM mount (auto-detects).  
+- [vm-create.sh](https://github.com/therepos/proxmox/blob/main/apps/installers/vm-create.sh) – Create an Ubuntu VM on the Proxmox host (q35/OVMF + GPU passthrough).  
+- [Vm Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/vm-setup.sh) – Orchestrate Ubuntu VM setup (delegates to standalone installers).  
+- [Webmin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/webmin-setup.sh) – Install webmin on PVE9.  
 
 ## Tools
-- [add-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/add-samba-user.sh) – Add samba user and access.  
-- [backup-winstorage.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-winstorage.sh) – Backups docker windows.  
-- [backup-zfs.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/backup-zfs.sh) – Backups or restores zfs drive.  
-- [create-alias.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-alias.sh)  
-- [create-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/create-lxc.sh) – Creates an empty lxc container.  
-- [cron-reboot-ifdown.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/cron-reboot-ifdown.sh) – Reboots proxmox if cloudflared lxc service is down.  
-- [ffmpeg-combinefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-combinefiles.sh) – Combines video files and set chapter markers inside docker container.  
-- [ffmpeg-convertmkv.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-convertmkv.sh) – Converts mkv to mp4.  
-- [ffmpeg-convertwebm.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ffmpeg-convertwebm.sh)  
-- [fix-locale.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/fix-locale.sh) – Fixes missing en_US.UTF-8 locale.  
-- [fix-pvenosub.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/fix-pvenosub.sh) – Configures no PVE subscription prompt and repositories.  
-- [format-disk.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/format-disk.sh) – Formats disk per user specification.  
-- [get-debian.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/get-debian.sh) – Downloads the latest debian ISO.  
-- [mediacms-import-addplaylist.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import-addplaylist.sh) – Worker script that adds a video playlist on mediacms.  
-- [mediacms-import-upload.py](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import-upload.py) – Worker script executes the uploading of media files (mov, mp4, mkv) to mediacms.  
-- [mediacms-import.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-import.sh) – Controller scripts that uploads all videos in a folder to a new playlist.  
-- [mediacms-initialise.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mediacms-initialise.sh) – Installs the MediaCMS Docker container.  
-- [mount-drive-v2.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mount-drive-v2.sh) – Mounts a user-specified drive and updates fstab.  
-- [mount-drive.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/mount-drive.sh) – Mounts a user-specified external drive and optionally updates fstab.  
-- [ocrmypdf-paperless-movefiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-movefiles.sh) – Transfer files from the output folder to paperless-ngx consume folder.  
-- [ocrmypdf-paperless-scanfiles.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless-scanfiles.sh) – Ocr scans files from the input folder to the output folder.  
-- [ocrmypdf-paperless.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/ocrmypdf-paperless.sh) – Ocr scans files from ocrmypdf folder to paperless-ngx consume folder.  
-- [print-sysinfo.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/print-sysinfo.sh) – Prints detailed system information.  
-- [print-workloads.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/print-workloads.sh) – Prints all lxc, vms, dockers and services by their IPs, ports and status.  
-- [purge-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-dockerct.sh) – Removes user-specified docker container(s) cleanly.  
-- [purge-lxc.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/purge-lxc.sh) – Removes a user-specified LXC container.  
-- [remove-samba-user.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/remove-samba-user.sh) – Remove samba user and access.  
-- [set-gpupass.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpupass.sh) – Set gpu passthrough.  
-- [set-gpuswitch.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-gpuswitch.sh) – Setups/switches nvidia gpu passthrough between vm and docker.  
-- [set-nonroot.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-nonroot.sh) – Switches from root to a non-root user and sets a default password.  
-- [set-swapfile.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/set-swapfile.sh) – Toggle swapfile to change available memory.  
-- [update-dockerct.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-dockerct.sh) – Update all Docker Compose apps.  
-- [update-nvidiadriver.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/update-nvidiadriver.sh) – Updates nvidia driver.  
+- [pve-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/pve-report.sh) – Dump a full Proxmox VE configuration/health report to a text file (PVE host).  

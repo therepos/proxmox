@@ -8,8 +8,10 @@ OUTPUT_MD = 'docs/templates.md'
 def extract_purpose(filepath):
     try:
         with open(filepath, 'r') as f:
-            for _ in range(3):
+            for _ in range(6):
                 line = f.readline()
+                if not line:
+                    break
                 if line.lower().startswith("# purpose:"):
                     text = line.split(":", 1)[1].strip()
                     text = text[0].upper() + text[1:] if text else ""
@@ -53,14 +55,26 @@ def generate_templates():
         docker_base
     )
 
-    # Installers
+    # Installers — scripts are named <name>-setup.sh; anything else in the
+    # folder (e.g. vm-create.sh) is listed under its own filename.
     apps_base = "https://github.com/therepos/proxmox/blob/main/apps/installers"
     lines += generate_section(
         "Installers",
         "apps/installers",
-        lambda f: f.startswith('install-') and f.endswith('.sh'),
-        lambda f: f.replace('install-', '').replace('.sh', '').capitalize() + " Installer",
+        lambda f: f.endswith('.sh') and not f.startswith('.'),
+        lambda f: (f[:-len('-setup.sh')].capitalize() + " Installer"
+                   if f.endswith('-setup.sh') else f),
         apps_base
+    )
+
+    # Tools
+    tools_base = "https://github.com/therepos/proxmox/blob/main/apps/tools"
+    lines += generate_section(
+        "Tools",
+        "apps/tools",
+        lambda f: f.endswith('.sh') and not f.startswith('.'),
+        lambda f: f,
+        tools_base
     )
 
     with open(OUTPUT_MD, 'w') as out:
