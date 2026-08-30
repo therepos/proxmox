@@ -7,6 +7,9 @@
 #
 # Re-running is safe: the report file is regenerated fresh each time.
 # Progress is shown on the terminal; the full report is written to the file.
+#
+# The report aims for signal over volume: package lists, PCI bridges, CPU flag
+# strings, device-mapper duplicates and repeated log lines are filtered out.
 # =============================================================================
 
 set -euo pipefail
@@ -42,10 +45,15 @@ collect() {
 }
 
 # --- Compound sections -------------------------------------------------------
-sec_node_status() { pvesh get "/nodes/$(hostname)/status"; }
 sec_cluster()     { pvecm status 2>/dev/null || echo "Standalone (no cluster)"; }
 sec_storage_cfg() { cat /etc/pve/storage.cfg 2>/dev/null || echo "(no /etc/pve/storage.cfg)"; }
 sec_corosync()    { cat /etc/pve/corosync.conf 2>/dev/null || echo "(standalone — no corosync.conf)"; }
+
+# pveversion -v lists ~60 packages; only the ones that shape guest/storage
+# behaviour are worth reporting.
+sec_versions() {
+    pveversion -v | grep -E '^(proxmox-ve|pve-manager|proxmox-kernel-[0-9][^:]*|pve-qemu-kvm|qemu-server|pve-container|lxc-pve|zfsutils-linux|ceph-fuse|corosync|ifupdown2|libpve-storage-perl|proxmox-backup-client|proxmox-firewall|smartmontools):'
+}
 
 sec_host() {
     hostnamectl 2>/dev/null || echo "(hostnamectl unavailable)"
@@ -96,14 +104,21 @@ sec_guest_configs() {
 }
 
 sec_disks() {
-    lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT,MODEL,SERIAL
+    # Device-mapper nodes are dropped: a thin pool prints its whole child list
+    # twice (once under _tmeta, once under _tdata), and the LVM section already
+    # reports every LV with its real usage.
+    lsblk -o NAME,SIZE,FSTYPE,TYPE,MOUNTPOINT,MODEL,SERIAL | grep -vE '[[:space:]]lvm[[:space:]]'
     echo ""
     echo "---- SMART summary ----"
     if command -v smartctl &>/dev/null; then
         for d in /dev/sd? /dev/nvme?n1; do
             [[ -e "$d" ]] || continue
             echo "== $d =="
-            smartctl -H -i "$d" 2>/dev/null | grep -Ei 'Model|Serial|Capacity|SMART overall|Health|Percentage Used|Power_On_Hours' || echo "(no data)"
+            smartctl -i "$d" 2>/dev/null |
+                grep -Ei '^(Model Number|Device Model|Serial Number|User Capacity|Total NVM Capacity|Rotation Rate)' || true
+            smartctl -H "$d" 2>/dev/null | grep -Ei 'overall-health|SMART Health Status' || echo "(health unavailable)"
+            smartctl -A "$d" 2>/dev/null |
+                grep -Ei 'Percentage Used|Power On Hours|Power_On_Hours|Media and Data Integrity Errors|Available Spare|Reallocated_Sector|Wear_Leveling|^Temperature:' || true
         done
     else
         echo "(smartctl not installed — apt install smartmontools)"
@@ -128,11 +143,19 @@ sec_lvm() {
     lvs -a 2>/dev/null || echo "(none)"
 }
 
+# The full `ip a` dump repeats `ip -br a` line for line; only the MAC addresses
+# it adds are worth keeping, and guest-side veth/tap/fw* interfaces are listed
+# separately so they do not bury the host's own NICs.
+GUEST_IF_RE='^(tap|veth|fwbr|fwpr|fwln)'
 sec_network() {
-    ip -br a
+    echo "---- Host interfaces ----"
+    ip -br a | grep -vE "$GUEST_IF_RE"
     echo ""
-    echo "---- Full addresses ----"
-    ip a
+    echo "---- MAC addresses ----"
+    ip -br link | grep -vE "$GUEST_IF_RE" | awk '{printf "%-20s %s\n", $1, $3}'
+    echo ""
+    echo "---- Guest interfaces ----"
+    ip -br link | grep -E "$GUEST_IF_RE" | awk '{printf "%-20s %s\n", $1, $2}' || echo "(none)"
     echo ""
     echo "---- Routes ----"
     ip r
@@ -150,51 +173,98 @@ sec_network() {
     cat /etc/pve/firewall/cluster.fw 2>/dev/null || echo "(no cluster firewall config)"
 }
 
+# The CPU flag string is ~900 characters and the vulnerability list is mostly
+# "Not affected"; report the topology in full but only the live mitigations.
+sec_cpu() {
+    lscpu | grep -vE '^(Flags|Vulnerability)'
+    echo ""
+    echo "---- Active mitigations ----"
+    lscpu | grep '^Vulnerability' | grep -v 'Not affected' || echo "(none — no mitigations applied)"
+}
+
+# lspci -nnk is ~140 lines, most of it PCI bridges and per-device module lists.
+# Keep real devices plus the driver actually bound (which is what matters for
+# passthrough: vfio-pci vs the host driver).
+sec_pci() {
+    lspci -nnk | awk '
+        /^[0-9a-f]+:[0-9a-f]+\.[0-9a-f]+ / {
+            skip = ($0 ~ /PCI bridge|ISA bridge|SMBus|RAM memory|Signal processing controller|Serial controller|System peripheral/)
+            if (!skip) print
+            next
+        }
+        skip { next }
+        /(Subsystem|DeviceName|Kernel modules):/ { next }
+        { print }
+    '
+}
+
 sec_backup() {
     echo "---- Backup jobs (/etc/pve/jobs.cfg) ----"
     cat /etc/pve/jobs.cfg 2>/dev/null || echo "(no jobs.cfg)"
     echo ""
-    echo "---- vzdump defaults ----"
-    cat /etc/vzdump.conf 2>/dev/null || echo "(missing)"
+    echo "---- vzdump overrides ----"
+    local body
+    body=$(grep -Ev '^[[:space:]]*(#|$)' /etc/vzdump.conf 2>/dev/null || true)
+    echo "${body:-(none — all vzdump settings at default)}"
     echo ""
     echo "---- Replication ----"
     pvesr status 2>/dev/null || echo "(no replication configured)"
 }
 
 sec_repos() {
+    local f body
     for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
         [[ -f "$f" ]] || continue
+        body=$(grep -Ev '^[[:space:]]*(#|$)' "$f" || true)
         echo "---- $f ----"
-        grep -v '^\s*#' "$f" | grep -v '^\s*$'
+        echo "${body:-(empty / fully commented out)}"
         echo ""
     done
     echo "---- Subscription ----"
     pvesubscription get 2>/dev/null | grep -Ei 'status|level' || echo "(unavailable)"
     echo ""
     echo "---- Pending upgrades ----"
-    apt list --upgradable 2>/dev/null | tail -n +2 || echo "(unavailable)"
+    body=$(apt list --upgradable 2>/dev/null | tail -n +2 || true)
+    echo "${body:-(none — system up to date)}"
 }
 
 sec_services() {
+    local s st
     echo "---- Failed units ----"
     systemctl --failed --no-pager || true
     echo ""
     echo "---- Key PVE services ----"
     for s in pve-cluster pvedaemon pveproxy pvestatd pve-firewall corosync zfs-zed smartd; do
-        printf '%-16s %s\n' "$s" "$(systemctl is-active "$s" 2>/dev/null || echo n/a)"
+        # is-active exits non-zero for anything not running, so keep the word it
+        # prints rather than appending a second line via `|| echo`.
+        st=$(systemctl is-active "$s" 2>/dev/null || true)
+        printf '%-16s %s\n' "$s" "${st:-n/a}"
     done
 }
 
+# A boot's worth of errors is usually one or two messages repeated dozens of
+# times. Collapse them by normalising the varying numbers, then show the raw
+# tail for recency.
 sec_logs() {
-    echo "---- Errors since boot (last 60) ----"
-    journalctl -p 3 -b --no-pager 2>/dev/null | tail -60 || echo "(unavailable)"
+    local dedup recent
+    dedup=$(journalctl -p 3 -b --no-pager -o short-iso 2>/dev/null |
+        awk '{$1=""; $2=""; sub(/^[[:space:]]+/,""); print}' |
+        sed -E 's/\[[0-9]+\]:/:/; s/0x[0-9a-f]+/0xN/g; s/[0-9]+/N/g' |
+        sort | uniq -c | sort -rn | head -20 || true)
+    echo "---- Errors since boot (count × message, numbers normalised) ----"
+    echo "${dedup:-(no errors logged this boot)}"
     echo ""
-    echo "---- Task log (last 25) ----"
-    grep -v ':OK:' /var/log/pve/tasks/index 2>/dev/null | tail -25 || echo "(no failed tasks)"
+    echo "---- Most recent errors (last 10, verbatim) ----"
+    recent=$(journalctl -p 3 -b --no-pager 2>/dev/null | tail -10 || true)
+    echo "${recent:-(none)}"
+    echo ""
+    echo "---- Failed tasks (last 25) ----"
+    recent=$(grep -v ':OK:' /var/log/pve/tasks/index 2>/dev/null | tail -25 || true)
+    echo "${recent:-(no failed tasks)}"
 }
 
 sec_users() {
-    cat /etc/pve/user.cfg 2>/dev/null | grep -Ev '^\s*$' || echo "(unavailable)"
+    grep -Ev '^[[:space:]]*$' /etc/pve/user.cfg 2>/dev/null || echo "(unavailable)"
 }
 
 # --- Pre-flight --------------------------------------------------------------
@@ -210,9 +280,8 @@ info "Writing Proxmox report to: $OUT"
     echo "Hostname: $(hostname)"
 } >"$OUT"
 
-collect "PVE / KERNEL VERSION" pveversion -v
+collect "PVE / KERNEL VERSION" sec_versions
 collect "HOST / BOOT / IOMMU"  sec_host
-collect "NODE STATUS"          sec_node_status
 collect "CLUSTER STATUS"       sec_cluster
 collect "COROSYNC CONFIG"      sec_corosync
 collect "VIRTUAL MACHINES"     qm list
@@ -220,13 +289,13 @@ collect "LXC CONTAINERS"       pct list
 collect "GUEST CONFIGS"        sec_guest_configs
 collect "STORAGE STATUS"       pvesm status
 collect "STORAGE CONFIG"       sec_storage_cfg
-collect "FILESYSTEM USAGE"     df -hT
+collect "FILESYSTEM USAGE"     df -hT -x tmpfs -x devtmpfs -x efivarfs
 collect "LVM"                  sec_lvm
 collect "DISKS"                sec_disks
-collect "CPU"                  lscpu
+collect "CPU"                  sec_cpu
 collect "MEMORY"               free -h
 collect "NETWORK"              sec_network
-collect "PCI DEVICES"          lspci -nnk
+collect "PCI DEVICES"          sec_pci
 collect "BACKUP & REPLICATION" sec_backup
 collect "APT REPOS"            sec_repos
 collect "SERVICES"             sec_services
