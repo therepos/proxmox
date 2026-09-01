@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/mcp-setup.sh?$(date +%s))"
-# Purpose: Install / Update / Uninstall an MCP server that exposes a shared folder to Claude
+# Purpose: Install / Update / Uninstall MCP servers (apps/mcp) that connect Claude to this host
 # =============================================================================
-# Runs ON THE PROXMOX HOST as a hardened systemd service (mcp-fs). Claude.ai,
-# Claude Desktop and Claude Code connect over Streamable HTTP. Reach it from
-# outside your LAN through the existing Cloudflare Tunnel (cloudflared-setup.sh).
+# One installer for every server under apps/mcp/<id>/. Each server becomes its
+# own hardened systemd unit on the Proxmox host:
 #
-#   Endpoint  http://<host-ip>:<port>/<TOKEN>/mcp
-#   Server    apps/mcp/server.py (downloaded from this repo)
+#   /opt/mcp/<id>/{venv,server.py,common.py}
+#   /etc/mcp/<id>.env                      settings + token (mode 600)
+#   /etc/systemd/system/mcp-<id>.service
+#   http://<host-ip>:<port>/<TOKEN>/mcp    endpoint (see apps/mcp/common.py)
+#
+# Adding a server: drop apps/mcp/<id>/server.py in the repo, then add one line
+# to the SERVERS registry below and, if it needs its own prompts, a
+# configure_<id>() function (see configure_shared_drive).
 # =============================================================================
 
 set -euo pipefail
@@ -33,20 +38,30 @@ fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 
 hr() { echo "----------------------------------------------------------------"; }
 
-# --- Config ------------------------------------------------------------------
-SHARE_PATH_DEFAULT="${SHARE_PATH:-/mnt/sec/media/shared}"
-PORT_DEFAULT="${MCP_PORT:-8765}"
-NAME_DEFAULT="${MCP_NAME:-shared-drive}"
+# --- Registry ----------------------------------------------------------------
+# id | default port | one-line description
+SERVERS=(
+    "shared-drive|8765|Browse, search, read and write one folder on this host"
+)
 
-SERVICE="mcp-fs"
-INSTALL_DIR="/opt/mcp-fs"
-CONF_DIR="/etc/mcp-fs"
-ENV_FILE="${CONF_DIR}/env"
-UNIT_FILE="/etc/systemd/system/${SERVICE}.service"
+# --- Paths -------------------------------------------------------------------
+BASE_DIR="/opt/mcp"
+CONF_DIR="/etc/mcp"
 REPO_REF="${REPO_REF:-main}"
-SERVER_URL="https://github.com/therepos/proxmox/raw/${REPO_REF}/apps/mcp/server.py"
-MCP_SERVER_SRC="${MCP_SERVER_SRC:-}"   # optional: local path to server.py (skips download)
+RAW_BASE="https://github.com/therepos/proxmox/raw/${REPO_REF}/apps/mcp"
+MCP_SRC_DIR="${MCP_SRC_DIR:-}"     # optional: local checkout of apps/mcp (skips download)
 PIP_SPEC='mcp>=2,<3'
+
+# Set by select_server()
+ID=""; DEFAULT_PORT=""; DESC=""
+INSTALL_DIR=""; ENV_FILE=""; UNIT_FILE=""; SERVICE=""
+
+# Filled by configure_<id>() during install
+EXTRA_ENV=""        # extra KEY=VALUE lines for the env file
+RW_PATHS=""         # space-separated paths the unit may write
+RO_PATHS=""         # space-separated paths the unit may only read
+SUMMARY=""          # lines shown in the confirm step
+CONNECT_NOTE=""     # one line shown with the connect instructions
 
 # --- Preflight ---------------------------------------------------------------
 require_root() { [[ $EUID -eq 0 ]] || fail "Run as root on the Proxmox host."; }
@@ -61,36 +76,91 @@ ensure_host_deps() {
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null 2>&1 \
             || fail "Could not install: ${missing[*]}"
     fi
-    local pyver
-    pyver=$(python3 -c 'import sys; print(sys.version_info >= (3, 10))')
-    [[ "$pyver" == "True" ]] || fail "Python 3.10+ required (found $(python3 --version))."
+    [[ "$(python3 -c 'import sys; print(sys.version_info >= (3, 10))')" == "True" ]] \
+        || fail "Python 3.10+ required (found $(python3 --version))."
 }
 
 host_ip() { hostname -I 2>/dev/null | awk '{print $1}'; }
 
+is_installed() { [[ -f "$UNIT_FILE" && -f "$ENV_FILE" ]]; }
+
 load_env() {
-    # Exposes MCP_* from the env file into this shell (no-op if not installed).
     [[ -f "$ENV_FILE" ]] || return 1
     # shellcheck disable=SC1090
     set -a; . "$ENV_FILE"; set +a
 }
 
-is_installed() { [[ -f "$UNIT_FILE" && -f "$ENV_FILE" ]]; }
+svc_state() { systemctl is-active "mcp-$1" 2>/dev/null || echo "not installed"; }
+
+# --- Server selection --------------------------------------------------------
+select_server() {
+    local entries=("${SERVERS[@]}") i=1 e id port desc c
+    echo "  Available MCP servers:"
+    echo ""
+    for e in "${entries[@]}"; do
+        IFS='|' read -r id port desc <<<"$e"
+        printf '    %d) %-14s %-8s %s\n' "$i" "$id" "[$(svc_state "$id")]" "$desc"
+        i=$((i + 1))
+    done
+    echo ""
+    echo "    q) Quit"
+    echo ""
+    read -p "  Select a server: " c </dev/tty
+    case "$c" in q|Q) info "Bye."; exit 0 ;; esac
+    [[ "$c" =~ ^[0-9]+$ && "$c" -ge 1 && "$c" -le ${#entries[@]} ]] || fail "Invalid choice."
+    IFS='|' read -r ID DEFAULT_PORT DESC <<<"${entries[$((c - 1))]}"
+    INSTALL_DIR="${BASE_DIR}/${ID}"
+    ENV_FILE="${CONF_DIR}/${ID}.env"
+    SERVICE="mcp-${ID}"
+    UNIT_FILE="/etc/systemd/system/${SERVICE}.service"
+}
+
+# --- Per-server configuration ------------------------------------------------
+# Each configure_<id> asks its questions and fills EXTRA_ENV / RW_PATHS /
+# RO_PATHS / SUMMARY / CONNECT_NOTE. Common items (port, name, token, public
+# URL) are handled by action_install.
+
+configure_shared_drive() {
+    local share ro c
+    read -p "  Folder to expose [${SHARE_PATH:-/mnt/sec/media/shared}]: " share </dev/tty
+    share="${share:-${SHARE_PATH:-/mnt/sec/media/shared}}"
+    share="$(readlink -f "$share")" || true
+    [[ -d "$share" ]] || fail "Not a directory: $share"
+    [[ "$share" != "/" ]] || fail "Refusing to expose the root filesystem."
+
+    echo ""
+    echo "  Access level:"
+    echo "    1) Read and write  (Claude can create, edit, move, delete files)"
+    echo "    2) Read-only"
+    read -p "  Select [1]: " c </dev/tty
+    case "${c:-1}" in 1) ro=0 ;; 2) ro=1 ;; *) fail "Invalid choice." ;; esac
+
+    EXTRA_ENV="MCP_ROOT=${share}
+MCP_READ_ONLY=${ro}"
+    if [[ "$ro" == "1" ]]; then RO_PATHS="$share"; else RW_PATHS="$share"; fi
+    SUMMARY="  Folder  : ${share}
+  Access  : $( [[ "$ro" == "1" ]] && echo read-only || echo read/write )"
+    CONNECT_NOTE="Folder ${share} ($( [[ "$ro" == "1" ]] && echo read-only || echo read/write ))"
+}
 
 # --- Pieces ------------------------------------------------------------------
-fetch_server() {
+fetch_files() {
     mkdir -p "$INSTALL_DIR"
-    if [[ -n "$MCP_SERVER_SRC" ]]; then
-        [[ -f "$MCP_SERVER_SRC" ]] || fail "MCP_SERVER_SRC not found: $MCP_SERVER_SRC"
-        install -m 0644 "$MCP_SERVER_SRC" "${INSTALL_DIR}/server.py"
-        info "Using local server.py from $MCP_SERVER_SRC"
-    else
-        curl -fsSL "${SERVER_URL}?$(date +%s)" -o "${INSTALL_DIR}/server.py.new" \
-            || fail "Download failed: $SERVER_URL"
-        mv "${INSTALL_DIR}/server.py.new" "${INSTALL_DIR}/server.py"
-        chmod 0644 "${INSTALL_DIR}/server.py"
-    fi
-    python3 -m py_compile "${INSTALL_DIR}/server.py" || fail "server.py does not compile."
+    local f src
+    for f in "common.py" "${ID}/server.py"; do
+        local dst="${INSTALL_DIR}/$(basename "$f")"
+        if [[ -n "$MCP_SRC_DIR" ]]; then
+            src="${MCP_SRC_DIR}/${f}"
+            [[ -f "$src" ]] || fail "Not found: $src"
+            install -m 0644 "$src" "$dst"
+        else
+            curl -fsSL "${RAW_BASE}/${f}?$(date +%s)" -o "${dst}.new" || fail "Download failed: ${RAW_BASE}/${f}"
+            mv "${dst}.new" "$dst"; chmod 0644 "$dst"
+        fi
+        python3 -m py_compile "$dst" || fail "$(basename "$f") does not compile."
+    done
+    rm -rf "${INSTALL_DIR}/__pycache__"
+    [[ -n "$MCP_SRC_DIR" ]] && info "Using local files from $MCP_SRC_DIR" || true
 }
 
 setup_venv() {
@@ -103,38 +173,39 @@ setup_venv() {
     "${INSTALL_DIR}/venv/bin/pip" install -q --upgrade "$PIP_SPEC" uvicorn >/dev/null 2>&1 \
         || fail "pip install failed. See $LOG_FILE"
     "${INSTALL_DIR}/venv/bin/python" -c 'import mcp, uvicorn' || fail "MCP SDK import failed."
-    rm -rf "${INSTALL_DIR}/venv/lib"/python*/site-packages/pip/__pycache__ 2>/dev/null || true
 }
 
 write_env() {
-    # $1 share  $2 port  $3 read_only(0/1)  $4 name  $5 token  $6 public_url
+    # $1 port  $2 name  $3 token  $4 public_url  $5 extra lines
     mkdir -p "$CONF_DIR"; chmod 0700 "$CONF_DIR"
     umask 077
-    cat > "$ENV_FILE" <<EOF
-MCP_ROOT=$1
-MCP_PORT=$2
-MCP_HOST=0.0.0.0
-MCP_READ_ONLY=$3
-MCP_NAME=$4
-MCP_TOKEN=$5
-MCP_PUBLIC_URL=$6
-PYTHONDONTWRITEBYTECODE=1
-PYTHONUNBUFFERED=1
-EOF
+    {
+        echo "MCP_ID=${ID}"
+        echo "MCP_PORT=$1"
+        echo "MCP_HOST=0.0.0.0"
+        echo "MCP_NAME=$2"
+        echo "MCP_TOKEN=$3"
+        echo "MCP_PUBLIC_URL=$4"
+        echo "MCP_RW_PATHS=${RW_PATHS}"
+        echo "MCP_RO_PATHS=${RO_PATHS}"
+        echo "PYTHONDONTWRITEBYTECODE=1"
+        echo "PYTHONUNBUFFERED=1"
+        [[ -n "$5" ]] && echo "$5"
+    } > "$ENV_FILE"
     chmod 0600 "$ENV_FILE"
     umask 022
 }
 
 write_unit() {
-    # $1 share  $2 read_only(0/1)
-    local share="$1" ro="$2" access
-    if [[ "$ro" == "1" ]]; then access="ReadOnlyPaths=${share}"; else access="ReadWritePaths=${share}"; fi
+    local mounts="" access="" p
+    for p in $RW_PATHS; do access+="ReadWritePaths=${p}"$'\n'; mounts+=" ${p}"; done
+    for p in $RO_PATHS; do access+="ReadOnlyPaths=${p}"$'\n';  mounts+=" ${p}"; done
     cat > "$UNIT_FILE" <<EOF
 [Unit]
-Description=MCP filesystem server for Claude (${share})
+Description=MCP server for Claude: ${ID}
 After=network-online.target
 Wants=network-online.target
-RequiresMountsFor=${share}
+${mounts:+RequiresMountsFor=${mounts# }}
 
 [Service]
 Type=simple
@@ -144,7 +215,7 @@ Restart=on-failure
 RestartSec=5
 UMask=0002
 
-# Sandbox: the whole host is read-only to this process except the share.
+# Sandbox: the whole host is read-only to this process except paths listed below.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -166,7 +237,6 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_CHOWN CAP_FOWNER
 InaccessiblePaths=-/etc/pve -/var/lib/vz -/etc/ssh
 ${access}
-
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -186,7 +256,6 @@ smoke_test() {
         -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
         -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"mcp-setup","version":"1"}}}' 2>/dev/null || true)
     grep -q '"serverInfo"' <<<"$body" || { echo "$body" | head -c 400; echo; fail "MCP handshake failed."; }
-    # Wrong token must be a plain 404, not an OAuth challenge.
     [[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${port}/mcp")" == "404" ]] \
         || warn "Unauthenticated request did not return 404. Check the token gate."
     ok "MCP handshake OK."
@@ -200,7 +269,8 @@ print_connect() {
     [[ -n "${MCP_PUBLIC_URL:-}" ]] && pub="${MCP_PUBLIC_URL%/}/${MCP_TOKEN}/mcp"
     echo ""
     hr
-    echo "  CONNECT CLAUDE TO:  ${MCP_ROOT}  ($( [[ "$MCP_READ_ONLY" == "1" ]] && echo read-only || echo read/write ))"
+    echo "  CONNECT CLAUDE TO: ${MCP_NAME}"
+    [[ -n "$CONNECT_NOTE" ]] && echo "  ${CONNECT_NOTE}"
     hr
     echo ""
     echo "  LAN URL     : ${lan}"
@@ -210,14 +280,14 @@ print_connect() {
         echo "  Public URL  : (not set - see step 1 below)"
     fi
     echo ""
-    echo "  1) Expose through your Cloudflare Tunnel (once):"
+    echo "  1) Expose through your Cloudflare Tunnel (once per server):"
     echo "       Zero Trust -> Networks -> Tunnels -> <your tunnel> -> Public Hostname -> Add"
-    echo "       Subdomain: mcp   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
+    echo "       Subdomain: <any>   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
     echo "       Then re-run this script -> option 4 to save the hostname."
     echo ""
     echo "  2) claude.ai / Claude Desktop:"
     echo "       Settings -> Connectors -> Add custom connector"
-    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://mcp.<your-domain>/${MCP_TOKEN}/mcp}"
+    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://<subdomain>.<your-domain>/${MCP_TOKEN}/mcp}"
     echo "       Leave OAuth fields empty. The secret is in the URL."
     echo ""
     echo "  3) Claude Code (any machine that can reach the URL):"
@@ -234,49 +304,43 @@ action_install() {
     ensure_host_deps
 
     if is_installed; then
-        warn "Already installed. Reinstalling replaces the service and issues a NEW token."
+        warn "'${ID}' is already installed. Reinstalling replaces the service and issues a NEW token."
         local c; read -p "  Continue? [y/N]: " c </dev/tty
         [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; exit 0; }
         systemctl stop "$SERVICE" 2>/dev/null || true
     fi
 
-    hr; echo "  Setup"; hr
-    local share port ro name pub
-    read -p "  Folder to expose [${SHARE_PATH_DEFAULT}]: " share </dev/tty
-    share="${share:-$SHARE_PATH_DEFAULT}"
-    share="$(readlink -f "$share")" || true
-    [[ -d "$share" ]] || fail "Not a directory: $share"
-    [[ "$share" != "/" ]] || fail "Refusing to expose the root filesystem."
+    hr; echo "  Setup: ${ID}"; hr
+    local port name pub c
 
-    read -p "  Listen port [${PORT_DEFAULT}]: " port </dev/tty
-    port="${port:-$PORT_DEFAULT}"
+    # Server-specific questions
+    if declare -F "configure_${ID//-/_}" >/dev/null; then
+        "configure_${ID//-/_}"
+        echo ""
+    fi
+
+    read -p "  Listen port [${DEFAULT_PORT}]: " port </dev/tty
+    port="${port:-$DEFAULT_PORT}"
     [[ "$port" =~ ^[0-9]+$ && "$port" -ge 1024 && "$port" -le 65535 ]] || fail "Port must be 1024-65535."
     if ss -ltn 2>/dev/null | awk '{print $4}' | grep -q ":${port}\$"; then
         is_installed || fail "Port ${port} is already in use."
     fi
 
-    echo ""
-    echo "  Access level:"
-    echo "    1) Read and write  (Claude can create, edit, move, delete files)"
-    echo "    2) Read-only"
-    local c; read -p "  Select [1]: " c </dev/tty
-    case "${c:-1}" in 1) ro=0 ;; 2) ro=1 ;; *) fail "Invalid choice." ;; esac
-
-    read -p "  Connector name shown in Claude [${NAME_DEFAULT}]: " name </dev/tty
-    name="${name:-$NAME_DEFAULT}"
+    read -p "  Connector name shown in Claude [${ID}]: " name </dev/tty
+    name="${name:-$ID}"
     [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || fail "Name may only contain letters, digits, . _ -"
 
     echo ""
     echo "  Public hostname (optional). If you already added a Cloudflare public"
-    echo "  hostname for this service, enter it so the full URL is printed."
+    echo "  hostname for this server, enter it so the full URL is printed."
     read -p "  Public URL, e.g. https://mcp.example.com [skip]: " pub </dev/tty
     pub="${pub:-}"
     [[ -z "$pub" || "$pub" =~ ^https?:// ]] || fail "Public URL must start with http:// or https://"
 
     echo ""
-    echo "  Folder  : $share"
+    echo "  Server  : ${ID}"
+    [[ -n "$SUMMARY" ]] && echo "$SUMMARY"
     echo "  Port    : $port"
-    echo "  Access  : $( [[ "$ro" == "1" ]] && echo read-only || echo read/write )"
     echo "  Name    : $name"
     echo "  Service : $SERVICE (systemd, sandboxed, runs on this host)"
     echo ""
@@ -285,29 +349,29 @@ action_install() {
 
     local token; token="$(openssl rand -hex 24)"
 
-    fetch_server
+    fetch_files
     setup_venv
-    write_env "$share" "$port" "$ro" "$name" "$token" "$pub"
-    write_unit "$share" "$ro"
-    systemctl enable --now "$SERVICE" >/dev/null 2>&1 || true
+    write_env "$port" "$name" "$token" "$pub" "$EXTRA_ENV"
+    write_unit
+    systemctl enable "$SERVICE" >/dev/null 2>&1 || true
     systemctl restart "$SERVICE"
     smoke_test "$port" "$token"
 
     echo ""
-    ok "MCP server installed and running."
+    ok "'${ID}' installed and running."
     print_connect
     echo "  Log file : ${LOG_FILE}"
     echo ""
 }
 
 action_status() {
-    is_installed || { info "Not installed."; return; }
+    is_installed || { info "'${ID}' is not installed."; return; }
     load_env
     echo ""
     echo "  Service : $SERVICE  [$(systemctl is-active "$SERVICE" 2>/dev/null || echo unknown)]"
-    echo "  Folder  : $MCP_ROOT"
     echo "  Port    : $MCP_PORT"
-    echo "  Access  : $( [[ "$MCP_READ_ONLY" == "1" ]] && echo read-only || echo read/write )"
+    [[ -n "${MCP_RW_PATHS:-}" ]] && echo "  Writes  : $MCP_RW_PATHS"
+    [[ -n "${MCP_RO_PATHS:-}" ]] && echo "  Reads   : $MCP_RO_PATHS"
     echo -n "  Health  : "
     curl -fsS --max-time 3 "http://127.0.0.1:${MCP_PORT}/healthz" 2>/dev/null || echo "(no response)"
     echo ""
@@ -321,26 +385,26 @@ action_status() {
 
 action_set_public_url() {
     require_root
-    is_installed || fail "Not installed."
+    is_installed || fail "'${ID}' is not installed."
     load_env
     local pub
     echo "  Current public URL: ${MCP_PUBLIC_URL:-(none)}"
     read -p "  New public URL, e.g. https://mcp.example.com (empty to clear): " pub </dev/tty
     [[ -z "$pub" || "$pub" =~ ^https?:// ]] || fail "Must start with http:// or https://"
-    write_env "$MCP_ROOT" "$MCP_PORT" "$MCP_READ_ONLY" "$MCP_NAME" "$MCP_TOKEN" "$pub"
+    sed -i "s|^MCP_PUBLIC_URL=.*|MCP_PUBLIC_URL=${pub}|" "$ENV_FILE"
     ok "Saved."
     print_connect
 }
 
 action_rotate() {
     require_root
-    is_installed || fail "Not installed."
+    is_installed || fail "'${ID}' is not installed."
     load_env
     echo "  This invalidates the current URL. Every Claude client must be re-added."
     local c; read -p "  Rotate token? [y/N]: " c </dev/tty
     [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
     local token; token="$(openssl rand -hex 24)"
-    write_env "$MCP_ROOT" "$MCP_PORT" "$MCP_READ_ONLY" "$MCP_NAME" "$token" "${MCP_PUBLIC_URL:-}"
+    sed -i "s|^MCP_TOKEN=.*|MCP_TOKEN=${token}|" "$ENV_FILE"
     systemctl restart "$SERVICE"
     smoke_test "$MCP_PORT" "$token"
     ok "Token rotated."
@@ -349,37 +413,35 @@ action_rotate() {
 
 action_update() {
     require_root
-    is_installed || fail "Not installed."
+    is_installed || fail "'${ID}' is not installed."
     load_env
     ensure_host_deps
-    cp -a "${INSTALL_DIR}/server.py" "${INSTALL_DIR}/server.py.bak" 2>/dev/null || true
-    fetch_server
+    fetch_files
     setup_venv
     systemctl restart "$SERVICE"
-    if smoke_test "$MCP_PORT" "$MCP_TOKEN"; then
-        rm -f "${INSTALL_DIR}/server.py.bak"
-        ok "Updated."
-    fi
+    smoke_test "$MCP_PORT" "$MCP_TOKEN"
+    ok "'${ID}' updated."
 }
 
 action_logs() {
-    is_installed || fail "Not installed."
+    is_installed || fail "'${ID}' is not installed."
     echo "  Live logs. Press Ctrl+C to stop."
     journalctl -u "$SERVICE" -n 50 -f
 }
 
 action_uninstall() {
     require_root
-    is_installed || fail "Not installed."
+    is_installed || fail "'${ID}' is not installed."
     load_env
-    echo "  Removes the service, the Python environment and the saved token."
-    echo "  The folder ${MCP_ROOT} is NOT touched."
+    echo "  Removes the '${ID}' service, its Python environment and saved token."
+    echo "  Data it served is NOT touched."
     local c; read -p "  Type 'yes' to confirm: " c </dev/tty
     [[ "$c" == "yes" ]] || { info "Cancelled."; exit 0; }
     systemctl disable --now "$SERVICE" 2>/dev/null || true
-    rm -f "$UNIT_FILE"
+    rm -f "$UNIT_FILE" "$ENV_FILE"
+    rm -rf "$INSTALL_DIR"
     systemctl daemon-reload
-    rm -rf "$INSTALL_DIR" "$CONF_DIR"
+    rmdir "$BASE_DIR" "$CONF_DIR" 2>/dev/null || true
     ok "Removed. Delete the connector in claude.ai (Settings -> Connectors) and the"
     echo "       Cloudflare public hostname if you no longer need them."
 }
@@ -387,17 +449,12 @@ action_uninstall() {
 # --- Menu --------------------------------------------------------------------
 echo ""
 echo "================================================================"
-echo "  MCP Shared Folder - Claude Connector"
+echo "  MCP Servers - Claude Connectors"
 echo "================================================================"
 echo ""
-if is_installed; then
-    ok "Installed  [$(systemctl is-active "$SERVICE" 2>/dev/null || echo unknown)]"
-else
-    info "Not installed"
-    echo ""
-    echo "  Lets Claude (claude.ai, Desktop, Claude Code) browse, search,"
-    echo "  read and optionally write files in one folder on this host."
-fi
+select_server
+echo ""
+echo "  ${ID}: ${DESC}"
 echo ""
 echo "  1) Install / Reinstall"
 echo "  2) Show status and connection URL"

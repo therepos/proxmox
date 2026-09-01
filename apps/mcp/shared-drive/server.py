@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
-# Purpose: MCP server that exposes one shared folder to Claude over Streamable HTTP
+# Purpose: MCP server that exposes one shared folder to Claude
 # =============================================================================
-# Runs on the Proxmox host (installed by apps/installers/mcp-setup.sh).
-#
-#   Endpoint : http://<host>:<port>/<TOKEN>/mcp      (secret path)
-#              http://<host>:<port>/mcp  + "Authorization: Bearer <TOKEN>"
-#   Health   : http://<host>:<port>/healthz
+# Installed by apps/installers/mcp-setup.sh (server id: shared-drive).
+# HTTP endpoints, token gate and health check come from ../common.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
 #
-# Environment:
+# Environment (in addition to MCP_TOKEN / MCP_PORT / MCP_HOST, see common.py):
 #   MCP_ROOT        directory to expose (required)
-#   MCP_TOKEN       secret used in the URL path or Bearer header (required)
-#   MCP_PORT        listen port                      (default 8765)
-#   MCP_HOST        bind address                     (default 0.0.0.0)
 #   MCP_READ_ONLY   1 = do not register write tools  (default 0)
 #   MCP_NAME        server name shown to Claude      (default "shared-drive")
 # =============================================================================
@@ -24,36 +18,27 @@ from __future__ import annotations
 import base64
 import fnmatch
 import functools
-import hmac
 import os
 import shutil
 import stat
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ImageContent, TextContent, ToolAnnotations
-from starlette.responses import JSONResponse, PlainTextResponse
+
+# common.py sits next to server.py once installed (/opt/mcp/<id>/), one level up in the repo.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [_HERE, os.path.dirname(_HERE)]
+from common import env, env_bool, serve  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
-ROOT_RAW = os.environ.get("MCP_ROOT", "").strip()
-TOKEN = os.environ.get("MCP_TOKEN", "").strip()
-PORT = int(os.environ.get("MCP_PORT", "8765"))
-HOST = os.environ.get("MCP_HOST", "0.0.0.0")
-READ_ONLY = os.environ.get("MCP_READ_ONLY", "0") in ("1", "true", "yes")
-NAME = os.environ.get("MCP_NAME", "shared-drive")
-
-if not ROOT_RAW:
-    sys.exit("MCP_ROOT is not set")
-if not TOKEN or len(TOKEN) < 16:
-    sys.exit("MCP_TOKEN is not set or too short (need 16+ chars)")
-
-ROOT = Path(os.path.realpath(ROOT_RAW))
+READ_ONLY = env_bool("MCP_READ_ONLY", False)
+NAME = env("MCP_NAME", "shared-drive")
+ROOT = Path(os.path.realpath(env("MCP_ROOT", required=True)))
 if not ROOT.is_dir():
     sys.exit(f"MCP_ROOT is not a directory: {ROOT}")
 
@@ -448,53 +433,7 @@ if not READ_ONLY:
         return {"deleted": _rel(p), "recursive": recursive}
 
 
-# --- HTTP plumbing -----------------------------------------------------------
-@mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
-async def healthz(_request):  # type: ignore[no-untyped-def]
-    return JSONResponse({"ok": True, "name": NAME, "read_only": READ_ONLY, "time": int(time.time())})
-
-
-class TokenGate:
-    """ASGI wrapper: admit /healthz, /<TOKEN>/mcp (rewritten to /mcp), or /mcp with a Bearer token.
-    Everything else gets a bare 404 so nothing leaks and no OAuth discovery is triggered."""
-
-    def __init__(self, app, token: str):  # type: ignore[no-untyped-def]
-        self.app = app
-        self.token = token.encode()
-        self.prefix = f"/{token}"
-
-    async def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
-        if scope["type"] != "http":
-            return await self.app(scope, receive, send)
-        path: str = scope.get("path", "")
-        if path == "/healthz":
-            return await self.app(scope, receive, send)
-        if path.startswith(self.prefix + "/") and hmac.compare_digest(path[1 : 1 + len(self.token)].encode(), self.token):
-            scope = dict(scope)
-            scope["path"] = path[len(self.prefix):]
-            scope["raw_path"] = scope["path"].encode()
-            return await self.app(scope, receive, send)
-        auth = dict(scope.get("headers", [])).get(b"authorization", b"")
-        if auth.startswith(b"Bearer ") and hmac.compare_digest(auth[7:].strip(), self.token):
-            return await self.app(scope, receive, send)
-        resp = PlainTextResponse("not found", status_code=404)
-        await resp(scope, receive, send)
-
-
-inner = mcp.streamable_http_app(
-    streamable_http_path="/mcp",
-    json_response=True,
-    stateless_http=True,
-    host=HOST,
-    max_request_body_size=16 * 1024 * 1024,
-    # We sit behind Cloudflare Tunnel / arbitrary Host headers; the token is the gate.
-    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
-)
-app = TokenGate(inner, TOKEN)
-
-
+# --- Run ---------------------------------------------------------------------
 if __name__ == "__main__":
-    import uvicorn
-
-    print(f"[mcp-fs] {NAME}: serving {ROOT} {'read-only' if READ_ONLY else 'read/write'} on {HOST}:{PORT}", flush=True)
-    uvicorn.run(app, host=HOST, port=PORT, log_level="info", proxy_headers=True, forwarded_allow_ips="*")
+    print(f"[mcp] {NAME}: serving {ROOT} {'read-only' if READ_ONLY else 'read/write'}", flush=True)
+    serve(mcp, extra_health={"read_only": READ_ONLY})
