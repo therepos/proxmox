@@ -1,63 +1,88 @@
-# MCP shared folder for Claude
+# MCP servers
 
-Exposes one folder on the Proxmox host (default `/mnt/sec/media/shared`) to Claude as a
-remote [MCP](https://modelcontextprotocol.io) server over Streamable HTTP.
+Remote [MCP](https://modelcontextprotocol.io) servers that connect Claude (claude.ai, Desktop,
+Claude Code) to things on this Proxmox host. One folder per server, one shared plumbing file,
+one installer.
 
 ```
-claude.ai / Desktop / Claude Code
-        │  https://mcp.<domain>/<TOKEN>/mcp
-        ▼
-Cloudflare Tunnel (LXC 110, cloudflared-setup.sh)
-        │  http://192.168.0.111:8765
-        ▼
-mcp-fs.service on the PVE host  ──►  /mnt/sec/media/shared
+apps/mcp/
+├── README.md            # this file
+├── common.py            # token gate, /healthz, serve() - shared by every server
+└── shared/        # server id = folder name
+    ├── server.py
+    └── README.md
 ```
+
+| Server | Port | What it does |
+|---|---|---|
+| [shared](shared/) | 8765 | Browse, search, read and optionally write one folder on the host |
 
 ## Install
 
-On the Proxmox host:
+On the Proxmox host, then pick a server from the list:
 
 ```bash
 bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/mcp-setup.sh?$(date +%s))"
 ```
 
-Pick the folder, port, read/write or read-only, and a connector name. The installer prints
-the URL that contains the secret token.
+Each server gets its own sandboxed systemd unit, token and port:
+
+| Path | Purpose |
+|---|---|
+| `/opt/mcp/<id>/` | `server.py`, `common.py`, Python venv (`mcp>=2,<3`, `uvicorn`) |
+| `/etc/mcp/<id>.env` | settings and token, mode 600 |
+| `/etc/systemd/system/mcp-<id>.service` | unit; host is read-only except the paths the server declares |
+
+## Contract (common.py)
+
+Every server exposes the same endpoints, so the installer and Cloudflare setup are identical:
+
+| Endpoint | Auth |
+|---|---|
+| `GET /healthz` | none |
+| `POST /<TOKEN>/mcp` | token in the path (what claude.ai uses) |
+| `POST /mcp` | `Authorization: Bearer <TOKEN>` |
+| anything else | plain 404 |
 
 ## Connect
 
 1. **Cloudflare**: Zero Trust → Networks → Tunnels → your tunnel → Public Hostname → Add.
-   Subdomain `mcp`, type HTTP, URL `<host-ip>:8765`.
+   One hostname per server, type HTTP, URL `<host-ip>:<port>`.
 2. **claude.ai / Claude Desktop**: Settings → Connectors → Add custom connector.
-   URL `https://mcp.<domain>/<TOKEN>/mcp`, no OAuth fields.
-3. **Claude Code**: `claude mcp add --transport http shared-drive https://mcp.<domain>/<TOKEN>/mcp`
+   URL `https://<hostname>/<TOKEN>/mcp`, OAuth fields empty.
+3. **Claude Code**: `claude mcp add --transport http <name> https://<hostname>/<TOKEN>/mcp`
 
-On the LAN the same works with `http://<host-ip>:8765/<TOKEN>/mcp`. A Bearer header
-(`Authorization: Bearer <TOKEN>`) against `/mcp` is accepted too.
+## Adding a server
 
-## Tools
+The id is one lowercase word (letters and digits, no separators) and is used verbatim
+everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `mcp-<id>.service`,
+`configure_<id>()`. Examples: `shared`, `pve`, `jellyfin`.
 
-| Tool | Notes |
-|---|---|
-| `list_directory`, `directory_tree` | browse |
-| `search_files`, `search_content` | glob by name, substring inside text files |
-| `read_file`, `read_file_base64`, `view_image` | paged text, raw bytes (2 MB cap), images (8 MB cap) |
-| `get_file_info`, `disk_usage` | metadata, free space |
-| `write_file`, `create_directory`, `copy_path`, `move_path`, `delete_path` | read/write mode only |
+1. Create `apps/mcp/<id>/server.py`:
+   ```python
+   from mcp.server.mcpserver import MCPServer
+   import os, sys
+   _HERE = os.path.dirname(os.path.abspath(__file__))
+   sys.path[:0] = [_HERE, os.path.dirname(_HERE)]
+   from common import env, serve
+
+   mcp = MCPServer("<id>", instructions="what this server is for")
+
+   @mcp.tool()
+   def hello(name: str) -> str:
+       """Say hello."""
+       return f"hello {name}"
+
+   if __name__ == "__main__":
+       serve(mcp)
+   ```
+2. Add a line to `SERVERS=(...)` in `apps/installers/mcp-setup.sh`: `"<id>|<port>|<description>"`.
+3. If it needs its own prompts or writable paths, add `configure_<id>()` next to
+   `configure_shared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
+4. Add a `README.md` in the folder and a row in the table above.
 
 ## Security
 
-- The token in the URL is the only credential. Anyone with the URL has the access level you chose. Rotate it from the installer menu (option 5).
-- Every path is resolved and checked against the share; `..`, absolute paths and symlinks pointing outside are rejected.
-- The systemd unit runs with `ProtectSystem=strict`: the entire host is read-only to the process except the share (`ReadWritePaths`), and `/etc/pve`, `/var/lib/vz`, `/etc/ssh`, `/root` are inaccessible.
-- Wrong or missing token returns a plain 404, so nothing is discoverable by scanning.
-- Files are created with umask 0002 (664 / 775), matching the Samba share settings.
-
-## Files
-
-| Path | Purpose |
-|---|---|
-| `/opt/mcp-fs/server.py` | server (copy of `apps/mcp/server.py`) |
-| `/opt/mcp-fs/venv` | Python env with `mcp>=2,<3` and `uvicorn` |
-| `/etc/mcp-fs/env` | settings and token (mode 600) |
-| `/etc/systemd/system/mcp-fs.service` | unit |
+- The token is the only credential. Anyone with the URL has the server's access level. Rotate from the installer (option 5).
+- Wrong or missing token returns 404, so nothing is discoverable by scanning. Optionally add a Cloudflare WAF rule allowing only paths starting with `/<TOKEN>/`.
+- Cloudflare Access cannot sit in front of it: claude.ai cannot log in through it.

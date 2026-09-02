@@ -12,7 +12,7 @@ proxmox
 │   ├── docker          # Ready-to-run docker compose files.
 │   ├── ext             # Browser extension.
 │   ├── installers      # One-click bash installers.
-│   ├── mcp             # MCP server exposing a shared folder to Claude.
+│   ├── mcp             # MCP servers connecting Claude to this host.
 │   ├── tools           # One-click bash scripts.
 │   └── win             # One-click windows scripts.
 ├── docs                # Documentation and notes.
