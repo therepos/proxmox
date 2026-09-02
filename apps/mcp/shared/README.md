@@ -1,4 +1,4 @@
-# shared-drive
+# shared
 
 Exposes one folder on the Proxmox host (default `/mnt/sec/media/shared`) to Claude.
 Install and connect steps: see [apps/mcp/README.md](../README.md).
@@ -10,7 +10,7 @@ claude.ai / Desktop / Claude Code
 Cloudflare Tunnel (LXC, cloudflared-setup.sh)
         │  http://<host-ip>:8765
         ▼
-mcp-shared-drive.service on the PVE host  ──►  /mnt/sec/media/shared
+mcp-shared.service on the PVE host  ──►  /mnt/sec/media/shared
 ```
 
 ## Tools
@@ -25,7 +25,7 @@ mcp-shared-drive.service on the PVE host  ──►  /mnt/sec/media/shared
 
 Paths are relative to the share root. `..`, absolute paths and symlinks pointing outside are rejected.
 
-## Settings (`/etc/mcp/shared-drive.env`)
+## Settings (`/etc/mcp/shared.env`)
 
 | Variable | Meaning |
 |---|---|

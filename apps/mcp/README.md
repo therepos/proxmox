@@ -8,14 +8,14 @@ one installer.
 apps/mcp/
 ├── README.md            # this file
 ├── common.py            # token gate, /healthz, serve() - shared by every server
-└── shared-drive/        # server id = folder name
+└── shared/        # server id = folder name
     ├── server.py
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [shared-drive](shared-drive/) | 8765 | Browse, search, read and optionally write one folder on the host |
+| [shared](shared/) | 8765 | Browse, search, read and optionally write one folder on the host |
 
 ## Install
 
@@ -54,6 +54,10 @@ Every server exposes the same endpoints, so the installer and Cloudflare setup a
 
 ## Adding a server
 
+The id is one lowercase word (letters and digits, no separators) and is used verbatim
+everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `mcp-<id>.service`,
+`configure_<id>()`. Examples: `shared`, `pve`, `jellyfin`.
+
 1. Create `apps/mcp/<id>/server.py`:
    ```python
    from mcp.server.mcpserver import MCPServer
@@ -74,7 +78,7 @@ Every server exposes the same endpoints, so the installer and Cloudflare setup a
    ```
 2. Add a line to `SERVERS=(...)` in `apps/installers/mcp-setup.sh`: `"<id>|<port>|<description>"`.
 3. If it needs its own prompts or writable paths, add `configure_<id>()` next to
-   `configure_shared_drive()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
+   `configure_shared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
 4. Add a `README.md` in the folder and a row in the table above.
 
 ## Security

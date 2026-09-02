@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Purpose: MCP server that exposes one shared folder to Claude
 # =============================================================================
-# Installed by apps/installers/mcp-setup.sh (server id: shared-drive).
+# Installed by apps/installers/mcp-setup.sh (server id: shared).
 # HTTP endpoints, token gate and health check come from ../common.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
@@ -10,7 +10,7 @@
 # Environment (in addition to MCP_TOKEN / MCP_PORT / MCP_HOST, see common.py):
 #   MCP_ROOT        directory to expose (required)
 #   MCP_READ_ONLY   1 = do not register write tools  (default 0)
-#   MCP_NAME        server name shown to Claude      (default "shared-drive")
+#   MCP_NAME        server name shown to Claude      (default "shared")
 # =============================================================================
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from common import env, env_bool, serve  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
-NAME = env("MCP_NAME", "shared-drive")
+NAME = env("MCP_NAME", "shared")
 ROOT = Path(os.path.realpath(env("MCP_ROOT", required=True)))
 if not ROOT.is_dir():
     sys.exit(f"MCP_ROOT is not a directory: {ROOT}")

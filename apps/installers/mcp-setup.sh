@@ -12,7 +12,7 @@
 #
 # Adding a server: drop apps/mcp/<id>/server.py in the repo, then add one line
 # to the SERVERS registry below and, if it needs its own prompts, a
-# configure_<id>() function (see configure_shared_drive).
+# configure_<id>() function (see configure_shared).
 # =============================================================================
 
 set -euo pipefail
@@ -40,8 +40,11 @@ hr() { echo "----------------------------------------------------------------"; 
 
 # --- Registry ----------------------------------------------------------------
 # id | default port | one-line description
+# id is ONE lowercase word (letters/digits, no separators). It is used verbatim
+# for the repo folder, /opt/mcp/<id>, /etc/mcp/<id>.env, mcp-<id>.service and
+# the configure_<id>() function.
 SERVERS=(
-    "shared-drive|8765|Browse, search, read and write one folder on this host"
+    "shared|8765|Browse, search, read and write one folder on this host"
 )
 
 # --- Paths -------------------------------------------------------------------
@@ -109,6 +112,7 @@ select_server() {
     case "$c" in q|Q) info "Bye."; exit 0 ;; esac
     [[ "$c" =~ ^[0-9]+$ && "$c" -ge 1 && "$c" -le ${#entries[@]} ]] || fail "Invalid choice."
     IFS='|' read -r ID DEFAULT_PORT DESC <<<"${entries[$((c - 1))]}"
+    [[ "$ID" =~ ^[a-z0-9]+$ ]] || fail "Server id '${ID}' must be one lowercase word (letters/digits)."
     INSTALL_DIR="${BASE_DIR}/${ID}"
     ENV_FILE="${CONF_DIR}/${ID}.env"
     SERVICE="mcp-${ID}"
@@ -120,7 +124,7 @@ select_server() {
 # RO_PATHS / SUMMARY / CONNECT_NOTE. Common items (port, name, token, public
 # URL) are handled by action_install.
 
-configure_shared_drive() {
+configure_shared() {
     local share ro c
     read -p "  Folder to expose [${SHARE_PATH:-/mnt/sec/media/shared}]: " share </dev/tty
     share="${share:-${SHARE_PATH:-/mnt/sec/media/shared}}"
@@ -314,8 +318,8 @@ action_install() {
     local port name pub c
 
     # Server-specific questions
-    if declare -F "configure_${ID//-/_}" >/dev/null; then
-        "configure_${ID//-/_}"
+    if declare -F "configure_${ID}" >/dev/null; then
+        "configure_${ID}"
         echo ""
     fi
 
