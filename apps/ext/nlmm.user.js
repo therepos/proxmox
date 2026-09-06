@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NotebookLM Tools
 // @namespace    https://github.com/therepos/proxmox
-// @version      2.0.0
+// @version      2.0.1
 // @description  Bulk delete notebooks on the NotebookLM list page. Scan, preview, type DELETE, run.
 // @author       therepos
 // @match        https://notebooklm.google.com/*
@@ -297,7 +297,7 @@
     row.append(scanBtn, runBtn, stopBtn);
     panel.append(
       el('h1', {}, 'NotebookLM Tools'),
-      el('div', { class: 'sub' }, 'Bulk delete · userscript v2.0.0'),
+      el('div', { class: 'sub' }, 'Bulk delete · userscript v2.0.1'),
       row, list, confirm, log,
     );
     document.documentElement.append(style, fab, panel);
@@ -326,7 +326,7 @@
         say('Scanning… (scrolling the page to load every notebook)');
         const found = await scan();
         list.hidden = false;
-        list.innerHTML = '';
+        list.replaceChildren();
         found.forEach((n, i) => list.appendChild(el('div', {}, (i + 1) + '. ' + n)));
         if (!found.length) {
           list.textContent = 'No notebooks found. Make sure you are on the notebook list, not inside a notebook.';
