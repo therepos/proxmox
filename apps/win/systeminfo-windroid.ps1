@@ -1,26 +1,28 @@
-@echo off
-title System Info Collector
-cd /d "%~dp0"
-
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-  echo Requesting administrator rights...
-  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-  exit /b
-)
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=[IO.File]::ReadAllText('%~f0'); $i=$f.LastIndexOf('#PSSTART'); Invoke-Expression $f.Substring($i)"
-
-echo.
-pause
-exit /b
-
-#PSSTART
-# =====================================================================
-#  System Info Collector  -  embedded PowerShell section
+# irm https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1 | iex
+# Purpose: Collect raw hardware/software info from a Windows laptop and/or Android phone
+# =============================================================================
+#  System Info Collector
 #  1 = Windows laptop   2 = Android phone   3 = Both
 #  Raw output, no redaction. Reports go to Desktop\SystemReports.
-# =====================================================================
+#
+#  Run from any PowerShell window (no download needed):
+#      irm https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1 | iex
+#  Admin rights are requested automatically; a new elevated window opens.
+# =============================================================================
+
+$ScriptUrl = 'https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1'
+
+# --- Self-elevate: re-run the same one-liner in an elevated window ------------
+$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+           ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $IsAdmin) {
+    Write-Host "  Requesting administrator rights..." -ForegroundColor Yellow
+    $cmd = "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; irm '$ScriptUrl?$(Get-Random)' | iex"
+    Start-Process -FilePath 'powershell.exe' -Verb RunAs `
+        -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-Command', $cmd
+    Write-Host "  Continue in the new (elevated) window. You can close this one." -ForegroundColor Gray
+    return
+}
 
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference    = 'SilentlyContinue'

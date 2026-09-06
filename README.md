@@ -1,6 +1,7 @@
 ## Usage
 
-Execute the wget command line from the selected script.
+Execute the wget command line from the selected script.  
+Windows scripts (`apps/win/*.ps1`) use the `irm ... | iex` line in their header instead.
 
 ## Structure
 
