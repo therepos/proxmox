@@ -13,13 +13,20 @@
 // @downloadURL  https://raw.githubusercontent.com/therepos/proxmox/main/apps/ext/nlmm.user.js
 // ==/UserScript==
 
-/* Userscript build of apps/ext/ext-nlmm.zip. Same page logic as the extension
- * (page/core.js + page/actions/delete.js); the popup is replaced by a floating
- * panel drawn into the page. Works in Tampermonkey, Violentmonkey, and the
- * Userscripts app on iPad Safari.
+/* Install
+ *   1. Install Tampermonkey or Violentmonkey (iPad: Userscripts app).
+ *   2. Open the @downloadURL above, click Install.
  *
- * Install: open the raw URL above in a browser with a userscript manager and
- * click Install. Then go to the notebook list page and click "NLM" bottom-right.
+ * Use
+ *   1. Open https://notebooklm.google.com/ and stay on the notebook list.
+ *   2. Click NLM (bottom-right) > Scan notebooks.
+ *   3. Type DELETE > Delete all. Stop ends after the current one.
+ *   4. Keep the tab open and in the foreground.
+ *
+ * Notes
+ *   Deletion is permanent. Each notebook is retried 3 times, then skipped and listed.
+ *   Update: bump @version, push to main. Managers pull from @updateURL.
+ *   Source: ext-nlmm.zip (page/core.js + page/actions/delete.js), popup replaced by an in-page panel.
  */
 
 (() => {
