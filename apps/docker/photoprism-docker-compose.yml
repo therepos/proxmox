@@ -30,6 +30,8 @@ services:
     ## Use photoprism/photoprism:preview for testing preview builds:
     image: photoprism/photoprism:latest
     container_name: photoprism
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     ## If the service gets stuck in a restart loop, this points to a memory, filesystem, network, or database issue:
     ## https://docs.photoprism.app/getting-started/troubleshooting/#fatal-server-errors
     restart: unless-stopped
@@ -120,7 +122,7 @@ services:
   ## MariaDB Database Server (recommended)
   ## see https://docs.photoprism.app/getting-started/faq/#should-i-use-sqlite-mariadb-or-mysql
   mariadb:
-    image: mariadb:11
+    image: mariadb:11.8
     container_name: photoprism-db
     ## If MariaDB gets stuck in a restart loop, this points to a memory or filesystem issue:
     ## https://docs.photoprism.app/getting-started/troubleshooting/#fatal-server-errors
@@ -149,17 +151,3 @@ services:
       MARIADB_ROOT_PASSWORD: "insecure"
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-
-  ## Watchtower upgrades services automatically (optional)
-  ## see https://docs.photoprism.app/getting-started/updates/#watchtower
-  ## activate via "COMPOSE_PROFILES=update docker compose up -d"
-  watchtower:
-    restart: unless-stopped
-    image: containrrr/watchtower
-    profiles: ["update"]
-    environment:
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_POLL_INTERVAL: 7200 # checks for updates every two hours
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "~/.docker/config.json:/config.json" # optional, for authentication if you have a Docker Hub account
