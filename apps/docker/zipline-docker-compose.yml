@@ -32,4 +32,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD}
       POSTGRES_DB: zipline
     volumes:
-      - /mnt/sec/apps/zipline/pgdata:/var/lib/postgresql/data   
+      - /mnt/sec/apps/zipline/pgdata:/var/lib/postgresql/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"

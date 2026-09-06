@@ -71,7 +71,7 @@ services:
       - seccomp=unconfined
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
-
+      
   importer:
     image: fireflyiii/data-importer:latest
     container_name: firefly3-importer
