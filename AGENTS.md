@@ -27,6 +27,8 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 - Server id is one lowercase word (letters and digits only). It is used verbatim for
   `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `mcp-<id>.service`
   and the installer hook `configure_<id>()`.
+- Public-facing name is `mcp<id>`: the Cloudflare subdomain and the default connector
+  name shown in Claude (e.g. `mcpshared`).
 - New server: create `apps/mcp/<id>/server.py` that imports `env` and `serve` from `common`,
   add a `"<id>|<port>|<description>"` line to `SERVERS` in `apps/installers/mcp-setup.sh`,
   and a `configure_<id>()` only if it needs prompts or writable paths.

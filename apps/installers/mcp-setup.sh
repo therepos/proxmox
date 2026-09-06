@@ -286,12 +286,12 @@ print_connect() {
     echo ""
     echo "  1) Expose through your Cloudflare Tunnel (once per server):"
     echo "       Zero Trust -> Networks -> Tunnels -> <your tunnel> -> Public Hostname -> Add"
-    echo "       Subdomain: <any>   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
+    echo "       Subdomain: mcp${ID}   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
     echo "       Then re-run this script -> option 4 to save the hostname."
     echo ""
     echo "  2) claude.ai / Claude Desktop:"
     echo "       Settings -> Connectors -> Add custom connector"
-    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://<subdomain>.<your-domain>/${MCP_TOKEN}/mcp}"
+    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://mcp${ID}.<your-domain>/${MCP_TOKEN}/mcp}"
     echo "       Leave OAuth fields empty. The secret is in the URL."
     echo ""
     echo "  3) Claude Code (any machine that can reach the URL):"
@@ -330,8 +330,9 @@ action_install() {
         is_installed || fail "Port ${port} is already in use."
     fi
 
-    read -p "  Connector name shown in Claude [${ID}]: " name </dev/tty
-    name="${name:-$ID}"
+    # Default name is mcp<id>, same as the suggested Cloudflare subdomain.
+    read -p "  Connector name shown in Claude [mcp${ID}]: " name </dev/tty
+    name="${name:-mcp${ID}}"
     [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || fail "Name may only contain letters, digits, . _ -"
 
     echo ""
