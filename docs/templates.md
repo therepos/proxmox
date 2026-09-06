@@ -70,4 +70,5 @@
 - [Webmin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/webmin-setup.sh) – Install webmin on PVE9.  
 
 ## Tools
+- [llmfit.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/llmfit.sh) – Recommend local LLMs that fit this machine's GPU/RAM via llmfit (VM/LXC, no sudo).  
 - [pve-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/pve-report.sh) – Dump a full Proxmox VE configuration/health report to a text file (PVE host).  
