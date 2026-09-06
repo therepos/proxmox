@@ -72,3 +72,4 @@
 ## Tools
 - [llmfit.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/llmfit.sh) – Recommend local LLMs that fit this machine's GPU/RAM via llmfit (VM/LXC, no sudo).  
 - [pve-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/pve-report.sh) – Dump a full Proxmox VE configuration/health report to a text file (PVE host).  
+- [vm-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/vm-report.sh) – Dump a full guest (VM or LXC) configuration/health report to a text file (Debian/Ubuntu).  
