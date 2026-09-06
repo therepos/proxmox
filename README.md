@@ -1,6 +1,7 @@
 ## Usage
 
-Execute the wget command line from the selected script.
+Execute the wget command line from the selected script.  
+Windows scripts (`apps/win`): double-click the `.bat`, or run the `irm ... | iex` line from the `.ps1` header.
 
 ## Structure
 
