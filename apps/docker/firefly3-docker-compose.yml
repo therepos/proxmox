@@ -52,7 +52,7 @@ services:
       - seccomp=unconfined
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-      
+
   db:
     image: mariadb:lts
     container_name: firefly3-db
