@@ -4,6 +4,7 @@
 # =============================================================================
 # Usage:
 #   llmfit.sh [command] [args...]
+#   LIMIT=25 bash -c "$(wget -qLO- <raw-url>)" _ agent   # one-liner form: args go after _
 #
 #   (no args)        ranked table of models that fit (default LIMIT=8)
 #   system           show detected GPU / VRAM / RAM
@@ -65,7 +66,7 @@ run_llmfit() {
 cmd_fit() {
     run_llmfit fit -n "$LIMIT" "$@"
     echo ""
-    info "Tool-use column matters for agents: run 'llmfit.sh agent' to filter to those."
+    info "For agents (Hermes) filter to tool-use models: re-run with 'agent' as the argument (one-liner: ... _ agent)."
 }
 
 cmd_uninstall() {
