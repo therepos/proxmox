@@ -13,6 +13,7 @@ $ScriptUrl = 'https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo.p
 
 # --- Self-elevate: re-run the same one-liner in an elevated window ------------
 $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+
            ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $IsAdmin) {
     Write-Host "  Requesting administrator rights..." -ForegroundColor Yellow
