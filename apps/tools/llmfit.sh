@@ -5,15 +5,17 @@
 # Usage:
 #   llmfit.sh [command] [args...]
 #
-#   (no args)        system + recommend (default LIMIT=8)
+#   (no args)        ranked table of models that fit (default LIMIT=8)
 #   system           show detected GPU / VRAM / RAM
-#   recommend        ranked shortlist of models that fit
-#   fit              only models that fit fully in VRAM (--perfect)
+#   fit              same as no args (table)
+#   perfect          table, only models that fit fully in VRAM
+#   agent            table, only models with tool-use support (Hermes etc.)
+#   recommend        same shortlist as JSON (llmfit's agent-oriented output)
 #   uninstall        remove the uv cache (and uv itself with --all)
 #   <anything else>  passed straight through to llmfit
 #
 # Environment:
-#   LIMIT=8          number of models to list for recommend/fit
+#   LIMIT=8          number of models to list
 #
 # Nothing is installed system-wide: uv goes to ~/.local/bin and llmfit runs
 # in a throwaway environment under ~/.cache/uv. System Python, Ollama and
@@ -60,12 +62,10 @@ run_llmfit() {
 }
 
 # --- Commands ----------------------------------------------------------------
-cmd_default() {
-    run_llmfit system
+cmd_fit() {
+    run_llmfit fit -n "$LIMIT" "$@"
     echo ""
-    run_llmfit recommend --limit "$LIMIT"
-    echo ""
-    info "Paste the recommend output back to pick agent/tool-call-safe models."
+    info "Tool-use column matters for agents: run 'llmfit.sh agent' to filter to those."
 }
 
 cmd_uninstall() {
@@ -81,10 +81,12 @@ cmd_uninstall() {
 
 # --- Main --------------------------------------------------------------------
 case "${1:-}" in
-    "")          cmd_default ;;
+    "")          cmd_fit ;;
     system)      shift; run_llmfit system "$@" ;;
+    fit)         shift; cmd_fit "$@" ;;
+    perfect)     shift; cmd_fit --perfect "$@" ;;
+    agent)       shift; run_llmfit fit --tool-use -n "$LIMIT" "$@" ;;
     recommend)   shift; run_llmfit recommend --limit "$LIMIT" "$@" ;;
-    fit)         shift; run_llmfit fit --perfect -n "$LIMIT" "$@" ;;
     uninstall)   shift; cmd_uninstall "$@" ;;
     -h|--help)   sed -n '5,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)           run_llmfit "$@" ;;
