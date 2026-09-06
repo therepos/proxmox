@@ -106,7 +106,7 @@ select_server() {
     echo ""
     for e in "${entries[@]}"; do
         IFS='|' read -r id port desc <<<"$e"
-        printf '    %d) %-10s %-15s %s\n' "$i" "$id" "[$(svc_state "$id")]" "$desc"
+        printf '    %d) %s\n' "$i" "$id"
         i=$((i + 1))
     done
     echo ""
