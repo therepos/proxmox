@@ -46,6 +46,9 @@ DATA_DIR="/opt/hermes"
 DASH_PORT=9119
 GW_PORT=8642
 DASH_BIND="127.0.0.1"
+DASH_ENABLE=""
+DASH_USER=""
+DASH_PASS=""
 
 PROVIDER_LABEL=""
 PROVIDER_ENVVAR=""
@@ -96,7 +99,7 @@ preflight() {
 # --- Guided setup ------------------------------------------------------------
 choose_provider() {
     hr
-    echo "  Step 1 of 3 - Choose your AI provider"
+    echo "  Step 1 of 4 - Choose your AI provider"
     hr
     echo ""
     echo "  You need a paid API key from ONE of these providers."
@@ -144,7 +147,7 @@ choose_provider() {
 
 setup_telegram() {
     hr
-    echo "  Step 2 of 3 - Connect Telegram"
+    echo "  Step 2 of 4 - Connect Telegram"
     hr
     echo ""
     echo "  This is how you will talk to your assistant, from any device."
@@ -211,9 +214,32 @@ setup_telegram() {
     fi
 }
 
+setup_dashboard() {
+    hr
+    echo "  Step 3 of 4 - Web dashboard (optional)"
+    hr
+    echo ""
+    echo "  The dashboard is a web page on your home network where you can"
+    echo "  see logs, skills, memory and settings in a browser. Telegram"
+    echo "  works fine without it. You can turn it on later (menu option 9)."
+    echo ""
+    local c
+    read -p "  Enable the web dashboard? [Y/n]: " c </dev/tty
+    if [[ "$c" =~ ^[Nn]$ ]]; then DASH_ENABLE=""; return; fi
+    DASH_ENABLE="1"
+    read -p "  Dashboard username [admin]: " DASH_USER </dev/tty
+    DASH_USER="${DASH_USER:-admin}"
+    while :; do
+        read -rsp "  Dashboard password (8+ characters, typing is hidden): " DASH_PASS </dev/tty; echo ""
+        (( ${#DASH_PASS} >= 8 )) && break
+        warn "Too short."
+    done
+    ok "Dashboard will be enabled for ${DASH_USER}."
+}
+
 confirm_plan() {
     hr
-    echo "  Step 3 of 3 - Review"
+    echo "  Step 4 of 4 - Review"
     hr
     echo ""
     echo "  Container   : LXC named '$HOSTNAME' on $STORAGE"
@@ -223,6 +249,11 @@ confirm_plan() {
         echo "  Telegram    : @${TG_BOTNAME}${TG_USERID:+  locked to ID ${TG_USERID}}"
     else
         echo "  Telegram    : not configured"
+    fi
+    if [[ -n "$DASH_ENABLE" ]]; then
+        echo "  Dashboard   : on (home network only, user ${DASH_USER})"
+    else
+        echo "  Dashboard   : off"
     fi
     echo "  Timezone    : ${TIMEZONE}"
     echo ""
@@ -285,6 +316,26 @@ EOSH
     ok "Credentials saved."
 }
 
+write_dashboard_env() {
+    # Dashboard settings live in their own file so they survive updates and
+    # can be changed later without editing docker-compose.yml.
+    local ctid="$1" secret
+    secret="$(openssl rand -hex 32)"
+    if [[ -n "$DASH_ENABLE" ]]; then
+        pct exec "$ctid" -- bash -c "umask 077; cat > ${DATA_DIR}/dashboard.env <<EOF
+HERMES_DASHBOARD=1
+HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${DASH_USER}
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${DASH_PASS}
+HERMES_DASHBOARD_BASIC_AUTH_SECRET=${secret}
+EOF
+sed -i 's/127\.0\.0\.1:${DASH_PORT}:/0.0.0.0:${DASH_PORT}:/' ${DATA_DIR}/docker-compose.yml"
+    else
+        pct exec "$ctid" -- bash -c "umask 077; : > ${DATA_DIR}/dashboard.env
+sed -i 's/0\.0\.0\.0:${DASH_PORT}:/127.0.0.1:${DASH_PORT}:/' ${DATA_DIR}/docker-compose.yml"
+    fi
+    ok "Dashboard settings saved."
+}
+
 enable_telegram_platform() {
     # The setup wizard stores the token but does not add a platforms: block,
     # so the gateway starts with "no messaging platforms enabled". Set it here.
@@ -339,6 +390,7 @@ action_install() {
     preflight
     choose_provider
     setup_telegram
+    setup_dashboard
     confirm_plan
 
     local ctid=$CTID_DEFAULT
@@ -398,7 +450,10 @@ services:
       - \"${DASH_BIND}:${GW_PORT}:${GW_PORT}\"
     environment:
       - TZ=${TIMEZONE}
+    env_file:
+      - ${DATA_DIR}/dashboard.env
 YAML
+        : > ${DATA_DIR}/dashboard.env
         cd ${DATA_DIR} && docker compose pull -q && docker compose up -d
     " || fail "Hermes deployment failed. See $LOG_FILE"
 
@@ -409,13 +464,14 @@ YAML
     ok "Hermes is running."
 
     write_env "$ctid"
+    write_dashboard_env "$ctid"
     enable_telegram_platform "$ctid"
     if [[ -n "$PROVIDER_MODEL" ]]; then
         hx "$ctid" config set model.name "$PROVIDER_MODEL" >/dev/null 2>&1 || true
     fi
 
     info "Restarting to apply settings..."
-    pct exec "$ctid" -- docker restart hermes >/dev/null
+    pct exec "$ctid" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null
     sleep 15
 
     smoke_test "$ctid" || true
@@ -437,6 +493,10 @@ YAML
     echo ""
     echo "  Container : CTID ${ctid} at ${ip:-unknown}"
     echo "  Password  : /root/.hermes-lxc-${ctid}.pw"
+    if [[ -n "$DASH_ENABLE" ]]; then
+        echo "  Dashboard : http://${ip:-<container-ip>}:${DASH_PORT}  (user ${DASH_USER})"
+        echo "              Home network only. Do NOT expose this through Cloudflare."
+    fi
     echo "  Log file  : ${LOG_FILE}"
     echo ""
     echo "  Re-run this script anytime to check status, back up or update."
@@ -585,6 +645,21 @@ action_uninstall() {
     echo ""
 }
 
+action_dashboard() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
+    setup_dashboard
+    write_dashboard_env "$EXISTING_CTID"
+    pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null || fail "Restart failed."
+    sleep 10
+    if [[ -n "$DASH_ENABLE" ]]; then
+        local ip; ip="$(ct_ip "$EXISTING_CTID")"
+        ok "Dashboard is on: http://${ip:-<container-ip>}:${DASH_PORT}  (user ${DASH_USER})"
+        echo "  Home network only. Do NOT expose this through Cloudflare."
+    else
+        ok "Dashboard is off."
+    fi
+}
+
 action_status() {
     if [[ -z "$EXISTING_CTID" ]]; then
         info "Hermes is not installed."
@@ -610,6 +685,12 @@ action_status() {
     pct exec "$EXISTING_CTID" -- docker exec hermes hermes gateway status 2>/dev/null \
         | sed 's/^/    /' || warn "    gateway not responding"
 
+    echo ""
+    if pct exec "$EXISTING_CTID" -- grep -q '^HERMES_DASHBOARD=1' "${DATA_DIR}/dashboard.env" 2>/dev/null; then
+        echo "  Dashboard : http://${ip:-<container-ip>}:${DASH_PORT}"
+    else
+        echo "  Dashboard : off (menu option 9 to enable)"
+    fi
     echo ""
     echo -n "  Data size : "
     pct exec "$EXISTING_CTID" -- du -sh "${DATA_DIR}/data" 2>/dev/null | awk '{print $1}' || echo "unknown"
@@ -644,6 +725,7 @@ echo "  5) View logs"
 echo "  6) Backup"
 echo "  7) Update to latest version"
 echo "  8) Uninstall"
+echo "  9) Enable, disable or reset dashboard login"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -658,6 +740,7 @@ case "$choice" in
     6) action_backup ;;
     7) action_update ;;
     8) action_uninstall ;;
+    9) action_dashboard ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac
