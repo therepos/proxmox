@@ -220,8 +220,8 @@ sec_os() {
 sec_virt() {
     echo "---- Detected ----"
     printf '%-14s %s\n' "type:"      "$(virt_type)"
-    printf '%-14s %s\n' "container:" "$(systemd-detect-virt -c 2>/dev/null || echo none)"
-    printf '%-14s %s\n' "vm:"        "$(systemd-detect-virt -v 2>/dev/null || echo none)"
+    printf '%-14s %s\n' "container:" "$(systemd-detect-virt -c 2>/dev/null || true)"
+    printf '%-14s %s\n' "vm:"        "$(systemd-detect-virt -v 2>/dev/null || true)"
     echo ""
     echo "---- DMI (what the hypervisor presents) ----"
     local f
@@ -286,7 +286,7 @@ sec_gpu() {
         show "$(nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>/dev/null)" "(none)"
         echo ""
         echo "---- CUDA / toolkit ----"
-        printf '%-22s %s\n' "nvidia-smi CUDA:" "$(nvidia-smi 2>/dev/null | grep -oE 'CUDA Version: [0-9.]+' | head -1 | cut -d' ' -f3 || echo '?')"
+        printf '%-22s %s\n' "nvidia-smi CUDA:" "$(nvidia-smi -q 2>/dev/null | awk -F': ' '/CUDA Version/ { print $2; exit }' || echo '?')"
         printf '%-22s %s\n' "nvcc:"            "$(nvcc --version 2>/dev/null | grep -oE 'release [0-9.]+' | cut -d' ' -f2 || echo 'not installed')"
         printf '%-22s %s\n' "container toolkit:" "$(nvidia-ctk --version 2>/dev/null | head -1 || echo 'not installed')"
         printf '%-22s %s\n' "persistenced:"    "$(systemctl is-active nvidia-persistenced 2>/dev/null || echo 'inactive')"
@@ -299,7 +299,7 @@ sec_gpu() {
     show "$(lsmod 2>/dev/null | awk '$1 ~ /^(nvidia|nouveau|i915|xe|amdgpu|radeon)/ { print $1 }' | sort | paste -sd' ' -)" "(none)"
     echo ""
     echo "---- /dev nodes ----"
-    show "$(ls -l /dev/nvidia* /dev/dri/* 2>/dev/null)" "(none)"
+    show "$(ls -ld /dev/nvidia* /dev/dri/card* /dev/dri/renderD* 2>/dev/null)" "(none)"
 }
 
 sec_filesystems() {
@@ -406,7 +406,12 @@ sec_docker() {
 
 sec_llm() {
     echo "---- Ollama ----"
-    if has ollama; then
+    if ! has ollama && has docker && docker ps --format '{{.Names}}' 2>/dev/null | grep -qx ollama; then
+        echo "running as Docker container 'ollama':"
+        docker exec ollama ollama list 2>/dev/null | awk 'NR>1 { print "  " $0 }' || true
+        echo "loaded now:"
+        show "$(docker exec ollama ollama ps 2>/dev/null | awk 'NR>1 { print "  " $0 }')" "  (none)"
+    elif has ollama; then
         printf '%-14s %s\n' "version:" "$(ollama --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
         printf '%-14s %s\n' "service:" "$(systemctl is-active ollama 2>/dev/null || echo 'not a service')"
         printf '%-14s %s\n' "listening:" "$(ss -tlnH 2>/dev/null | awk '$4 ~ /:11434$/ { print $4 }' | paste -sd' ' - || true)"
@@ -429,9 +434,13 @@ sec_llm() {
     echo ""
     echo "---- Model storage ----"
     local d
-    for d in /usr/share/ollama/.ollama/models "$HOME/.ollama/models" /root/.ollama/models "$HOME/.cache/huggingface" /var/lib/ollama; do
-        [[ -d "$d" ]] && printf '%-40s %s\n' "$d" "$(du -sh "$d" 2>/dev/null | cut -f1)"
+    local found=0
+    for d in /usr/share/ollama/.ollama/models "$HOME/.ollama/models" /root/.ollama/models "$HOME/.cache/huggingface" /var/lib/ollama /mnt/sec/apps/ollama; do
+        [[ -d "$d" ]] || continue
+        found=1
+        printf '%-40s %s\n' "$d" "$(du -sh "$d" 2>/dev/null | cut -f1)"
     done
+    (( found )) || echo "(no model directories found)"
     return 0
 }
 
@@ -443,6 +452,9 @@ sec_services() {
     local s st
     for s in ssh sshd docker containerd ollama qemu-guest-agent tailscaled cloudflared nvidia-persistenced unattended-upgrades cron fail2ban; do
         st=$(systemctl is-active "$s" 2>/dev/null || true)
+        # Ubuntu 22.10+ starts sshd on demand via ssh.socket; report that as active.
+        [[ "$s" == ssh && "$st" == inactive ]] && systemctl is-active ssh.socket &>/dev/null && st="active (socket)"
+        [[ "$s" == sshd && "$st" == inactive ]] && continue
         [[ "$st" == "inactive" && "$(systemctl is-enabled "$s" 2>/dev/null || true)" == "" ]] && continue
         [[ -n "$st" ]] && printf '%-22s %s\n' "$s" "$st"
     done
@@ -461,7 +473,11 @@ sec_apt() {
     local f body
     for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
         [[ -f "$f" ]] || continue
-        body=$(grep -Ev '^[[:space:]]*(#|$)' "$f" || true)
+        # Inline Signed-By keys in .sources files are 100+ lines of base64.
+        body=$(grep -Ev '^[[:space:]]*(#|$)' "$f" | awk '
+            /^Signed-By:[[:space:]]*$/ { print "Signed-By: (inline key omitted)"; inkey=1; next }
+            inkey && /^[[:space:]]/ { next }
+            { inkey=0; print }' || true)
         [[ -n "$body" ]] || continue
         echo "---- $f ----"
         echo "$body"
@@ -577,5 +593,8 @@ collect "PERFORMANCE"      sec_perf
 
 { echo ""; echo "==================== END OF REPORT ===================="; } >>"$OUT"
 
-ok "Report complete: $OUT"
+# Hand the file back to the invoking user so it is readable/deletable without sudo.
+[[ -n "${SUDO_USER:-}" ]] && chown "$SUDO_USER" "$OUT" 2>/dev/null || true
+
+ok "Report complete: $(realpath "$OUT" 2>/dev/null || echo "$OUT")"
 info "Contains IPs, MACs, usernames and open ports — review before sharing."
