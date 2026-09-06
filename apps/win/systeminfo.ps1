@@ -1,16 +1,15 @@
-# irm https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1 | iex
+# irm https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo.ps1 | iex
 # Purpose: Collect raw hardware/software info from a Windows laptop and/or Android phone
 # =============================================================================
-#  System Info Collector
-#  1 = Windows laptop   2 = Android phone   3 = Both
-#  Raw output, no redaction. Reports go to Desktop\SystemReports.
+#  System Info Collector:
+#   1 = Windows laptop   
+#   2 = Android phone   
+#   3 = Both
+#  Output: \Desktop\SystemReports.
 #
-#  Run from any PowerShell window (no download needed):
-#      irm https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1 | iex
-#  Admin rights are requested automatically; a new elevated window opens.
 # =============================================================================
 
-$ScriptUrl = 'https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo-windroid.ps1'
+$ScriptUrl = 'https://github.com/therepos/proxmox/raw/main/apps/win/systeminfo.ps1'
 
 # --- Self-elevate: re-run the same one-liner in an elevated window ------------
 $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
