@@ -1,1 +1,0 @@
-@CONVENTION.md
