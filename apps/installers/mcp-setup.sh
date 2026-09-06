@@ -7,12 +7,12 @@
 #
 #   /opt/mcp/<id>/{venv,server.py,common.py}
 #   /etc/mcp/<id>.env                      settings + token (mode 600)
-#   /etc/systemd/system/mcp-<id>.service
+#   /etc/systemd/system/<id>.service
 #   http://<host-ip>:<port>/<TOKEN>/mcp    endpoint (see apps/mcp/common.py)
 #
 # Adding a server: drop apps/mcp/<id>/server.py in the repo, then add one line
 # to the SERVERS registry below and, if it needs its own prompts, a
-# configure_<id>() function (see configure_shared).
+# configure_<id>() function (see configure_mcpshared).
 # =============================================================================
 
 set -euo pipefail
@@ -40,11 +40,11 @@ hr() { echo "----------------------------------------------------------------"; 
 
 # --- Registry ----------------------------------------------------------------
 # id | default port | one-line description
-# id is ONE lowercase word (letters/digits, no separators). It is used verbatim
-# for the repo folder, /opt/mcp/<id>, /etc/mcp/<id>.env, mcp-<id>.service and
-# the configure_<id>() function.
+# id is ONE lowercase word (letters/digits, no separators) and is the name used
+# everywhere: repo folder, /opt/mcp/<id>, /etc/mcp/<id>.env, <id>.service,
+# configure_<id>(), the Cloudflare subdomain and the connector name in Claude.
 SERVERS=(
-    "shared|8765|Browse, search, read and write one folder on this host"
+    "mcpshared|8765|Browse, search, read and write one folder on this host"
 )
 
 # --- Paths -------------------------------------------------------------------
@@ -95,8 +95,8 @@ load_env() {
 
 svc_state() {
     # is-active prints inactive/failed AND exits non-zero, so capture rather than || fallback
-    [[ -f "/etc/systemd/system/mcp-$1.service" ]] || { echo "not installed"; return; }
-    systemctl is-active "mcp-$1" 2>/dev/null || true
+    [[ -f "/etc/systemd/system/$1.service" ]] || { echo "not installed"; return; }
+    systemctl is-active "$1" 2>/dev/null || true
 }
 
 # --- Server selection --------------------------------------------------------
@@ -119,7 +119,7 @@ select_server() {
     [[ "$ID" =~ ^[a-z0-9]+$ ]] || fail "Server id '${ID}' must be one lowercase word (letters/digits)."
     INSTALL_DIR="${BASE_DIR}/${ID}"
     ENV_FILE="${CONF_DIR}/${ID}.env"
-    SERVICE="mcp-${ID}"
+    SERVICE="${ID}"
     UNIT_FILE="/etc/systemd/system/${SERVICE}.service"
 }
 
@@ -128,7 +128,7 @@ select_server() {
 # RO_PATHS / SUMMARY / CONNECT_NOTE. Common items (port, name, token, public
 # URL) are handled by action_install.
 
-configure_shared() {
+configure_mcpshared() {
     local share ro c
     read -p "  Folder to expose [${SHARE_PATH:-/mnt/sec/media/shared}]: " share </dev/tty
     share="${share:-${SHARE_PATH:-/mnt/sec/media/shared}}"
@@ -290,12 +290,12 @@ print_connect() {
     echo ""
     echo "  1) Expose through your Cloudflare Tunnel (once per server):"
     echo "       Zero Trust -> Networks -> Tunnels -> <your tunnel> -> Public Hostname -> Add"
-    echo "       Subdomain: mcp${ID}   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
+    echo "       Subdomain: ${ID}   Domain: <yours>   Type: HTTP   URL: ${ip}:${MCP_PORT}"
     echo "       Then re-run this script -> option 4 to save the hostname."
     echo ""
     echo "  2) claude.ai / Claude Desktop:"
     echo "       Settings -> Connectors -> Add custom connector"
-    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://mcp${ID}.<your-domain>/${MCP_TOKEN}/mcp}"
+    echo "       Name: ${MCP_NAME}    URL: ${pub:-https://${ID}.<your-domain>/${MCP_TOKEN}/mcp}"
     echo "       Leave OAuth fields empty. The secret is in the URL."
     echo ""
     echo "  3) Claude Code (any machine that can reach the URL):"
@@ -334,9 +334,8 @@ action_install() {
         is_installed || fail "Port ${port} is already in use."
     fi
 
-    # Default name is mcp<id>, same as the suggested Cloudflare subdomain.
-    read -p "  Connector name shown in Claude [mcp${ID}]: " name </dev/tty
-    name="${name:-mcp${ID}}"
+    read -p "  Connector name shown in Claude [${ID}]: " name </dev/tty
+    name="${name:-$ID}"
     [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || fail "Name may only contain letters, digits, . _ -"
 
     echo ""

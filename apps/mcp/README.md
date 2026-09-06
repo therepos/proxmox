@@ -8,14 +8,14 @@ one installer.
 apps/mcp/
 ├── README.md            # this file
 ├── common.py            # token gate, /healthz, serve() - shared by every server
-└── shared/        # server id = folder name
+└── mcpshared/     # server id = folder name
     ├── server.py
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [shared](shared/) | 8765 | Browse, search, read and optionally write one folder on the host |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host |
 
 ## Install
 
@@ -31,7 +31,7 @@ Each server gets its own sandboxed systemd unit, token and port:
 |---|---|
 | `/opt/mcp/<id>/` | `server.py`, `common.py`, Python venv (`mcp>=2,<3`, `uvicorn`) |
 | `/etc/mcp/<id>.env` | settings and token, mode 600 |
-| `/etc/systemd/system/mcp-<id>.service` | unit; host is read-only except the paths the server declares |
+| `/etc/systemd/system/<id>.service` | unit; host is read-only except the paths the server declares |
 
 ## Contract (common.py)
 
@@ -55,8 +55,8 @@ Every server exposes the same endpoints, so the installer and Cloudflare setup a
 ## Adding a server
 
 The id is one lowercase word (letters and digits, no separators) and is used verbatim
-everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `mcp-<id>.service`,
-`configure_<id>()`. Examples: `shared`, `pve`, `jellyfin`.
+everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `<id>.service`,
+`configure_<id>()`. Examples: `mcpshared`, `mcppve`, `mcpjellyfin`.
 
 1. Create `apps/mcp/<id>/server.py`:
    ```python
@@ -78,7 +78,7 @@ everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `mcp-<id>.s
    ```
 2. Add a line to `SERVERS=(...)` in `apps/installers/mcp-setup.sh`: `"<id>|<port>|<description>"`.
 3. If it needs its own prompts or writable paths, add `configure_<id>()` next to
-   `configure_shared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
+   `configure_mcpshared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
 4. Add a `README.md` in the folder and a row in the table above.
 
 ## Security
