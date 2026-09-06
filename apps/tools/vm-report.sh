@@ -577,5 +577,8 @@ collect "PERFORMANCE"      sec_perf
 
 { echo ""; echo "==================== END OF REPORT ===================="; } >>"$OUT"
 
-ok "Report complete: $OUT"
+# Hand the file back to the invoking user so it is readable/deletable without sudo.
+[[ -n "${SUDO_USER:-}" ]] && chown "$SUDO_USER" "$OUT" 2>/dev/null || true
+
+ok "Report complete: $(realpath "$OUT" 2>/dev/null || echo "$OUT")"
 info "Contains IPs, MACs, usernames and open ports — review before sharing."
