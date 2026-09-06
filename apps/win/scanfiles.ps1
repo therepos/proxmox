@@ -7,6 +7,7 @@
 #   pwsh -File .\scanfiles.ps1 -Only "AStar","BW Maritime"    # rescan just these top folders from scratch
 #   pwsh -File .\scanfiles.ps1 -Force                         # rescan everything from scratch
 #   pwsh -File .\scanfiles.ps1 -NoPrecount                    # skip the robocopy pre-count (no ETA; verify still runs at the end)
+#   pwsh -File .\scanfiles.ps1 -Exclude "~snapshot","Temp"    # top-level folders to leave out (default: snapshot/system folders)
 #
 # Output goes to .\scan_output\ next to this script:
 #   <TopFolder>.csv              one CSV per top-level folder (own header, opens in Excel)
@@ -28,7 +29,8 @@ param(
     [switch]$NoPrecount,
     [int]$RowsPerPart = 250000,
     [double]$SaveEverySec = 30,      # how often progress.csv is written mid-folder (crash / power-loss safety)
-    [string]$Root = '\\Sgsinvapfl20\20AP0026\S\SGBRS$'
+    [string]$Root = '\\Sgsinvapfl20\20AP0026\S\SGBRS$',
+    [string[]]$Exclude = @('~snapshot', '.snapshot', '$RECYCLE.BIN', 'System Volume Information', 'DfsrPrivate')   # top-level names never scanned
 )
 
 $ErrorActionPreference = 'Stop'
@@ -89,20 +91,52 @@ function Save-Rc {
     $Rc.GetEnumerator() | Sort-Object Key | ForEach-Object { [pscustomobject]@{ TopFolder=$_.Key; Files=$_.Value.Files; Bytes=$_.Value.Bytes } } |
         Export-Csv $RcFile -NoTypeInformation
 }
-function Get-RcCount($unit) {
-    $a = @($unit.Path, 'C:\__null__', '/L', '/BYTES', '/NFL', '/NDL', '/NJH', '/XJ', '/R:0', '/W:0')
-    if ($unit.Recurse) { $a += '/S', '/E' }
-    $txt = (& robocopy @a) -join "`n"
+$script:RcProc = $null
+function Get-RcCount($unit, [string]$label) {
+    # robocopy runs as a child process writing a log (directory lines kept, file lines suppressed) so we can show
+    # elapsed time and directories seen while it works, and kill it cleanly on Ctrl+C.
+    $log = Join-Path $OutDir ("rc_{0}.log" -f (Safe $unit.Name))
+    Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+    $psi = [Diagnostics.ProcessStartInfo]::new('robocopy')
+    foreach ($x in @($unit.Path, 'C:\__null__', '/L', '/BYTES', '/NFL', '/NJH', '/XJ', '/R:0', '/W:0', "/LOG:$log")) { $psi.ArgumentList.Add($x) }
+    if ($unit.Recurse) { $psi.ArgumentList.Add('/S'); $psi.ArgumentList.Add('/E') }
+    $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    $proc = [Diagnostics.Process]::Start($psi); $script:RcProc = $proc
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $pos = 0L; $dirs = 0L; $last = ''
+    $buf = [byte[]]::new(65536)
+    while (-not $proc.WaitForExit(1000)) {
+        try {
+            $fs = [IO.FileStream]::new($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+            $fs.Position = $pos
+            while (($n = $fs.Read($buf, 0, $buf.Length)) -gt 0) {
+                for ($i = 0; $i -lt $n; $i++) { if ($buf[$i] -eq 10) { $dirs++ } }
+                $pos += $n
+            }
+            if ($fs.Length -gt 0) { $fs.Position = [Math]::Max(0, $fs.Length - 2048); $n = $fs.Read($buf, 0, 2048)
+                $tail = [Text.Encoding]::UTF8.GetString($buf, 0, $n) -split "`n" | Where-Object { $_ -like "*$($unit.Path)*" } | Select-Object -Last 1
+                if ($tail) { $last = ($tail -replace '.*' + [regex]::Escape($unit.Path), '').Trim('\', ' ') } }
+            $fs.Dispose()
+        } catch {}
+        Write-Progress -Id 1 -Activity ("Pre-count (robocopy /L)  {0}  {1}" -f $label, $unit.Name) -Status ("elapsed {0}   {1} directories seen   now: {2}" -f (HMS $sw.Elapsed.TotalSeconds), (N $dirs), $(if ($last) { $last } else { '(top)' }))
+    }
+    $script:RcProc = $null
+    $txt = [IO.File]::ReadAllText($log)
     $f = [regex]::Match($txt, 'Files :\s+(\d+)'); $b = [regex]::Match($txt, 'Bytes :\s+(\d+)')
-    if (-not $f.Success -or -not $b.Success) { throw "robocopy gave no summary for '$($unit.Name)'. Output:`n$txt" }
-    @{ Files=[int64]$f.Groups[1].Value; Bytes=[int64]$b.Groups[1].Value }
+    if (-not $f.Success -or -not $b.Success) { throw "robocopy gave no summary for '$($unit.Name)'. See $log" }
+    Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+    @{ Files=[int64]$f.Groups[1].Value; Bytes=[int64]$b.Groups[1].Value; Seconds=[int]$sw.Elapsed.TotalSeconds }
 }
 
 # ---------- work units: _ROOT_FILES + one per top-level folder ----------
 $rootDi = [IO.DirectoryInfo]::new($Root)
 if (-not $rootDi.Exists) { throw "Root not reachable: $Root" }
 $tops = [Collections.Generic.List[IO.DirectoryInfo]]::new()
-foreach ($d in $rootDi.EnumerateDirectories()) { if (-not ([int]$d.Attributes -band $ATTR_REPARSE)) { $tops.Add($d) } }
+$excluded = [Collections.Generic.List[string]]::new()
+foreach ($d in $rootDi.EnumerateDirectories()) {
+    if ([int]$d.Attributes -band $ATTR_REPARSE) { continue }
+    if ($Exclude -contains $d.Name) { $excluded.Add($d.Name); continue }
+    $tops.Add($d)
+}
 $tops.Sort([Comparison[IO.DirectoryInfo]]{ param($x, $y) [string]::CompareOrdinal($x.Name, $y.Name) })
 
 $units = [Collections.Generic.List[object]]::new()
@@ -120,17 +154,30 @@ foreach ($u in $units) { if (-not $State.Contains($u.Name)) { $State[$u.Name] = 
 Say ("scanfiles v2    root : {0}" -f $Root)
 Say ("                out  : {0}" -f $OutDir)
 Say ("                parts: {0} rows per CSV" -f (N $RowsPerPart))
+$hiddenTops = @($tops | Where-Object { [int]$_.Attributes -band $ATTR_HIDDEN })
+Say ("Top folders: {0} to scan{1}{2}" -f $tops.Count,
+    $(if ($hiddenTops.Count) { "  (hidden, not shown in Explorer: " + (($hiddenTops | ForEach-Object Name) -join ', ') + ")" } else { '' }),
+    $(if ($excluded.Count) { "  excluded: " + ($excluded -join ', ') } else { '' }))
 
 # ---------- robocopy pre-count (independent engine; also gives the ETA) ----------
+function Stop-Rc {   # called from finally blocks: kill a running robocopy (whole tree) and say where we stopped
+    if (-not $script:RcProc) { return }
+    try { if (-not $script:RcProc.HasExited) { $script:RcProc.Kill($true) } } catch {}
+    $script:RcProc = $null
+    Say ''
+    Say "Stopped during the robocopy count. Folders already counted are cached in rc_counts.csv; re-run the same command to continue."
+}
+try {
 if (-not $NoPrecount) {
     $need = @($units | Where-Object { $Force -or -not $Rc.ContainsKey($_.Name) })
     if ($need.Count) {
         $sw0 = [Diagnostics.Stopwatch]::StartNew()
         $k = 0
         foreach ($u in $need) {
-            $k++; Write-Progress -Id 1 -Activity 'Pre-count (robocopy /L)' -Status ("{0}/{1}  {2}" -f $k, $need.Count, $u.Name) -PercentComplete (100 * ($k - 1) / $need.Count)
-            $Rc[$u.Name] = Get-RcCount $u
+            $k++
+            $Rc[$u.Name] = Get-RcCount $u ("{0}/{1}" -f $k, $need.Count)
             Save-Rc
+            Say ("  count {0,3}/{1,-3} {2,-40} {3,12} files  {4,10}  {5}" -f $k, $need.Count, $u.Name, (N $Rc[$u.Name].Files), (GB $Rc[$u.Name].Bytes), (HMS $Rc[$u.Name].Seconds))
         }
         Write-Progress -Id 1 -Activity 'Pre-count' -Completed
         Say ("Pre-count (robocopy /L) {0} folders ..... {1} files  {2}  [{3}]" -f $need.Count, (N ($units | ForEach-Object { $Rc[$_.Name].Files } | Measure-Object -Sum).Sum), (GB ($units | ForEach-Object { $Rc[$_.Name].Bytes } | Measure-Object -Sum).Sum), (HMS $sw0.Elapsed.TotalSeconds))
@@ -138,6 +185,7 @@ if (-not $NoPrecount) {
         Say ("Pre-count: cached in rc_counts.csv   {0} files  {1}" -f (N ($units | ForEach-Object { $Rc[$_.Name].Files } | Measure-Object -Sum).Sum), (GB ($units | ForEach-Object { $Rc[$_.Name].Bytes } | Measure-Object -Sum).Sum))
     }
 }
+} finally { Stop-Rc }
 $GrandTotal = 0L; foreach ($u in $units) { if ($Rc.ContainsKey($u.Name)) { $GrandTotal += $Rc[$u.Name].Files } }
 
 # ---------- scan one unit ----------
@@ -340,6 +388,7 @@ try {
     $completed = $true
 }
 finally {
+    Stop-Rc
     if ($script:Cur) {
         $c = $script:Cur
         try { if ($c.Sw) { $c.Sw.Flush(); $c.Fs.SetLength($c.Ck.PartPos); $c.Sw.Dispose() } } catch {}
@@ -353,12 +402,14 @@ if (-not $completed) { return }
 
 # ---------- verification: PowerShell count vs robocopy count ----------
 if ($NoPrecount) {
+  try {
     $k = 0
     foreach ($u in $units) {
         $k++; Write-Progress -Id 1 -Activity 'Verify (robocopy /L)' -Status ("{0}/{1}  {2}" -f $k, $units.Count, $u.Name) -PercentComplete (100 * ($k - 1) / $units.Count)
-        if ($Force -or -not $Rc.ContainsKey($u.Name)) { $Rc[$u.Name] = Get-RcCount $u; Save-Rc }
+        if ($Force -or -not $Rc.ContainsKey($u.Name)) { $Rc[$u.Name] = Get-RcCount $u ("{0}/{1}" -f $k, $units.Count); Save-Rc }
     }
     Write-Progress -Id 1 -Activity 'Verify' -Completed
+  } finally { Stop-Rc }
 }
 $rows = foreach ($r in $State.Values) {
     if ($r.Status -ne 'done' -or -not $Rc.ContainsKey($r.TopFolder)) { continue }
