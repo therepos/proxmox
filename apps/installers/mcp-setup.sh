@@ -93,7 +93,11 @@ load_env() {
     set -a; . "$ENV_FILE"; set +a
 }
 
-svc_state() { systemctl is-active "mcp-$1" 2>/dev/null || echo "not installed"; }
+svc_state() {
+    # is-active prints inactive/failed AND exits non-zero, so capture rather than || fallback
+    [[ -f "/etc/systemd/system/mcp-$1.service" ]] || { echo "not installed"; return; }
+    systemctl is-active "mcp-$1" 2>/dev/null || true
+}
 
 # --- Server selection --------------------------------------------------------
 select_server() {
@@ -102,7 +106,7 @@ select_server() {
     echo ""
     for e in "${entries[@]}"; do
         IFS='|' read -r id port desc <<<"$e"
-        printf '    %d) %-14s %-8s %s\n' "$i" "$id" "[$(svc_state "$id")]" "$desc"
+        printf '    %d) %-10s %-15s %s\n' "$i" "$id" "[$(svc_state "$id")]" "$desc"
         i=$((i + 1))
     done
     echo ""
