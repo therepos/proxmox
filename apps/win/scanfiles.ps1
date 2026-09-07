@@ -8,6 +8,7 @@
 #   pwsh -File .\scanfiles.ps1 -Force                         # rescan everything from scratch
 #   pwsh -File .\scanfiles.ps1 -NoPrecount                    # skip the robocopy pre-count (no ETA; verify still runs at the end)
 #   pwsh -File .\scanfiles.ps1 -Exclude "~snapshot","Temp"    # top-level folders to leave out (default: snapshot/system folders)
+#   pwsh -File .\scanfiles.ps1 -IncludeHidden                 # also scan hidden top-level folders (skipped by default, robocopy tends to hang on them)
 #
 # Output goes to .\scan_output\ next to this script:
 #   <TopFolder>.csv              one CSV per top-level folder (own header, opens in Excel)
@@ -27,6 +28,7 @@ param(
     [string[]]$Only = @(),
     [switch]$Force,
     [switch]$NoPrecount,
+    [switch]$IncludeHidden,          # hidden top-level folders (not shown in Explorer) are skipped unless this is set
     [int]$RowsPerPart = 250000,
     [double]$SaveEverySec = 30,      # how often progress.csv is written mid-folder (crash / power-loss safety)
     [string]$Root = '\\Sgsinvapfl20\20AP0026\S\SGBRS$',
@@ -132,9 +134,11 @@ $rootDi = [IO.DirectoryInfo]::new($Root)
 if (-not $rootDi.Exists) { throw "Root not reachable: $Root" }
 $tops = [Collections.Generic.List[IO.DirectoryInfo]]::new()
 $excluded = [Collections.Generic.List[string]]::new()
+$hiddenTops = [Collections.Generic.List[string]]::new()
 foreach ($d in $rootDi.EnumerateDirectories()) {
     if ([int]$d.Attributes -band $ATTR_REPARSE) { continue }
     if ($Exclude -contains $d.Name) { $excluded.Add($d.Name); continue }
+    if (-not $IncludeHidden -and ([int]$d.Attributes -band $ATTR_HIDDEN)) { $hiddenTops.Add($d.Name); continue }
     $tops.Add($d)
 }
 $tops.Sort([Comparison[IO.DirectoryInfo]]{ param($x, $y) [string]::CompareOrdinal($x.Name, $y.Name) })
@@ -145,7 +149,7 @@ foreach ($t in $tops) { $units.Add([pscustomobject]@{ Name=$t.Name; Path=$t.Full
 
 if ($Only.Count) {
     $missing = $Only | Where-Object { $_ -notin $units.Name }
-    if ($missing) { throw "Not found under root: $($missing -join ', ')" }
+    if ($missing) { throw "Not found under root: $($missing -join ', ')$(if ($missing | Where-Object { $_ -in $hiddenTops }) { '  (hidden folder: add -IncludeHidden)' })" }
     $units = [Collections.Generic.List[object]]@($units | Where-Object { $_.Name -in $Only })
     $Force = $true            # -Only means: rescan these from scratch
 }
@@ -154,9 +158,8 @@ foreach ($u in $units) { if (-not $State.Contains($u.Name)) { $State[$u.Name] = 
 Say ("scanfiles v2    root : {0}" -f $Root)
 Say ("                out  : {0}" -f $OutDir)
 Say ("                parts: {0} rows per CSV" -f (N $RowsPerPart))
-$hiddenTops = @($tops | Where-Object { [int]$_.Attributes -band $ATTR_HIDDEN })
 Say ("Top folders: {0} to scan{1}{2}" -f $tops.Count,
-    $(if ($hiddenTops.Count) { "  (hidden, not shown in Explorer: " + (($hiddenTops | ForEach-Object Name) -join ', ') + ")" } else { '' }),
+    $(if ($hiddenTops.Count) { "  hidden, skipped (use -IncludeHidden): " + ($hiddenTops -join ', ') } else { '' }),
     $(if ($excluded.Count) { "  excluded: " + ($excluded -join ', ') } else { '' }))
 
 # ---------- robocopy pre-count (independent engine; also gives the ETA) ----------
