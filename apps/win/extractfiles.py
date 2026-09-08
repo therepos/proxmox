@@ -201,6 +201,28 @@ def h_pdf(path):
     if not parts and len(r.pages): raise RuntimeError(f'no text layer in {len(r.pages)} pages (scanned image pdf, needs OCR)')
     return parts
 
+def crude_text(raw):
+    out = []
+    for m in re.finditer(rb'(?:[\x20-\x7e\x07\x0b\x0d\xa0-\xff]){12,}', raw):            # 8-bit text pieces
+        out.append(m.group().decode('cp1252', 'replace'))
+    for m in re.finditer(rb'(?:[\x20-\x7e\x07\x0b\x0d]\x00){12,}', raw):                    # UTF-16 pieces
+        out.append(m.group().decode('utf-16le', 'replace'))
+    out = [t for t in out if sum(c.isascii() and (c.isalnum() or c in ' .,;:()-/%$|\x07\x0b\r') for c in t) / len(t) >= 0.85]   # drop binary noise
+    txt = '\n'.join(out).replace('\x07\x07', '\n').replace('\x07', ' | ').replace('\x0b', '\n').replace('\r', '\n')
+    return re.sub(r'\n\s*\n+', '\n', clean(txt))
+
+def h_doc_crude(path):
+    # Fallback when Word cannot open the file (policy block, timeout, corruption): pull readable runs from the
+    # WordDocument stream. Works for Word 6/95/97-2003. Tables flatten to 'cell | cell' lines. Lower fidelity than Word.
+    import olefile
+    if not olefile.isOleFile(path): raise RuntimeError('not an OLE file')
+    with olefile.OleFileIO(path) as ole:
+        if not ole.exists('WordDocument'): raise RuntimeError('no WordDocument stream')
+        raw = ole.openstream('WordDocument').read()
+    txt = crude_text(raw)
+    if len(re.sub(r'[^A-Za-z]', '', txt)) < 40: raise RuntimeError('crude read found no text')
+    return [('body-crude', 'raw text, Word could not open the file', txt)]
+
 def h_txt(path):
     with open(path, 'rb') as fh: b = fh.read()
     for enc in ('utf-8-sig', 'utf-16', 'cp1252'):
@@ -239,9 +261,17 @@ def h_msg(path, tmpdir, office, depth=0):
 def extract(local, ext, tmpdir, office):
     if ext == '.docx': return h_docx(local)
     if ext in ('.doc', '.rtf'):
-        dst = local + '.docx'; office.convert('word', local, dst)
-        try: return h_docx(dst)
-        finally: os.remove(dst)
+        dst = local + '.docx'
+        try:
+            office.convert('word', local, dst); return h_docx(dst)
+        except Exception as e:
+            if ext == '.rtf': raise
+            try: parts = h_doc_crude(local)
+            except Exception: raise e
+            parts.append(('note', 'word error', f'word conversion failed: {e}'))
+            return parts
+        finally:
+            if os.path.exists(dst): os.remove(dst)
     if ext in ('.xlsx', '.xlsm'): return h_xlsx(local)
     if ext == '.xls':
         try: return h_xls(local)
@@ -271,12 +301,14 @@ def open_db(dbpath):
     PRAGMA journal_mode=WAL;
     CREATE TABLE IF NOT EXISTS docs(id INTEGER PRIMARY KEY, path TEXT UNIQUE, name TEXT, ext TEXT, size INTEGER, modified TEXT,
         doctype TEXT, confidence INTEGER, client TEXT, engagement TEXT, year TEXT, yearsource TEXT, process TEXT, topfolder TEXT, duplicates INTEGER,
-        status TEXT DEFAULT 'pending', parts INTEGER, chars INTEGER, error TEXT, seconds REAL, done_at TEXT);
+        status TEXT DEFAULT 'pending', parts INTEGER, chars INTEGER, error TEXT, seconds REAL, done_at TEXT, copy_s REAL);
     CREATE INDEX IF NOT EXISTS ix_docs_status ON docs(status);
     CREATE TABLE IF NOT EXISTS parts(id INTEGER PRIMARY KEY, doc_id INTEGER, seq INTEGER, kind TEXT, title TEXT, content TEXT);
     CREATE INDEX IF NOT EXISTS ix_parts_doc ON parts(doc_id);
     CREATE VIRTUAL TABLE IF NOT EXISTS parts_fts USING fts5(title, content, content='parts', content_rowid='id', tokenize='porter unicode61');
     ''')
+    try: db.execute('alter table docs add column copy_s REAL')
+    except sqlite3.OperationalError: pass
     return db
 
 def load_list(db, xlsx):
@@ -309,6 +341,12 @@ def stats(db):
         print(f"{row[0]:20}{row[1]:>9,}{row[2]:>9,}{row[3]:>9,}{row[4]:>9,}{row[5]:>10.1f}")
     row = db.execute("select count(*), sum(status='done'), sum(status='error'), sum(status='empty') from docs").fetchone()
     print(f"total {row[0]:,}   done {row[1]:,}   error {row[2]:,}   empty {row[3]:,}")
+    print('\ntiming by extension (processed files)')
+    print(f"{'ext':8}{'files':>8}{'avg copy s':>12}{'avg total s':>13}{'max s':>8}{'crude':>7}")
+    for row in db.execute('''select ext, count(*), avg(copy_s), avg(seconds), max(seconds),
+                             sum(exists(select 1 from parts p where p.doc_id=docs.id and p.kind='body-crude'))
+                             from docs where status!='pending' group by ext order by 2 desc'''):
+        print(f"{row[0]:8}{row[1]:>8,}{(row[2] or 0):>12.1f}{(row[3] or 0):>13.1f}{(row[4] or 0):>8.0f}{row[5]:>7}")
     print('\ntop errors')
     for e, c in db.execute("select substr(error,1,90), count(*) from docs where status='error' group by 1 order by 2 desc limit 12"): print(f"  {c:>6,}  {e}")
 
@@ -330,9 +368,9 @@ def w_init(tmpdir):
 def w_one(item):
     did, path, ext, name, doctype = item
     ts = time.time(); local = os.path.join(W['tmp'], f'{did}_{os.getpid()}{ext}')
-    status, err, parts = 'done', None, []
+    status, err, parts, copy_s = 'done', None, [], None
     try:
-        shutil.copyfile(longpath(path), local)
+        shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
         parts = extract(local, ext, W['tmp'], W['office'])
         parts = [(k, t, c[:MAX_PART]) for k, t, c in parts if c]
         if not parts: status, err = 'empty', 'no text found'
@@ -342,7 +380,7 @@ def w_one(item):
         if os.path.exists(local):
             try: os.remove(local)
             except Exception: pass
-    return did, name, status, err, parts, round(time.time() - ts, 2)
+    return did, name, status, err, parts, round(time.time() - ts, 2), copy_s
 
 # ---------------------------------------------------------------- main
 def main():
@@ -385,7 +423,7 @@ def main():
     pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir,))
     t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0
     try:
-        for did, name, status, err, parts, secs in pool.imap_unordered(w_one, todo, chunksize=1):
+        for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
             n += 1
             if status == 'error': nerr += 1
             if status == 'empty': nempty += 1
@@ -395,8 +433,8 @@ def main():
             for i, (k, t, c) in enumerate(parts, 1):
                 cur = db.execute('insert into parts(doc_id,seq,kind,title,content) values(?,?,?,?,?)', (did, i, k, t, c))
                 db.execute('insert into parts_fts(rowid,title,content) values(?,?,?)', (cur.lastrowid, t, c))
-            db.execute('update docs set status=?, parts=?, chars=?, error=?, seconds=?, done_at=? where id=?',
-                       (status, len(parts), sum(len(c) for _, _, c in parts), err, secs, datetime.datetime.now().strftime('%Y-%m-%d %H:%M'), did))
+            db.execute('update docs set status=?, parts=?, chars=?, error=?, seconds=?, copy_s=?, done_at=? where id=?',
+                       (status, len(parts), sum(len(c) for _, _, c in parts), err, secs, copy_s, datetime.datetime.now().strftime('%Y-%m-%d %H:%M'), did))
             if n % 25 == 0: db.commit()
             if time.time() - last > 1:
                 last = time.time(); el = last - t0; rate = n / el * 60
