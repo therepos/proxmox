@@ -37,6 +37,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false   # robocopy exit codes are informational
+if ($PSStyle) { $PSStyle.Progress.View = 'Classic' }   # minimal view overwrites console lines and garbles the log
 $Sep  = [IO.Path]::DirectorySeparatorChar
 $Root = $Root.TrimEnd($Sep)
 
