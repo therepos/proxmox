@@ -7,13 +7,16 @@
 #   python extractfiles.py --only RCM,"Audit programme"   # only these DocType values
 #   python extractfiles.py --minconf 2                    # skip confidence-1 rows (drafts, weak keyword types)
 #   python extractfiles.py --retry-errors                 # re-attempt rows that errored last time
+#   python extractfiles.py --redo-crude                   # re-attempt Word files that only got the raw-text fallback (after installing LibreOffice)
+#   python extractfiles.py --soffice "C:\Program Files\LibreOffice\program\soffice.exe"   # if LibreOffice is somewhere unusual
 #   python extractfiles.py --stats                        # progress by type and status, then exit
 #   python extractfiles.py --search "revenue cut-off"     # try the full-text index
 #
 # Ctrl+C at any time: everything finished so far is committed. Re-run the same command to continue.
 # Output: kb.db  tables docs (one row per file, status), parts (text pieces: body/table/sheet/slide/page/email), parts_fts (FTS5).
-# Old .doc/.rtf/.ppt are converted through Word/PowerPoint in a helper process with a timeout, so a hung file cannot stall the run.
-# The helper switches off Word's Trust Center "File Block" for legacy formats (HKCU only, this user) so Word 95/97 files convert.
+# Old .doc/.rtf/.ppt: Word/PowerPoint first (helper process with a timeout, so a hung file cannot stall the run), then LibreOffice
+# headless if installed (opens Word 95 files that domain policy blocks in Word), then a raw-text fallback with flattened tables.
+# On Linux (no Office) LibreOffice is used directly.
 
 import sys, os, io, re, json, time, shutil, sqlite3, argparse, subprocess, threading, queue, datetime, traceback
 
@@ -88,12 +91,11 @@ class Office:
     def _kill(self):
         try: self.p.kill()
         except Exception: pass
-        if self.pid:      # kill only this helper's Word, other workers keep theirs
+        if self.pid:      # kill only this helper's own Word; never touch the user's Word or other workers'
             subprocess.run(['taskkill', '/F', '/PID', str(self.pid)], capture_output=True)
-        else:
-            for exe in ('WINWORD.EXE', 'POWERPNT.EXE'): subprocess.run(['taskkill', '/F', '/IM', exe], capture_output=True)
         self.p = None; self.pid = None
     def convert(self, app, src, dst):
+        if not IS_WIN: raise RuntimeError('no Microsoft Office on this system')
         if self.p is None or self.p.poll() is not None: self._start()
         try:
             self.p.stdin.write(json.dumps({'app': app, 'src': src, 'dst': dst}) + '\n'); self.p.stdin.flush()
@@ -110,6 +112,31 @@ class Office:
         if self.p:
             try: self.p.stdin.close(); self.p.wait(10)
             except Exception: self._kill()
+
+def find_soffice(explicit=''):
+    if explicit: return explicit if os.path.exists(explicit) else None
+    p = shutil.which('soffice') or shutil.which('soffice.exe')
+    if p: return p
+    import glob
+    for pat in (r'C:\Program Files*\LibreOffice*\program\soffice.exe', os.path.join(HERE, 'LibreOffice*', 'App', 'libreoffice', 'program', 'soffice.exe'),
+                os.path.join(HERE, '*', 'program', 'soffice.exe')):
+        m = glob.glob(pat)
+        if m: return m[0]
+    return None
+
+def soffice_convert(soffice, src, fmt, tmpdir):
+    # headless LibreOffice, own profile per worker so several can run at once; returns the converted file path
+    prof = os.path.join(tmpdir, f'lo_profile_{os.getpid()}'); outdir = os.path.join(tmpdir, f'lo_out_{os.getpid()}')
+    os.makedirs(outdir, exist_ok=True)
+    url = 'file:///' + os.path.abspath(prof).replace('\\', '/')
+    cmd = [soffice, f'-env:UserInstallation={url}', '--headless', '--norestore', '--nolockcheck', '--convert-to', fmt, '--outdir', outdir, src]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=OFFICE_TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f'libreoffice exceeded {OFFICE_TIMEOUT}s')
+    out = os.path.join(outdir, os.path.splitext(os.path.basename(src))[0] + '.' + fmt)
+    if not os.path.exists(out): raise RuntimeError('libreoffice: ' + ((r.stderr or r.stdout or '').strip()[-200:] or 'no output file'))
+    return out
 
 # ---------------------------------------------------------------- text handlers: each returns [(kind, title, content)]
 def clean(s):
@@ -231,7 +258,7 @@ def h_txt(path):
     t = clean(t)
     return [('body', '', t)] if t else []
 
-def h_msg(path, tmpdir, office, depth=0):
+def h_msg(path, tmpdir, office, soffice=None, depth=0):
     import extract_msg
     m = extract_msg.openMsg(path)
     parts = []
@@ -248,7 +275,7 @@ def h_msg(path, tmpdir, office, depth=0):
         ap = os.path.join(tmpdir, 'att_' + re.sub(r'[^\w.]+', '_', name)[-80:])
         with open(ap, 'wb') as fh: fh.write(a.data)
         try:
-            for kind, title, content in extract(ap, ext, tmpdir, office):
+            for kind, title, content in extract(ap, ext, tmpdir, office, soffice):
                 parts.append(('attachment', f'{name} / {title}' if title else name, content))
         except Exception as e:
             parts.append(('attachment', name, f'[attachment failed: {e}]'))
@@ -258,20 +285,28 @@ def h_msg(path, tmpdir, office, depth=0):
     m.close()
     return parts
 
-def extract(local, ext, tmpdir, office):
+def extract(local, ext, tmpdir, office, soffice=None):
     if ext == '.docx': return h_docx(local)
     if ext in ('.doc', '.rtf'):
+        errs = []
         dst = local + '.docx'
         try:
             office.convert('word', local, dst); return h_docx(dst)
-        except Exception as e:
-            if ext == '.rtf': raise
-            try: parts = h_doc_crude(local)
-            except Exception: raise e
-            parts.append(('note', 'word error', f'word conversion failed: {e}'))
-            return parts
+        except Exception as e: errs.append(f'word: {e}')
         finally:
             if os.path.exists(dst): os.remove(dst)
+        if soffice:
+            try:
+                out = soffice_convert(soffice, local, 'docx', tmpdir)
+                try: return h_docx(out)
+                finally: os.remove(out)
+            except Exception as e: errs.append(f'libreoffice: {e}')
+        if ext == '.doc':
+            try: parts = h_doc_crude(local)
+            except Exception as e: errs.append(f'raw: {e}'); raise RuntimeError(' | '.join(errs))
+            parts.append(('note', 'conversion', 'raw text used, converters failed: ' + ' | '.join(errs)))
+            return parts
+        raise RuntimeError(' | '.join(errs))
     if ext in ('.xlsx', '.xlsm'): return h_xlsx(local)
     if ext == '.xls':
         try: return h_xls(local)
@@ -286,11 +321,22 @@ def extract(local, ext, tmpdir, office):
                 if os.path.exists(dst): os.remove(dst)
     if ext == '.pptx': return h_pptx(local)
     if ext == '.ppt':
-        dst = local + '.pptx'; office.convert('ppt', local, dst)
-        try: return h_pptx(dst)
-        finally: os.remove(dst)
+        errs = []
+        dst = local + '.pptx'
+        try:
+            office.convert('ppt', local, dst); return h_pptx(dst)
+        except Exception as e: errs.append(f'powerpoint: {e}')
+        finally:
+            if os.path.exists(dst): os.remove(dst)
+        if soffice:
+            try:
+                out = soffice_convert(soffice, local, 'pptx', tmpdir)
+                try: return h_pptx(out)
+                finally: os.remove(out)
+            except Exception as e: errs.append(f'libreoffice: {e}')
+        raise RuntimeError(' | '.join(errs))
     if ext == '.pdf': return h_pdf(local)
-    if ext == '.msg': return h_msg(local, tmpdir, office)
+    if ext == '.msg': return h_msg(local, tmpdir, office, soffice)
     if ext == '.txt': return h_txt(local)
     raise RuntimeError(f'unsupported extension {ext}')
 
@@ -360,8 +406,8 @@ def hms(s): return str(datetime.timedelta(seconds=int(s))) if s >= 0 else '--:--
 
 # ---------------------------------------------------------------- worker process: copy + extract one file, return parts
 W = {}
-def w_init(tmpdir):
-    W['tmp'] = tmpdir; W['office'] = Office()
+def w_init(tmpdir, soffice):
+    W['tmp'] = tmpdir; W['office'] = Office(); W['soffice'] = soffice
     import signal, atexit; signal.signal(signal.SIGINT, signal.SIG_IGN)     # parent handles Ctrl+C
     atexit.register(W['office'].close)
 
@@ -371,7 +417,7 @@ def w_one(item):
     status, err, parts, copy_s = 'done', None, [], None
     try:
         shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
-        parts = extract(local, ext, W['tmp'], W['office'])
+        parts = extract(local, ext, W['tmp'], W['office'], W['soffice'])
         parts = [(k, t, c[:MAX_PART]) for k, t, c in parts if c]
         if not parts: status, err = 'empty', 'no text found'
     except Exception as e:
@@ -392,6 +438,8 @@ def main():
     ap.add_argument('--limit', type=int, default=0)
     ap.add_argument('--workers', type=int, default=3)
     ap.add_argument('--retry-errors', action='store_true')
+    ap.add_argument('--redo-crude', action='store_true')
+    ap.add_argument('--soffice', default='')
     ap.add_argument('--stats', action='store_true')
     ap.add_argument('--search', default='')
     ap.add_argument('--office-worker', action='store_true')
@@ -406,6 +454,8 @@ def main():
     if a.stats: return stats(db)
 
     if a.retry_errors: db.execute("update docs set status='pending', error=NULL where status='error'"); db.commit()
+    if a.redo_crude:
+        db.execute("update docs set status='pending' where id in (select doc_id from parts where kind='body-crude')"); db.commit()
     sql = "select id, path, ext, name, doctype from docs where status='pending' and confidence >= ?"; args = [a.minconf]
     if a.only:
         kinds = [k.strip() for k in a.only.split(',') if k.strip()]
@@ -420,7 +470,9 @@ def main():
 
     tmpdir = os.path.join(HERE, 'tmp_extract'); os.makedirs(tmpdir, exist_ok=True)
     import multiprocessing as mp
-    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir,))
+    soffice = find_soffice(a.soffice)
+    print('libreoffice:', soffice or 'not found (Word 95 files get raw text only)')
+    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice))
     t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0
     try:
         for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
@@ -442,9 +494,7 @@ def main():
         pool.close(); pool.join()
     except KeyboardInterrupt:
         print('\nstopped. re-run the same command to continue.')
-        pool.terminate()
-        if IS_WIN:
-            for exe in ('WINWORD.EXE', 'POWERPNT.EXE'): subprocess.run(['taskkill', '/F', '/IM', exe], capture_output=True)
+        pool.terminate()      # helpers lose their pipe and quit their own Word/PowerPoint; the user's Office is never touched
     finally:
         db.commit()
     print(f'\nfinished {n:,} files in {hms(time.time() - t0)}')
