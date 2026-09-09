@@ -15,6 +15,10 @@
 #   POST /mcp  + Authorization: Bearer <MCP_TOKEN>
 #   anything else                     plain 404 (no OAuth discovery, nothing to probe)
 #
+# A server may open extra path prefixes with serve(..., open_prefixes=("/files/",));
+# routes under them must authenticate themselves (mcpshared uses signed, expiring
+# links there). Everything else stays 404.
+#
 # Environment read here:
 #   MCP_TOKEN   secret, 16+ chars (required)
 #   MCP_PORT    listen port (default 8765)
@@ -51,16 +55,17 @@ def env_bool(name: str, default: bool = False) -> bool:
 class TokenGate:
     """ASGI wrapper enforcing the URL/Bearer token contract described above."""
 
-    def __init__(self, app, token: str):  # type: ignore[no-untyped-def]
+    def __init__(self, app, token: str, open_prefixes: tuple[str, ...] = ()):  # type: ignore[no-untyped-def]
         self.app = app
         self.token = token.encode()
         self.prefix = f"/{token}"
+        self.open_prefixes = open_prefixes
 
     async def __call__(self, scope, receive, send):  # type: ignore[no-untyped-def]
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         path: str = scope.get("path", "")
-        if path == "/healthz":
+        if path == "/healthz" or path.startswith(self.open_prefixes):
             return await self.app(scope, receive, send)
         if path.startswith(self.prefix + "/") and hmac.compare_digest(path[1 : 1 + len(self.token)].encode(), self.token):
             scope = dict(scope)
@@ -74,7 +79,7 @@ class TokenGate:
         await resp(scope, receive, send)
 
 
-def build_app(mcp: MCPServer, *, token: str, host: str, extra_health: dict | None = None):  # type: ignore[no-untyped-def]
+def build_app(mcp: MCPServer, *, token: str, host: str, extra_health: dict | None = None, open_prefixes: tuple[str, ...] = ()):  # type: ignore[no-untyped-def]
     @mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
     async def healthz(_request: Request):  # type: ignore[no-untyped-def]
         return JSONResponse({"ok": True, "name": mcp.name, "time": int(time.time()), **(extra_health or {})})
@@ -88,10 +93,10 @@ def build_app(mcp: MCPServer, *, token: str, host: str, extra_health: dict | Non
         # Behind Cloudflare Tunnel the Host header is the public name; the token is the gate.
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
-    return TokenGate(inner, token)
+    return TokenGate(inner, token, open_prefixes)
 
 
-def serve(mcp: MCPServer, *, extra_health: dict | None = None) -> None:
+def serve(mcp: MCPServer, *, extra_health: dict | None = None, open_prefixes: tuple[str, ...] = ()) -> None:
     import uvicorn
 
     token = env("MCP_TOKEN", required=True)
@@ -99,6 +104,6 @@ def serve(mcp: MCPServer, *, extra_health: dict | None = None) -> None:
         sys.exit("MCP_TOKEN is too short (need 16+ chars)")
     host = env("MCP_HOST", "0.0.0.0")
     port = int(env("MCP_PORT", "8765"))
-    app = build_app(mcp, token=token, host=host, extra_health=extra_health)
+    app = build_app(mcp, token=token, host=host, extra_health=extra_health, open_prefixes=open_prefixes)
     print(f"[mcp] {mcp.name}: listening on {host}:{port}", flush=True)
     uvicorn.run(app, host=host, port=port, log_level="info", proxy_headers=True, forwarded_allow_ips="*")

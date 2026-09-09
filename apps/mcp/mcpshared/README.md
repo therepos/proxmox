@@ -11,6 +11,7 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Read | `read_file` (paged text), `view_image` (png/jpg/gif/webp ≤ 8 MB), `read_file_base64` (small binaries) |
 | Write (unless read-only) | `write_file`, `create_directory`, `move_path`, `copy_path`, `delete_path` |
 | Extract (`extraction_tools.py`) | `list_sheets`, `read_sheet`, `extract_sheet_images`, `extract_pdf_text`, `extract_docx_text` |
+| Transfer (`transfer.py`) | `download_link`, `upload_link`, `fetch_url` |
 
 ## Extraction
 
@@ -28,6 +29,23 @@ returned as text. Every extraction tool is hard-capped at 100k characters and sa
 Extras (`openpyxl`, `pdfplumber`, `python-docx`) are installed by the installer; if one is missing
 the tool that needs it says so and the rest of the server keeps working.
 
+## Transfer
+
+MCP cannot move a file between your device and the server: tool results pass through the
+model's context. Like other connectors, mcpshared hands out links instead.
+
+| Tool | What it does |
+|---|---|
+| `download_link(path, expires_minutes)` | Signed URL; open it in any browser to download the file. A folder arrives as a streamed zip. |
+| `upload_link(directory, expires_minutes)` | Signed URL that opens a drop-zone page (phone or PC). Files land in that folder; existing names get a numbered copy. `curl -T file "<url>/"` works too. |
+| `fetch_url(url, destination, overwrite)` | Server pulls a public http(s) URL straight into the share (Drive `uc?export=download&id=`, Dropbox `?dl=1`, GitHub releases). Private and LAN addresses are refused. |
+
+Links live under `/files/` and are signed with an HMAC derived from the token, so the token never
+appears in a link and rotating it (installer option 5) voids every link. Default lifetime is 60
+minutes (`MCP_LINK_MINUTES`), maximum 7 days. Set the public URL (installer option 4) or the
+links only work on the LAN. Cloudflare's free plan caps uploads at 100 MB per file: use the
+`lan_url` for bigger ones. Per-file caps: `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` (4 GiB).
+
 ## Environment
 
 | Variable | Meaning |
@@ -35,3 +53,6 @@ the tool that needs it says so and the rest of the server keeps working.
 | `MCP_ROOT` | folder to expose (required) |
 | `MCP_READ_ONLY` | `1` hides the write tools; `extract_sheet_images` then needs `inline=true` |
 | `MCP_NAME` | connector name shown to Claude |
+| `MCP_PUBLIC_URL` | `https://<host>` used in download / upload links |
+| `MCP_LINK_MINUTES` | default link lifetime (60) |
+| `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` | per-file caps (4 GiB) |
