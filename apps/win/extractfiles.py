@@ -416,7 +416,8 @@ def w_one(item):
     ts = time.time(); local = os.path.join(W['tmp'], f'{did}_{os.getpid()}{ext}')
     status, err, parts, copy_s = 'done', None, [], None
     try:
-        shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
+        try: shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
+        except Exception as e: raise RuntimeError(f'copy: {e}')
         parts = extract(local, ext, W['tmp'], W['office'], W['soffice'])
         parts = [(k, t, c[:MAX_PART]) for k, t, c in parts if c]
         if not parts: status, err = 'empty', 'no text found'
@@ -468,16 +469,25 @@ def main():
     print(f'db: {a.db}\n{total:,} rows in list, {done0:,} already processed, {len(todo):,} to do now')
     if not todo: return stats(db)
 
+    first = todo[0][1]
+    root = first[:first.find('\\', first.find('\\', 2) + 1)] if first.startswith('\\\\') else os.path.dirname(first)
+    if not os.path.isdir(longpath(root)):
+        print(f'share not reachable: {root}\nopen it in Explorer (it may ask for a login), then re-run.'); return
     tmpdir = os.path.join(HERE, 'tmp_extract'); os.makedirs(tmpdir, exist_ok=True)
     import multiprocessing as mp
     soffice = find_soffice(a.soffice)
     print('libreoffice:', soffice or 'not found (Word 95 files get raw text only)')
     pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice))
-    t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0
+    t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0; copyfail = 0
     try:
         for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
             n += 1
             if status == 'error': nerr += 1
+            copyfail = copyfail + 1 if (err or '').startswith('copy:') else 0
+            if copyfail >= 30:
+                print(f'\n{copyfail} files in a row could not be copied from the share, it is probably disconnected. stopping.')
+                print('reconnect the share, then re-run with --retry-errors to redo the failed rows.')
+                raise KeyboardInterrupt
             if status == 'empty': nempty += 1
             for pid, t, c in db.execute('select id, title, content from parts where doc_id=?', (did,)).fetchall():   # retry: drop old text
                 db.execute("insert into parts_fts(parts_fts, rowid, title, content) values('delete', ?, ?, ?)", (pid, t, c))
@@ -490,7 +500,8 @@ def main():
             if n % 25 == 0: db.commit()
             if time.time() - last > 1:
                 last = time.time(); el = last - t0; rate = n / el * 60
-                print(f'\r{n:,}/{len(todo):,}  err {nerr:,}  empty {nempty:,}  {rate:5.1f} files/min  elapsed {hms(el)}  eta {hms((len(todo) - n) / max(rate, 0.01) * 60)}  {name[:50]:50}', end='', flush=True)
+                line = f'{n:,}/{len(todo):,}  err {nerr:,}  empty {nempty:,}  {rate:5.1f} files/min  elapsed {hms(el)}  eta {hms((len(todo) - n) / max(rate, 0.01) * 60)}  {name}'
+                print('\r' + line[:105].ljust(105), end='', flush=True)
         pool.close(); pool.join()
     except KeyboardInterrupt:
         print('\nstopped. re-run the same command to continue.')
