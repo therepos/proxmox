@@ -406,14 +406,16 @@ def hms(s): return str(datetime.timedelta(seconds=int(s))) if s >= 0 else '--:--
 
 # ---------------------------------------------------------------- worker process: copy + extract one file, return parts
 W = {}
-def w_init(tmpdir, soffice):
-    W['tmp'] = tmpdir; W['office'] = Office(); W['soffice'] = soffice
+def w_init(tmpdir, soffice, busy_map):
+    W['tmp'] = tmpdir; W['office'] = Office(); W['soffice'] = soffice; W['busy'] = busy_map
     import signal, atexit; signal.signal(signal.SIGINT, signal.SIG_IGN)     # parent handles Ctrl+C
     atexit.register(W['office'].close)
 
 def w_one(item):
     did, path, ext, name, doctype = item
     ts = time.time(); local = os.path.join(W['tmp'], f'{did}_{os.getpid()}{ext}')
+    try: W['busy'][os.getpid()] = (name, ts)
+    except Exception: pass
     status, err, parts, copy_s = 'done', None, [], None
     try:
         try: shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
@@ -427,6 +429,8 @@ def w_one(item):
         if os.path.exists(local):
             try: os.remove(local)
             except Exception: pass
+    try: W['busy'][os.getpid()] = ('', 0)
+    except Exception: pass
     return did, name, status, err, parts, round(time.time() - ts, 2), copy_s
 
 # ---------------------------------------------------------------- main
@@ -477,8 +481,27 @@ def main():
     import multiprocessing as mp
     soffice = find_soffice(a.soffice)
     print('libreoffice:', soffice or 'not found (Word 95 files get raw text only)')
-    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice))
-    t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0; copyfail = 0
+    mgr = mp.Manager(); busy_map = mgr.dict()
+    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice, busy_map))
+    t0 = time.time(); n = 0; nerr = 0; nempty = 0; copyfail = 0
+    total_todo = len(todo); stop_ui = threading.Event(); hist = []   # (time, n) samples for a recent-rate ETA
+
+    def ui():   # heartbeat: refreshes every second even while workers are busy, permanent summary line every 5 min
+        lastsum = time.time()
+        while not stop_ui.wait(1):
+            now = time.time(); el = now - t0
+            hist.append((now, n)); del hist[:-600]
+            old = next((h for h in hist if now - h[0] >= 300), hist[0])
+            rate = (n - old[1]) / max(now - old[0], 1) * 60 if now - old[0] > 30 else n / max(el, 1) * 60
+            eta = (total_todo - n) / rate * 60 if rate > 0 else -1
+            busy = sorted(((now - t, nm) for nm, t in busy_map.values() if nm), reverse=True)
+            cur = f'{len(busy)} busy, longest {busy[0][0]:.0f}s: {busy[0][1]}' if busy else 'waiting for workers'
+            line = f'{n:,}/{total_todo:,}  err {nerr:,}  {rate:4.1f}/min  {hms(el)}  eta {hms(eta)}  | {cur}'
+            print('\r' + line[:110].ljust(110), end='', flush=True)
+            if now - lastsum >= 300:
+                lastsum = now
+                print(f'\r{datetime.datetime.now().strftime("%H:%M")}  {n:,} of {total_todo:,} done  err {nerr:,}  empty {nempty:,}  {rate:4.1f}/min  eta {hms(eta)}'.ljust(110))
+    threading.Thread(target=ui, daemon=True).start()
     try:
         for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
             n += 1
@@ -498,16 +521,12 @@ def main():
             db.execute('update docs set status=?, parts=?, chars=?, error=?, seconds=?, copy_s=?, done_at=? where id=?',
                        (status, len(parts), sum(len(c) for _, _, c in parts), err, secs, copy_s, datetime.datetime.now().strftime('%Y-%m-%d %H:%M'), did))
             if n % 25 == 0: db.commit()
-            if time.time() - last > 1:
-                last = time.time(); el = last - t0; rate = n / el * 60
-                line = f'{n:,}/{len(todo):,}  err {nerr:,}  empty {nempty:,}  {rate:5.1f} files/min  elapsed {hms(el)}  eta {hms((len(todo) - n) / max(rate, 0.01) * 60)}  {name}'
-                print('\r' + line[:105].ljust(105), end='', flush=True)
         pool.close(); pool.join()
     except KeyboardInterrupt:
         print('\nstopped. re-run the same command to continue.')
         pool.terminate()      # helpers lose their pipe and quit their own Word/PowerPoint; the user's Office is never touched
     finally:
-        db.commit()
+        stop_ui.set(); db.commit()
     print(f'\nfinished {n:,} files in {hms(time.time() - t0)}')
     stats(db)
 
