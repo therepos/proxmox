@@ -3,6 +3,7 @@
 # =============================================================================
 # Installed by apps/installers/mcp-setup.sh (server id: mcpshared).
 # HTTP endpoints, token gate and health check come from ../common.py.
+# Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -34,6 +35,7 @@ from mcp.types import ImageContent, TextContent, ToolAnnotations
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [_HERE, os.path.dirname(_HERE)]
 from common import env, env_bool, serve  # noqa: E402
+from extraction_tools import register as register_extraction  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
@@ -116,7 +118,10 @@ mcp = MCPServer(
         f"Filesystem access to the shared folder '{ROOT.name}'"
         f"{' (read-only)' if READ_ONLY else ' (read/write)'}. "
         "All paths are relative to the share root ('.'). Start with list_directory "
-        "or search_files to find things; use read_file for text and view_image for pictures."
+        "or search_files to find things; use read_file for text and view_image for pictures. "
+        "Office files are unpacked on the server: list_sheets / read_sheet / extract_sheet_images "
+        "for xlsx, extract_pdf_text for pdf, extract_docx_text for docx. Never read those with "
+        "read_file_base64."
     ),
 )
 
@@ -431,6 +436,10 @@ if not READ_ONLY:
         else:
             p.unlink()
         return {"deleted": _rel(p), "recursive": recursive}
+
+
+# --- Document extraction (xlsx / pdf / docx -> text) ---------------------------
+register_extraction(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY)
 
 
 # --- Run ---------------------------------------------------------------------

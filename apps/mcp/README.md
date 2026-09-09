@@ -8,14 +8,15 @@ one installer.
 apps/mcp/
 ├── README.md            # this file
 ├── common.py            # token gate, /healthz, serve() - shared by every server
-└── mcpshared/     # server id = folder name
+└── mcpshared/           # server id = folder name
     ├── server.py
+    ├── extraction_tools.py  # xlsx / pdf / docx -> text
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; extract text and images from xlsx, pdf and docx |
 
 ## Install
 
@@ -29,7 +30,7 @@ Each server gets its own sandboxed systemd unit, token and port:
 
 | Path | Purpose |
 |---|---|
-| `/opt/mcp/<id>/` | `server.py`, `common.py`, Python venv (`mcp>=2,<3`, `uvicorn`) |
+| `/opt/mcp/<id>/` | `server.py`, `common.py`, any extra files from `FILES_<id>`, Python venv (`mcp>=2,<3`, `uvicorn`, plus `PIP_<id>` extras) |
 | `/etc/mcp/<id>.env` | settings and token, mode 600 |
 | `/etc/systemd/system/<id>.service` | unit; host is read-only except the paths the server declares |
 
@@ -79,6 +80,7 @@ everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `<id>.servi
 2. Add a line to `SERVERS=(...)` in `apps/installers/mcp-setup.sh`: `"<id>|<port>|<description>"`.
 3. If it needs its own prompts or writable paths, add `configure_<id>()` next to
    `configure_mcpshared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
+   More than one `.py` file or extra pip packages: set `FILES_<id>` / `PIP_<id>` in the installer.
 4. Add a `README.md` in the folder and a row in the table above.
 
 ## Security

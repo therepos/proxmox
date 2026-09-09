@@ -5,14 +5,15 @@
 # One installer for every server under apps/mcp/<id>/. Each server becomes its
 # own hardened systemd unit on the Proxmox host:
 #
-#   /opt/mcp/<id>/{venv,server.py,common.py}
+#   /opt/mcp/<id>/{venv,server.py,common.py,<extra files>}
 #   /etc/mcp/<id>.env                      settings + token (mode 600)
 #   /etc/systemd/system/<id>.service
 #   http://<host-ip>:<port>/<TOKEN>/mcp    endpoint (see apps/mcp/common.py)
 #
 # Adding a server: drop apps/mcp/<id>/server.py in the repo, then add one line
 # to the SERVERS registry below and, if it needs its own prompts, a
-# configure_<id>() function (see configure_mcpshared).
+# configure_<id>() function (see configure_mcpshared). Servers with more than
+# one .py file list them in FILES_<id>; extra pip packages go in PIP_<id>.
 # =============================================================================
 
 set -euo pipefail
@@ -44,8 +45,11 @@ hr() { echo "----------------------------------------------------------------"; 
 # everywhere: repo folder, /opt/mcp/<id>, /etc/mcp/<id>.env, <id>.service,
 # configure_<id>(), the Cloudflare subdomain and the connector name in Claude.
 SERVERS=(
-    "mcpshared|8765|Browse, search, read and write one folder on this host"
+    "mcpshared|8765|Browse, search, read, write and extract text from files in one folder on this host"
 )
+# Per-server extras (optional): additional files next to server.py, extra pip packages.
+FILES_mcpshared="extraction_tools.py"
+PIP_mcpshared="openpyxl pdfplumber python-docx"
 
 # --- Paths -------------------------------------------------------------------
 BASE_DIR="/opt/mcp"
@@ -152,10 +156,17 @@ MCP_READ_ONLY=${ro}"
 }
 
 # --- Pieces ------------------------------------------------------------------
+server_extra() {
+    # $1 = FILES or PIP: echo the per-server list, empty if unset
+    local var="${1}_${ID}"
+    echo "${!var:-}"
+}
+
 fetch_files() {
     mkdir -p "$INSTALL_DIR"
-    local f src
-    for f in "common.py" "${ID}/server.py"; do
+    local f src extra files=("common.py" "${ID}/server.py")
+    for extra in $(server_extra FILES); do files+=("${ID}/${extra}"); done
+    for f in "${files[@]}"; do
         local dst="${INSTALL_DIR}/$(basename "$f")"
         if [[ -n "$MCP_SRC_DIR" ]]; then
             src="${MCP_SRC_DIR}/${f}"
@@ -181,6 +192,13 @@ setup_venv() {
     "${INSTALL_DIR}/venv/bin/pip" install -q --upgrade "$PIP_SPEC" uvicorn >/dev/null 2>&1 \
         || fail "pip install failed. See $LOG_FILE"
     "${INSTALL_DIR}/venv/bin/python" -c 'import mcp, uvicorn' || fail "MCP SDK import failed."
+    local extra; extra="$(server_extra PIP)"
+    if [[ -n "$extra" ]]; then
+        info "Installing extras for ${ID}: ${extra}"
+        # shellcheck disable=SC2086
+        "${INSTALL_DIR}/venv/bin/pip" install -q --upgrade $extra >/dev/null 2>&1 \
+            || warn "Extras failed to install; tools that need them will say so. See $LOG_FILE"
+    fi
 }
 
 write_env() {
