@@ -48,7 +48,7 @@ SERVERS=(
     "mcpshared|8765|Browse, search, read, write and extract text from files in one folder on this host"
 )
 # Per-server extras (optional): additional files next to server.py, extra pip packages.
-FILES_mcpshared="extraction_tools.py"
+FILES_mcpshared="extraction_tools.py transfer.py"
 PIP_mcpshared="openpyxl pdfplumber python-docx"
 
 # --- Paths -------------------------------------------------------------------

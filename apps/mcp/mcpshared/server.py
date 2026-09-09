@@ -3,7 +3,8 @@
 # =============================================================================
 # Installed by apps/installers/mcp-setup.sh (server id: mcpshared).
 # HTTP endpoints, token gate and health check come from ../common.py.
-# Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py.
+# Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py,
+# file transfer (signed download / upload links, fetch_url) in transfer.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -12,6 +13,7 @@
 #   MCP_ROOT        directory to expose (required)
 #   MCP_READ_ONLY   1 = do not register write tools  (default 0)
 #   MCP_NAME        server name shown to Claude      (default "mcpshared")
+#   MCP_PUBLIC_URL  https://<host> used in download / upload links (optional)
 # =============================================================================
 
 from __future__ import annotations
@@ -36,10 +38,12 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [_HERE, os.path.dirname(_HERE)]
 from common import env, env_bool, serve  # noqa: E402
 from extraction_tools import register as register_extraction  # noqa: E402
+from transfer import register as register_transfer  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
 NAME = env("MCP_NAME", "mcpshared")
+PUBLIC_URL = env("MCP_PUBLIC_URL", "")
 ROOT = Path(os.path.realpath(env("MCP_ROOT", required=True)))
 if not ROOT.is_dir():
     sys.exit(f"MCP_ROOT is not a directory: {ROOT}")
@@ -121,7 +125,8 @@ mcp = MCPServer(
         "or search_files to find things; use read_file for text and view_image for pictures. "
         "Office files are unpacked on the server: list_sheets / read_sheet / extract_sheet_images "
         "for xlsx, extract_pdf_text for pdf, extract_docx_text for docx. Never read those with "
-        "read_file_base64."
+        "read_file_base64. To hand the user an actual file use download_link; to let them add "
+        "files use upload_link; fetch_url pulls a public URL into the share."
     ),
 )
 
@@ -441,8 +446,14 @@ if not READ_ONLY:
 # --- Document extraction (xlsx / pdf / docx -> text) ---------------------------
 register_extraction(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY)
 
+# --- File transfer (signed links, fetch_url) ----------------------------------
+register_transfer(
+    mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY,
+    token=env("MCP_TOKEN", required=True), public_url=PUBLIC_URL, port=int(env("MCP_PORT", "8765")),
+)
+
 
 # --- Run ---------------------------------------------------------------------
 if __name__ == "__main__":
     print(f"[mcp] {NAME}: serving {ROOT} {'read-only' if READ_ONLY else 'read/write'}", flush=True)
-    serve(mcp, extra_health={"read_only": READ_ONLY})
+    serve(mcp, extra_health={"read_only": READ_ONLY}, open_prefixes=("/files/",))

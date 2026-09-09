@@ -11,12 +11,13 @@ apps/mcp/
 └── mcpshared/           # server id = folder name
     ├── server.py
     ├── extraction_tools.py  # xlsx / pdf / docx -> text
+    ├── transfer.py          # signed download / upload links, fetch_url
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; extract text and images from xlsx, pdf and docx |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; extract text and images from xlsx, pdf and docx; download / upload links |
 
 ## Install
 
@@ -44,6 +45,9 @@ Every server exposes the same endpoints, so the installer and Cloudflare setup a
 | `POST /<TOKEN>/mcp` | token in the path (what claude.ai uses) |
 | `POST /mcp` | `Authorization: Bearer <TOKEN>` |
 | anything else | plain 404 |
+
+A server may open extra prefixes with `serve(..., open_prefixes=(...))`; routes there authenticate
+themselves. mcpshared opens `/files/` for signed, expiring download and upload links.
 
 ## Connect
 
@@ -86,5 +90,5 @@ everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `<id>.servi
 ## Security
 
 - The token is the only credential. Anyone with the URL has the server's access level. Rotate from the installer (option 5).
-- Wrong or missing token returns 404, so nothing is discoverable by scanning. Optionally add a Cloudflare WAF rule allowing only paths starting with `/<TOKEN>/`.
+- Wrong or missing token returns 404, so nothing is discoverable by scanning. Optionally add a Cloudflare WAF rule allowing only paths starting with `/<TOKEN>/` or `/files/` (the latter carries its own signature).
 - Cloudflare Access cannot sit in front of it: claude.ai cannot log in through it.
