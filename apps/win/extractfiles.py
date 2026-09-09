@@ -14,9 +14,9 @@
 #
 # Ctrl+C at any time: everything finished so far is committed. Re-run the same command to continue.
 # Output: kb.db  tables docs (one row per file, status), parts (text pieces: body/table/sheet/slide/page/email), parts_fts (FTS5).
-# Old .doc/.rtf/.ppt: Word/PowerPoint first (helper process with a timeout, so a hung file cannot stall the run), then LibreOffice
-# headless if installed (opens Word 95 files that domain policy blocks in Word), then a raw-text fallback with flattened tables.
-# On Linux (no Office) LibreOffice is used directly.
+#         extract.log  start/stop, 5-minute summaries, one line per failed file. Library noise from workers goes to tmp_extract\worker_*.log.
+# Old .doc/.rtf/.ppt are first bulk-converted by LibreOffice, 40 files per launch (phase 1), which is far faster than one launch per
+# file; anything that fails there goes through Word/PowerPoint, then single-file LibreOffice, then raw text (phase 2).
 
 import sys, os, io, re, json, time, shutil, sqlite3, argparse, subprocess, threading, queue, datetime, traceback
 
@@ -285,7 +285,40 @@ def h_msg(path, tmpdir, office, soffice=None, depth=0):
     m.close()
     return parts
 
-def extract(local, ext, tmpdir, office, soffice=None):
+def sniff(local, ext):
+    # files are often saved with the wrong extension; route by content
+    try:
+        with open(local, 'rb') as fh: head = fh.read(8)
+    except Exception: return ext
+    if head.startswith(b'%PDF'): return '.pdf'
+    if head.startswith(b'PK\x03\x04'):
+        import zipfile
+        try:
+            names = zipfile.ZipFile(local).namelist()
+            if any(n.startswith('word/') for n in names): return '.docx'
+            if any(n.startswith('xl/') for n in names): return '.xlsx'
+            if any(n.startswith('ppt/') for n in names): return '.pptx'
+        except Exception: pass
+        return ext
+    if head.startswith(b'\xd0\xcf\x11\xe0'):
+        import olefile
+        try:
+            with olefile.OleFileIO(local) as ole:
+                if ole.exists('WordDocument'): return '.doc'
+                if ole.exists('Workbook') or ole.exists('Book'): return '.xls'
+                if ole.exists('PowerPoint Document'): return '.ppt'
+                if ole.exists('__properties_version1.0'): return '.msg'
+        except Exception: pass
+    if head.startswith(b'{\\rtf'): return '.rtf'
+    return ext
+
+def extract(local, ext, tmpdir, office, soffice=None, did=None):
+    ext = sniff(local, ext)
+    if did is not None and ext in ('.doc', '.rtf', '.ppt'):       # phase-1 bulk conversion already done?
+        cached = os.path.join(tmpdir, 'converted', f'{did}.docx' if ext != '.ppt' else f'{did}.pptx')
+        if os.path.exists(cached):
+            try: return h_docx(cached) if ext != '.ppt' else h_pptx(cached)
+            except Exception: pass
     if ext == '.docx': return h_docx(local)
     if ext in ('.doc', '.rtf'):
         errs = []
@@ -342,7 +375,7 @@ def extract(local, ext, tmpdir, office, soffice=None):
 
 # ---------------------------------------------------------------- database
 def open_db(dbpath):
-    db = sqlite3.connect(dbpath)
+    db = sqlite3.connect(dbpath, timeout=60)
     db.executescript('''
     PRAGMA journal_mode=WAL;
     CREATE TABLE IF NOT EXISTS docs(id INTEGER PRIMARY KEY, path TEXT UNIQUE, name TEXT, ext TEXT, size INTEGER, modified TEXT,
@@ -379,6 +412,12 @@ def longpath(p):
     if not IS_WIN or p.startswith('\\\\?\\'): return p
     return '\\\\?\\UNC\\' + p[2:] if p.startswith('\\\\') else '\\\\?\\' + p
 
+LOG = os.path.join(HERE, 'extract.log')
+def log(msg):
+    try:
+        with open(LOG, 'a', encoding='utf-8') as fh: fh.write(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  {msg}\n')
+    except Exception: pass
+
 def stats(db):
     print('\nstatus by document type')
     print(f"{'DocType':20}{'pending':>9}{'done':>9}{'empty':>9}{'error':>9}{'chars M':>10}")
@@ -404,21 +443,58 @@ def search(db, q):
 
 def hms(s): return str(datetime.timedelta(seconds=int(s))) if s >= 0 else '--:--:--'
 
+# ---------------------------------------------------------------- phase 1: bulk LibreOffice conversion, 40 files per launch
+def w_bulk(chunk):
+    # chunk: [(did, path, ext)] all .doc/.rtf or all .ppt. Copies to a batch folder, one soffice call, moves results to converted/<id>.<fmt>
+    fmt = 'pptx' if chunk[0][2] == '.ppt' else 'docx'
+    tmp = W['tmp']; bdir = os.path.join(tmp, f'batch_{os.getpid()}'); conv = os.path.join(tmp, 'converted')
+    shutil.rmtree(bdir, ignore_errors=True); os.makedirs(bdir); os.makedirs(conv, exist_ok=True)
+    srcs = []
+    for did, path, ext in chunk:
+        local = os.path.join(bdir, f'{did}{ext}')
+        try: shutil.copyfile(longpath(path), local); srcs.append(local)
+        except Exception: pass
+    try: W['busy'][os.getpid()] = (f'bulk convert {len(srcs)} {fmt} files', time.time())
+    except Exception: pass
+    ok = 0
+    if srcs:
+        prof = os.path.join(tmp, f'lo_profile_{os.getpid()}'); url = 'file:///' + os.path.abspath(prof).replace('\\', '/')
+        cmd = [W['soffice'], f'-env:UserInstallation={url}', '--headless', '--norestore', '--nolockcheck', '--convert-to', fmt, '--outdir', bdir] + srcs
+        try: subprocess.run(cmd, capture_output=True, timeout=OFFICE_TIMEOUT * 4)
+        except subprocess.TimeoutExpired: pass
+        except Exception: pass
+        for did, path, ext in chunk:
+            out = os.path.join(bdir, f'{did}.{fmt}')
+            if os.path.exists(out) and os.path.getsize(out) > 0:
+                try: os.replace(out, os.path.join(conv, f'{did}.{fmt}')); ok += 1
+                except Exception: pass
+    shutil.rmtree(bdir, ignore_errors=True)
+    try: W['busy'][os.getpid()] = ('', 0)
+    except Exception: pass
+    return len(chunk), ok
+
 # ---------------------------------------------------------------- worker process: copy + extract one file, return parts
 W = {}
-def w_init(tmpdir, soffice):
-    W['tmp'] = tmpdir; W['office'] = Office(); W['soffice'] = soffice
+def w_init(tmpdir, soffice, busy_map):
+    W['tmp'] = tmpdir; W['office'] = Office(); W['soffice'] = soffice; W['busy'] = busy_map
+    import warnings, logging
+    warnings.filterwarnings('ignore')
+    for name in ('pypdf', 'openpyxl', 'extract_msg', 'RTFDE'): logging.getLogger(name).setLevel(logging.CRITICAL)
+    try: sys.stderr = open(os.path.join(tmpdir, f'worker_{os.getpid()}.log'), 'a', encoding='utf-8', errors='replace')
+    except Exception: pass
     import signal, atexit; signal.signal(signal.SIGINT, signal.SIG_IGN)     # parent handles Ctrl+C
     atexit.register(W['office'].close)
 
 def w_one(item):
     did, path, ext, name, doctype = item
     ts = time.time(); local = os.path.join(W['tmp'], f'{did}_{os.getpid()}{ext}')
+    try: W['busy'][os.getpid()] = (name, ts)
+    except Exception: pass
     status, err, parts, copy_s = 'done', None, [], None
     try:
         try: shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
         except Exception as e: raise RuntimeError(f'copy: {e}')
-        parts = extract(local, ext, W['tmp'], W['office'], W['soffice'])
+        parts = extract(local, ext, W['tmp'], W['office'], W['soffice'], did)
         parts = [(k, t, c[:MAX_PART]) for k, t, c in parts if c]
         if not parts: status, err = 'empty', 'no text found'
     except Exception as e:
@@ -427,6 +503,8 @@ def w_one(item):
         if os.path.exists(local):
             try: os.remove(local)
             except Exception: pass
+    try: W['busy'][os.getpid()] = ('', 0)
+    except Exception: pass
     return did, name, status, err, parts, round(time.time() - ts, 2), copy_s
 
 # ---------------------------------------------------------------- main
@@ -441,6 +519,7 @@ def main():
     ap.add_argument('--retry-errors', action='store_true')
     ap.add_argument('--redo-crude', action='store_true')
     ap.add_argument('--soffice', default='')
+    ap.add_argument('--no-bulk', action='store_true', help='skip the phase-1 bulk LibreOffice conversion')
     ap.add_argument('--stats', action='store_true')
     ap.add_argument('--search', default='')
     ap.add_argument('--office-worker', action='store_true')
@@ -449,11 +528,10 @@ def main():
 
     db = open_db(a.db)
     if a.search: return search(db, a.search)
+    if a.stats: return stats(db)          # read-only, safe while another instance is running
     if os.path.exists(a.list):
         n = load_list(db, a.list)
         if n: print(f'loaded {n:,} new rows from {os.path.basename(a.list)}')
-    if a.stats: return stats(db)
-
     if a.retry_errors: db.execute("update docs set status='pending', error=NULL where status='error'"); db.commit()
     if a.redo_crude:
         db.execute("update docs set status='pending' where id in (select doc_id from parts where kind='body-crude')"); db.commit()
@@ -477,12 +555,53 @@ def main():
     import multiprocessing as mp
     soffice = find_soffice(a.soffice)
     print('libreoffice:', soffice or 'not found (Word 95 files get raw text only)')
-    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice))
-    t0 = time.time(); last = 0; n = 0; nerr = 0; nempty = 0; copyfail = 0
+    mgr = mp.Manager(); busy_map = mgr.dict()
+    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice, busy_map))
+    log(f'start: {len(todo):,} to do, workers {a.workers}, libreoffice {soffice}')
+
+    # phase 1: bulk-convert legacy Office files not yet in the converted cache
+    conv = os.path.join(tmpdir, 'converted'); os.makedirs(conv, exist_ok=True)
+    if soffice and not a.no_bulk:
+        need = [(d, p, e) for d, p, e, _, _ in todo if e in ('.doc', '.rtf', '.ppt') and not os.path.exists(os.path.join(conv, f'{d}.' + ('pptx' if e == '.ppt' else 'docx')))]
+        docs = [x for x in need if x[2] != '.ppt']; ppts = [x for x in need if x[2] == '.ppt']
+        chunks = [docs[i:i + 40] for i in range(0, len(docs), 40)] + [ppts[i:i + 40] for i in range(0, len(ppts), 40)]
+        if chunks:
+            print(f'phase 1: bulk converting {len(need):,} old Word/PowerPoint files with LibreOffice, {len(chunks)} batches')
+            t1 = time.time(); done1 = 0; ok1 = 0
+            try:
+                for k, (cnt, ok) in enumerate(pool.imap_unordered(w_bulk, chunks), 1):
+                    done1 += cnt; ok1 += ok; el = time.time() - t1
+                    print(f'\rbatch {k}/{len(chunks)}  {done1:,} files, {ok1:,} converted  {hms(el)}  eta {hms(el / k * (len(chunks) - k))}'.ljust(110), end='', flush=True)
+            except KeyboardInterrupt:
+                print('\nstopped during bulk conversion. converted files are kept; re-run to continue.'); pool.terminate(); return
+            print(f'\nphase 1 done: {ok1:,} of {done1:,} converted in {hms(time.time() - t1)}; the rest go through Word/LibreOffice one by one')
+            log(f'phase 1: {ok1:,} of {done1:,} bulk-converted in {hms(time.time() - t1)}')
+
+    print(f'phase 2: extracting text from {len(todo):,} files')
+    t0 = time.time(); n = 0; nerr = 0; nempty = 0; copyfail = 0
+    total_todo = len(todo); stop_ui = threading.Event(); hist = []   # (time, n) samples for a recent-rate ETA
+
+    def ui():   # heartbeat: refreshes every second even while workers are busy, permanent summary line every 5 min
+        lastsum = time.time()
+        while not stop_ui.wait(1):
+            now = time.time(); el = now - t0
+            hist.append((now, n)); del hist[:-600]
+            old = next((h for h in hist if now - h[0] >= 300), hist[0])
+            rate = (n - old[1]) / max(now - old[0], 1) * 60 if now - old[0] > 30 else n / max(el, 1) * 60
+            eta = (total_todo - n) / rate * 60 if rate > 0 else -1
+            busy = sorted(((now - t, nm) for nm, t in busy_map.values() if nm), reverse=True)
+            cur = f'{len(busy)} busy, longest {busy[0][0]:.0f}s: {busy[0][1]}' if busy else 'waiting for workers'
+            line = f'{n:,}/{total_todo:,}  err {nerr:,}  {rate:4.1f}/min  {hms(el)}  eta {hms(eta)}  | {cur}'
+            print('\r' + line[:110].ljust(110), end='', flush=True)
+            if now - lastsum >= 300:
+                lastsum = now
+                msg = f'{n:,} of {total_todo:,} done  err {nerr:,}  empty {nempty:,}  {rate:4.1f}/min  eta {hms(eta)}'
+                print(f'\r{datetime.datetime.now().strftime("%H:%M")}  {msg}'.ljust(110)); log(msg)
+    threading.Thread(target=ui, daemon=True).start()
     try:
         for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
             n += 1
-            if status == 'error': nerr += 1
+            if status == 'error': nerr += 1; log(f'error  {name}  |  {err}')
             copyfail = copyfail + 1 if (err or '').startswith('copy:') else 0
             if copyfail >= 30:
                 print(f'\n{copyfail} files in a row could not be copied from the share, it is probably disconnected. stopping.')
@@ -498,17 +617,13 @@ def main():
             db.execute('update docs set status=?, parts=?, chars=?, error=?, seconds=?, copy_s=?, done_at=? where id=?',
                        (status, len(parts), sum(len(c) for _, _, c in parts), err, secs, copy_s, datetime.datetime.now().strftime('%Y-%m-%d %H:%M'), did))
             if n % 25 == 0: db.commit()
-            if time.time() - last > 1:
-                last = time.time(); el = last - t0; rate = n / el * 60
-                line = f'{n:,}/{len(todo):,}  err {nerr:,}  empty {nempty:,}  {rate:5.1f} files/min  elapsed {hms(el)}  eta {hms((len(todo) - n) / max(rate, 0.01) * 60)}  {name}'
-                print('\r' + line[:105].ljust(105), end='', flush=True)
         pool.close(); pool.join()
     except KeyboardInterrupt:
-        print('\nstopped. re-run the same command to continue.')
+        print('\nstopped. re-run the same command to continue.'); log(f'stopped by user after {n:,} files')
         pool.terminate()      # helpers lose their pipe and quit their own Word/PowerPoint; the user's Office is never touched
     finally:
-        db.commit()
-    print(f'\nfinished {n:,} files in {hms(time.time() - t0)}')
+        stop_ui.set(); db.commit()
+    print(f'\nfinished {n:,} files in {hms(time.time() - t0)}'); log(f'finished {n:,} files, err {nerr:,}, empty {nempty:,}, in {hms(time.time() - t0)}')
     stats(db)
 
 if __name__ == '__main__':
