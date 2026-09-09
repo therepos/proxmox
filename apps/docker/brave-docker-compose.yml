@@ -15,7 +15,7 @@ services:
       - VNC_PW=${VNC_PW}
       - LAUNCH_URL=${LAUNCH_URL}
       - KASM_RESTRICTED_FILE_CHOOSER=0
-    shm_size: 1gb
+    shm_size: 2gb
     restart: unless-stopped
     security_opt:
       - apparmor=unconfined
