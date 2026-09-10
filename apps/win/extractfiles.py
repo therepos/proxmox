@@ -44,13 +44,21 @@ def unblock_legacy_word():
     except Exception: pass
 
 def office_worker():
-    import win32com.client, pythoncom
+    import win32com.client, pythoncom, ctypes
     pythoncom.CoInitialize()
     unblock_legacy_word()
-    word = ppt = None; pid = None
+    word = ppt = None; pids = {}
     def pid_of(hwnd):
-        import ctypes
         out = ctypes.c_ulong(); ctypes.windll.user32.GetWindowThreadProcessId(int(hwnd), ctypes.byref(out)); return out.value
+    def kill_own():
+        for p in set(pids.values()):
+            subprocess.run(['taskkill', '/F', '/PID', str(p)], capture_output=True)
+    def watch_parent():
+        # if the worker process that owns this helper dies (Ctrl+C, crash), kill our own Word/PowerPoint so no hidden instances pile up
+        k = ctypes.windll.kernel32; h = k.OpenProcess(0x00100000, False, os.getppid())   # SYNCHRONIZE
+        if h: k.WaitForSingleObject(h, 0xFFFFFFFF)
+        kill_own(); os._exit(0)
+    threading.Thread(target=watch_parent, daemon=True).start()
     for line in sys.stdin:
         req = json.loads(line)
         try:
@@ -58,25 +66,36 @@ def office_worker():
                 if word is None:
                     word = win32com.client.DispatchEx('Word.Application')
                     word.Visible = False; word.DisplayAlerts = 0; word.AutomationSecurity = 3
+                    try:
+                        o = word.Options
+                        o.WarnBeforeSavingPrintingSendingMarkup = False   # the "contains comments and tracked changes, continue?" prompt
+                        o.ConfirmConversions = False; o.DoNotPromptForConvert = True; o.SaveInterval = 0
+                        o.CheckSpellingAsYouType = False; o.CheckGrammarAsYouType = False
+                    except Exception: pass
+                    try: d0 = word.Documents.Add(); pids['word'] = pid_of(d0.ActiveWindow.Hwnd); d0.Close(0)
+                    except Exception: pass
                 d = word.Documents.Open(req['src'], ReadOnly=True, AddToRecentFiles=False, ConfirmConversions=False,
                                         PasswordDocument='__no_password__', Visible=False)
-                if pid is None:
-                    try: pid = pid_of(d.ActiveWindow.Hwnd)
+                if 'word' not in pids:
+                    try: pids['word'] = pid_of(d.ActiveWindow.Hwnd)
                     except Exception: pass
                 d.SaveAs2(req['dst'], FileFormat=12)      # wdFormatXMLDocument
                 d.Close(0)
             else:
                 if ppt is None:
                     ppt = win32com.client.DispatchEx('PowerPoint.Application')
+                    try: pids['ppt'] = pid_of(ppt.HWND)
+                    except Exception: pass
                 p = ppt.Presentations.Open(req['src'], ReadOnly=True, Untitled=False, WithWindow=False)
                 p.SaveAs(req['dst'], 24)                  # ppSaveAsOpenXMLPresentation
                 p.Close()
-            print(json.dumps({'ok': True, 'pid': pid}), flush=True)
+            print(json.dumps({'ok': True, 'pid': pids.get('word') if req['app'] == 'word' else pids.get('ppt')}), flush=True)
         except Exception as e:
-            print(json.dumps({'ok': False, 'error': str(e)[:300], 'pid': pid}), flush=True)
+            print(json.dumps({'ok': False, 'error': str(e)[:300], 'pid': pids.get('word') if req['app'] == 'word' else pids.get('ppt')}), flush=True)
     for app in (word, ppt):
         try: app.Quit()
         except Exception: pass
+    kill_own()
 
 class Office:
     """Talks to the helper process; restarts it and kills the Office app if a conversion exceeds OFFICE_TIMEOUT."""
