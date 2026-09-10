@@ -23,6 +23,7 @@ import sys, os, io, re, json, time, shutil, sqlite3, argparse, subprocess, threa
 HERE = os.path.dirname(os.path.abspath(__file__))
 IS_WIN = os.name == 'nt'
 OFFICE_TIMEOUT = 120          # seconds per Word/PowerPoint conversion (file is already local, so longer means a broken file)
+FILE_TIMEOUT = 300            # seconds per file for everything else (pdf, excel, email...); a file over this is marked error and skipped
 MAX_PART = 2_000_000          # chars per text piece
 MAX_ROWS = 20_000             # rows per sheet
 MAX_CELL = 4_000              # chars per cell
@@ -504,7 +505,19 @@ def w_one(item):
     try:
         try: shutil.copyfile(longpath(path), local); copy_s = round(time.time() - ts, 2)
         except Exception as e: raise RuntimeError(f'copy: {e}')
-        parts = extract(local, ext, W['tmp'], W['office'], W['soffice'], did)
+        box = {}
+        def run():
+            try: box['parts'] = extract(local, ext, W['tmp'], W['office'], W['soffice'], did)
+            except BaseException as e: box['err'] = e
+        th = threading.Thread(target=run, daemon=True); th.start(); th.join(FILE_TIMEOUT)
+        if th.is_alive():
+            # raise TimeoutError inside the runaway reader thread; it takes effect as soon as that thread is back in Python code
+            import ctypes
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(th.ident), ctypes.py_object(TimeoutError))
+            th.join(10)
+            raise RuntimeError(f'timeout: reader still busy after {FILE_TIMEOUT}s, file skipped')
+        if 'err' in box: raise box['err']
+        parts = box['parts']
         parts = [(k, t, c[:MAX_PART]) for k, t, c in parts if c]
         if not parts: status, err = 'empty', 'no text found'
     except Exception as e:
@@ -566,7 +579,7 @@ def main():
     soffice = find_soffice(a.soffice)
     print('libreoffice:', soffice or 'not found (Word 95 files get raw text only)')
     mgr = mp.Manager(); busy_map = mgr.dict()
-    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice, busy_map))
+    pool = mp.Pool(max(1, a.workers), initializer=w_init, initargs=(tmpdir, soffice, busy_map), maxtasksperchild=300)
     log(f'start: {len(todo):,} to do, workers {a.workers}, libreoffice {soffice}')
 
     # phase 1: bulk-convert legacy Office files not yet in the converted cache
@@ -602,11 +615,12 @@ def main():
             busy = sorted(((now - t, nm) for nm, t in busy_map.values() if nm), reverse=True)
             cur = f'{len(busy)} busy, longest {busy[0][0]:.0f}s: {busy[0][1]}' if busy else 'waiting for workers'
             line = f'{n:,}/{total_todo:,}  err {nerr:,}  {rate:4.1f}/min  {hms(el)}  eta {hms(eta)}  | {cur}'
-            print('\r' + line[:110].ljust(110), end='', flush=True)
+            width = max(60, shutil.get_terminal_size((120, 20)).columns - 1)
+            print('\r' + line[:width].ljust(width), end='', flush=True)
             if now - lastsum >= 300:
                 lastsum = now
                 msg = f'{n:,} of {total_todo:,} done  err {nerr:,}  empty {nempty:,}  {rate:4.1f}/min  eta {hms(eta)}'
-                print(f'\r{datetime.datetime.now().strftime("%H:%M")}  {msg}'.ljust(110)); log(msg)
+                print(f'\r{datetime.datetime.now().strftime("%H:%M")}  {msg}'.ljust(width)); log(msg)
     threading.Thread(target=ui, daemon=True).start()
     try:
         for did, name, status, err, parts, secs, copy_s in pool.imap_unordered(w_one, todo, chunksize=1):
