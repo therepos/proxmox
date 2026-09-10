@@ -163,12 +163,15 @@ def rows_to_text(rows):
 
 def h_docx(path):
     import docx
+    from docx.table import _Cell
     d = docx.Document(path)
     parts = []
     body = '\n'.join(clean(p.text) for p in d.paragraphs if clean(p.text))
     if body: parts.append(('body', '', body))
     for i, t in enumerate(d.tables, 1):
-        txt = rows_to_text([[c.text for c in row.cells] for row in t.rows])
+        # read cells straight from the XML: python-docx's row.cells is strict about grid layout and fails on converted files
+        rows = [[_Cell(tc, t).text for tc in tr.tc_lst] for tr in t._tbl.tr_lst]
+        txt = rows_to_text(rows)
         if txt: parts.append(('table', f'table {i}', txt))
     return parts
 
@@ -222,7 +225,10 @@ def h_pdf(path):
         except Exception: raise RuntimeError('pdf is password protected')
     parts = []
     for i, pg in enumerate(r.pages, 1):
-        try: t = clean(pg.extract_text() or '')
+        try:
+            res = pg.get('/Resources')
+            if res is not None and '/Font' not in res and '/XObject' not in res: continue   # image-only or blank page, no text possible
+            t = clean(pg.extract_text() or '')
         except Exception as e: t = f'[page {i}: extract failed {e}]'
         if t: parts.append(('page', f'page {i}', t))
     if not parts and len(r.pages): raise RuntimeError(f'no text layer in {len(r.pages)} pages (scanned image pdf, needs OCR)')
@@ -318,13 +324,17 @@ def extract(local, ext, tmpdir, office, soffice=None, did=None):
         cached = os.path.join(tmpdir, 'converted', f'{did}.docx' if ext != '.ppt' else f'{did}.pptx')
         if os.path.exists(cached):
             try: return h_docx(cached) if ext != '.ppt' else h_pptx(cached)
-            except Exception: pass
+            except Exception as e: cache_err = f'cached {os.path.basename(cached)} unreadable: {e}'
+        else: cache_err = None
+    else: cache_err = None
     if ext == '.docx': return h_docx(local)
     if ext in ('.doc', '.rtf'):
         errs = []
         dst = local + '.docx'
         try:
-            office.convert('word', local, dst); return h_docx(dst)
+            office.convert('word', local, dst); parts = h_docx(dst)
+            if cache_err: parts.append(('note', 'conversion', cache_err))
+            return parts
         except Exception as e: errs.append(f'word: {e}')
         finally:
             if os.path.exists(dst): os.remove(dst)
