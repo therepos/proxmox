@@ -227,7 +227,8 @@ def register(
     token: str,
     public_url: str = "",
     port: int = 8765,
-) -> None:
+) -> Callable[[Path], dict[str, Any]]:
+    """Registers routes and tools; returns download_link_for(Path) for other modules."""
     key = hmac.new(token.encode(), b"mcpshared-files", hashlib.sha256).digest()
     default_minutes = _int_env("MCP_LINK_MINUTES", 60)
     upload_max = _int_env("MCP_UPLOAD_MAX_BYTES", 4 << 30)
@@ -340,8 +341,11 @@ def register(
             out["size"] = _human(p.stat().st_size)
         return out
 
+    def download_link_for(p: Path) -> dict[str, Any]:
+        return link("d", rel(p), default_minutes)
+
     if read_only:
-        return
+        return download_link_for
 
     @guard(RW)
     def upload_link(directory: str = ".", expires_minutes: int = default_minutes) -> dict[str, Any]:
@@ -437,3 +441,5 @@ def register(
         if ctype.startswith("text/html") and not dest.suffix.lower() in (".html", ".htm"):
             result["warning"] = "The server returned an HTML page, not a file. For Google Drive this usually means the file is not shared publicly or needs the large-file confirmation."
         return result
+
+    return download_link_for

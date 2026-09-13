@@ -10,8 +10,9 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Browse | `list_directory`, `directory_tree`, `search_files`, `search_content`, `get_file_info`, `disk_usage` |
 | Read | `read_file` (paged text), `view_image` (png/jpg/gif/webp ≤ 8 MB), `read_file_base64` (small binaries) |
 | Write (unless read-only) | `write_file`, `create_directory`, `move_path`, `copy_path`, `delete_path` |
-| Extract (`extraction_tools.py`) | `list_sheets`, `read_sheet`, `extract_sheet_images`, `extract_pdf_text`, `extract_docx_text` |
+| Extract (`extraction_tools.py`) | `list_sheets`, `read_sheet`, `extract_sheet_images`, `extract_pdf_text`, `view_pdf_page`, `extract_docx_text`, `extract_pptx_text` |
 | Transfer (`transfer.py`) | `download_link`, `upload_link`, `fetch_url` |
+| Build (`build_tools.py`, unless read-only) | `build_xlsx`, `build_docx`, `build_pptx`, `build_pdf` |
 
 ## Extraction
 
@@ -24,10 +25,28 @@ returned as text. Every extraction tool is hard-capped at 100k characters and sa
 | `read_sheet(path, sheet, start_row, max_rows, max_cols, format)` | One sheet as markdown or CSV, streamed with `openpyxl` read-only mode. First column is the Excel row number. Paged like `read_file`. |
 | `extract_sheet_images(path, sheet, out_dir, inline)` | Walks `xl/drawings` + rels, writes every embedded picture to `<folder>/_images/<workbook>/<sheet>_<cell>.png` and returns a manifest (sheet, anchor cell, file). `inline=true` returns up to 20 images ≤ 5 MB in the response instead (for read-only shares). Media not anchored to any sheet lands in `_unplaced/`. |
 | `extract_pdf_text(path, pages, max_chars)` | Page text via `pdfplumber`; `pages="1-5,12"`. Pages without a text layer are reported as scanned. No OCR. |
+| `view_pdf_page(path, page, dpi)` | Renders one page as a JPEG so Claude can look at scanned pages, signatures, stamps and layouts. |
 | `extract_docx_text(path, max_chars)` | Headings, paragraphs, lists and tables as markdown via `python-docx`. |
+| `extract_pptx_text(path, max_chars)` | Slide titles, bullets, tables and speaker notes via `python-pptx`. |
 
-Extras (`openpyxl`, `pdfplumber`, `python-docx`) are installed by the installer; if one is missing
-the tool that needs it says so and the rest of the server keeps working.
+Extras (`openpyxl`, `pdfplumber`, `python-docx`, `python-pptx`, `reportlab`) are installed by the
+installer; if one is missing the tool that needs it says so and the rest of the server keeps working.
+
+## Build
+
+Claude writes markdown or CSV, the server assembles the real file and the result carries a signed
+download link, so the user gets a one-click download like file output in a chat.
+
+| Tool | Input |
+|---|---|
+| `build_xlsx(path, csv_text \| sheets)` | CSV or markdown tables, one or many sheets. Numbers become numeric cells; header bold, frozen, filterable. |
+| `build_docx(path, markdown, title)` | Word document. |
+| `build_pptx(path, markdown)` | Slides: every `# Heading` or `---` starts a slide, `Notes:` lines become speaker notes. |
+| `build_pdf(path, markdown, title)` | A4 PDF. |
+
+Markdown subset: `#` headings, paragraphs, `-` and `1.` lists (two levels), `| tables |`,
+fenced code, `**bold**`, `*italic*`, `` `code` ``, and a `---` line for a page break.
+Existing files are not overwritten unless `overwrite=true`.
 
 ## Transfer
 

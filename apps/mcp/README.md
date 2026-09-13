@@ -12,12 +12,13 @@ apps/mcp/
     ├── server.py
     ├── extraction_tools.py  # xlsx / pdf / docx -> text
     ├── transfer.py          # signed download / upload links, fetch_url
+    ├── build_tools.py       # markdown / CSV -> xlsx, docx, pptx, pdf
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; extract text and images from xlsx, pdf and docx; download / upload links |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; read and build xlsx, docx, pptx and pdf; download / upload links |
 
 ## Install
 

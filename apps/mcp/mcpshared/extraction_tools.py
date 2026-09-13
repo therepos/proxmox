@@ -11,10 +11,11 @@
 # says so in the output when it truncates.
 #
 # Tools: list_sheets, read_sheet, extract_sheet_images, extract_pdf_text,
-#        extract_docx_text
+#        view_pdf_page, extract_docx_text, extract_pptx_text
 #
 # Third-party deps (installed by mcp-setup.sh, imported lazily so the server
-# still boots without them): openpyxl, pdfplumber, python-docx.
+# still boots without them): openpyxl, pdfplumber (brings pypdfium2 + Pillow),
+# python-docx, python-pptx.
 # The xlsx orientation and image tools only need the stdlib (zipfile + etree),
 # so they stay O(seconds) on 100 MB workbooks: cell data is never parsed.
 # =============================================================================
@@ -37,6 +38,7 @@ from mcp.types import ImageContent, TextContent, ToolAnnotations
 MAX_CHARS = 100_000              # hard cap on text returned by any tool here
 MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_INLINE_IMAGES = 20
+MAX_PAGE_IMAGE_BYTES = 4 * 1024 * 1024
 XLSX_EXT = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 IMAGE_MIME = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -606,6 +608,42 @@ def register(
             notes.append(f"Stopped before page {stopped_at} at the character cap; continue with pages=\"{stopped_at}-\".")
         return body + "\n\n" + " ".join(notes)
 
+    # 4b --------------------------------------------------------------------
+    @_tool(RO)
+    def view_pdf_page(path: str, page: int = 1, dpi: int = 110) -> list[ImageContent | TextContent]:
+        """Render one PDF page as an image so it can be looked at: scanned pages, signatures,
+        stamps, diagrams and layouts that extract_pdf_text cannot convey. One page per call.
+
+        Args:
+            path: PDF relative to the share root.
+            page: 1-based page number.
+            dpi: render resolution (60-200). Lower it for dense pages that exceed the size cap.
+        """
+        pdfplumber = _need("pdfplumber", "pdfplumber")
+        import io as _io
+        p = resolve(path)
+        if not p.is_file():
+            raise IsADirectoryError(f"Not a file: {path}")
+        dpi = max(60, min(int(dpi), 200))
+        with pdfplumber.open(p) as pdf:
+            total = len(pdf.pages)
+            if not 1 <= page <= total:
+                raise ValueError(f"Page {page} out of range (document has {total}).")
+            img = pdf.pages[page - 1].to_image(resolution=dpi).original.convert("RGB")
+        data = b""
+        for quality in (85, 70, 55, 40):
+            buf = _io.BytesIO()
+            img.save(buf, "JPEG", quality=quality, optimize=True)
+            data = buf.getvalue()
+            if len(data) <= MAX_PAGE_IMAGE_BYTES:
+                break
+        if len(data) > MAX_PAGE_IMAGE_BYTES:
+            raise ValueError("Rendered page exceeds the size cap; try a lower dpi.")
+        return [
+            TextContent(type="text", text=f"{_rel(p)} page {page} of {total} ({img.width}x{img.height}px, {dpi} dpi)"),
+            ImageContent(type="image", data=base64.b64encode(data).decode(), mimeType="image/jpeg"),
+        ]
+
     # 5 ---------------------------------------------------------------------
     @_tool(RO)
     def extract_docx_text(path: str, max_chars: int = MAX_CHARS) -> str:
@@ -640,7 +678,8 @@ def register(
             if style.lower() == "title":
                 return "# " + text
             if "list" in style.lower() or para._p.find(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numPr") is not None:
-                return "- " + text
+                indent = "  " if style.rstrip().endswith(("2", "3")) else ""
+                return indent + ("1. " if "number" in style.lower() else "- ") + text
             return text
 
         def table_md(tbl: Table) -> str:
@@ -680,6 +719,54 @@ def register(
         if n_images:
             notes.append(f"{n_images} embedded pictures not extracted")
         return text + "\n\n" + ", ".join(notes) + "]"
+
+    # 6 ---------------------------------------------------------------------
+    @_tool(RO)
+    def extract_pptx_text(path: str, max_chars: int = MAX_CHARS) -> str:
+        """Convert a PowerPoint .pptx to text, slide by slide: titles, bullets, tables and speaker
+        notes. Pictures are counted, not returned.
+
+        Args:
+            path: presentation relative to the share root.
+            max_chars: cap on returned characters (hard limit 100k).
+        """
+        pptx = _need("pptx", "python-pptx")
+        p = resolve(path)
+        if not p.is_file():
+            raise IsADirectoryError(f"Not a file: {path}")
+        if p.suffix.lower() != ".pptx":
+            raise ValueError("Only .pptx is supported.")
+        limit = max(1_000, min(int(max_chars), MAX_CHARS))
+        prs = pptx.Presentation(str(p))
+        out: list[str] = []
+        n_pics = 0
+        for n, slide in enumerate(prs.slides, 1):
+            title = slide.shapes.title.text.strip() if slide.shapes.title is not None and slide.shapes.title.has_text_frame else ""
+            out.append(f"--- slide {n}: {title or '(untitled)'} ---")
+            for shape in slide.shapes:
+                if shape.shape_type == 13:  # picture
+                    n_pics += 1
+                if shape.has_text_frame and shape != slide.shapes.title:
+                    for para in shape.text_frame.paragraphs:
+                        t = "".join(r.text for r in para.runs).strip()
+                        if t:
+                            out.append("  " * para.level + "- " + t)
+                if getattr(shape, "has_table", False) and shape.has_table:
+                    rows = [[" ".join(c.text.split()).replace("|", "\\|") for c in r.cells] for r in shape.table.rows]
+                    if rows:
+                        out.append("| " + " | ".join(rows[0]) + " |")
+                        out.append("|" + "---|" * len(rows[0]))
+                        out += ["| " + " | ".join(r) + " |" for r in rows[1:]]
+            if slide.has_notes_slide:
+                notes = slide.notes_slide.notes_text_frame.text.strip()
+                if notes:
+                    out.append("Notes: " + notes.replace("\n", " "))
+            out.append("")
+        text, _ = _cap("\n".join(out).rstrip(), limit, "The deck is longer than the cap.")
+        tail = f"[{len(prs.slides)} slides"
+        if n_pics:
+            tail += f", {n_pics} pictures not extracted"
+        return text + "\n\n" + tail + "]"
 
 
 def _ranges(nums: list[int]) -> str:
