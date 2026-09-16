@@ -6,7 +6,8 @@
 # Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py,
 # file transfer (signed download / upload links, fetch_url) in transfer.py and
 # office file creation (xlsx / docx / pptx / pdf from text) in build_tools.py,
-# archives, OCR and office-to-PDF conversion in host_tools.py.
+# archives, OCR and office-to-PDF conversion in host_tools.py, and in-place
+# editing of docx / pptx / xlsx / pdf in edit_tools.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -43,6 +44,7 @@ from extraction_tools import register as register_extraction  # noqa: E402
 from transfer import register as register_transfer  # noqa: E402
 from build_tools import register as register_build  # noqa: E402
 from host_tools import register as register_host  # noqa: E402
+from edit_tools import register as register_edit  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
@@ -133,8 +135,9 @@ mcp = MCPServer(
         "file use download_link; to let them add files use upload_link; fetch_url pulls a public "
         "URL into the share. To deliver a document, build_docx / build_xlsx / build_pptx / "
         "build_pdf create the real file and return its download link; convert_to_pdf turns an "
-        "existing office file into a PDF. ocr_text reads scanned pages and screenshots. "
-        "list_archive / extract_archive handle zip and tar files."
+        "existing office file into a PDF. To change an existing file in place use edit_docx, "
+        "edit_pptx, write_cells, pdf_pages or merge_pdfs. ocr_text reads scanned pages and "
+        "screenshots. list_archive / extract_archive handle zip and tar files."
     ),
 )
 
@@ -463,6 +466,7 @@ download_link_for = register_transfer(
 # --- Build office files from text (write mode only) ----------------------------
 if not READ_ONLY:
     register_build(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
+    register_edit(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
 
 # --- Archives, OCR, office -> PDF ------------------------------------------------
 register_host(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY, link=download_link_for)

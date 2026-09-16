@@ -49,8 +49,8 @@ SERVERS=(
     "mcpshared|8765|Browse, search, read, write and extract text from files in one folder on this host"
 )
 # Per-server extras (optional): additional files next to server.py, extra pip packages.
-FILES_mcpshared="extraction_tools.py transfer.py build_tools.py host_tools.py"
-PIP_mcpshared="openpyxl pdfplumber python-docx python-pptx reportlab"
+FILES_mcpshared="extraction_tools.py transfer.py build_tools.py host_tools.py edit_tools.py"
+PIP_mcpshared="openpyxl pdfplumber python-docx python-pptx reportlab pypdf"
 APT_mcpshared=(
     "tesseract-ocr|OCR for scanned PDFs and screenshots (ocr_text), about 60 MB"
     "libreoffice-writer libreoffice-calc libreoffice-impress|Convert docx/xlsx/pptx to PDF (convert_to_pdf), about 500 MB"

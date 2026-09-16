@@ -14,6 +14,7 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Transfer (`transfer.py`) | `download_link`, `upload_link`, `fetch_url` |
 | Build (`build_tools.py`, unless read-only) | `build_xlsx`, `build_docx`, `build_pptx`, `build_pdf` |
 | Host (`host_tools.py`) | `list_archive`, `extract_archive`, `ocr_text`, `convert_to_pdf` |
+| Edit in place (`edit_tools.py`, unless read-only) | `edit_docx`, `edit_pptx`, `write_cells`, `pdf_pages`, `merge_pdfs` |
 
 ## Extraction
 
@@ -23,12 +24,13 @@ returned as text. Every extraction tool is hard-capped at 100k characters and sa
 | Tool | What it does |
 |---|---|
 | `list_sheets(path)` | Sheet names, declared range (rows × cols), image count per sheet. Reads only the package XML, so it takes seconds on a 100 MB workbook. |
-| `read_sheet(path, sheet, start_row, max_rows, max_cols, format)` | One sheet as markdown or CSV, streamed with `openpyxl` read-only mode. First column is the Excel row number. Paged like `read_file`. |
+| `read_sheet(path, sheet, start_row, max_rows, max_cols, format, formulas)` | One sheet as markdown or CSV, streamed with `openpyxl` read-only mode. First column is the Excel row number. Paged like `read_file`. `formulas=true` shows formulas instead of cached values. |
 | `extract_sheet_images(path, sheet, out_dir, inline)` | Walks `xl/drawings` + rels, writes every embedded picture to `<folder>/_images/<workbook>/<sheet>_<cell>.png` and returns a manifest (sheet, anchor cell, file). `inline=true` returns up to 20 images ≤ 5 MB in the response instead (for read-only shares). Media not anchored to any sheet lands in `_unplaced/`. |
 | `extract_pdf_text(path, pages, max_chars)` | Page text via `pdfplumber`; `pages="1-5,12"`. Pages without a text layer are reported as scanned. No OCR. |
 | `view_pdf_page(path, page, dpi)` | Renders one page as a JPEG so Claude can look at scanned pages, signatures, stamps and layouts. |
 | `extract_docx_text(path, max_chars)` | Headings, paragraphs, lists and tables as markdown via `python-docx`. |
 | `extract_pptx_text(path, max_chars)` | Slide titles, bullets, tables and speaker notes via `python-pptx`. |
+| `extract_document_images(path, out_dir, inline)` | Pictures out of a docx (order of appearance) or pptx (slide number). |
 
 Extras (`openpyxl`, `pdfplumber`, `python-docx`, `python-pptx`, `reportlab`) are installed by the
 installer; if one is missing the tool that needs it says so and the rest of the server keeps working.
@@ -68,6 +70,19 @@ as `lan_url` (the host's LAN address), which bypasses Cloudflare when you are at
 through the Tailscale subnet router, and as `tailscale_url` when the host itself runs Tailscale.
 `MCP_PRIVATE_URL` overrides the private address (e.g. a MagicDNS name). Per-file caps:
 `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` (4 GiB).
+
+## Edit in place
+
+Same idea as editing a file in a chat: the existing file is changed and handed back with a download
+link. Writes are atomic (temp file, then rename).
+
+| Tool | What it does |
+|---|---|
+| `edit_docx(path, replacements, case_sensitive)` | Find / replace in body, tables, headers and footers. Works at run level so fonts and styles survive, and matches split across formatting are still found. |
+| `edit_pptx(path, replacements, case_sensitive)` | Same for slides, tables, grouped shapes and speaker notes. |
+| `write_cells(path, sheet, cells, append_rows, new_sheet, force)` | Change cells (`"=..."` becomes a formula) or append rows. Pictures, charts, comments and validation are kept. Workbooks with shapes, text boxes, slicers, form controls or in-cell pictures are refused unless `force=true`, because saving would drop them. |
+| `pdf_pages(path, pages, destination, remove, rotate)` | Extract or remove pages into a new PDF, optionally rotated. |
+| `merge_pdfs(paths, destination)` | Concatenate PDFs. |
 
 ## Archives, OCR, conversion
 

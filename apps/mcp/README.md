@@ -14,12 +14,13 @@ apps/mcp/
     ├── transfer.py          # signed download / upload links, fetch_url
     ├── build_tools.py       # markdown / CSV -> xlsx, docx, pptx, pdf
     ├── host_tools.py        # zip / tar, OCR (tesseract), office -> pdf (LibreOffice)
+    ├── edit_tools.py        # in-place edits: docx, pptx, xlsx cells, pdf pages
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; read and build xlsx, docx, pptx and pdf; OCR; archives; download / upload links |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; read, build and edit xlsx, docx, pptx and pdf; OCR; archives; download / upload links |
 
 ## Install
 
