@@ -62,8 +62,11 @@ model's context. Like other connectors, mcpshared hands out links instead.
 Links live under `/files/` and are signed with an HMAC derived from the token, so the token never
 appears in a link and rotating it (installer option 5) voids every link. Default lifetime is 60
 minutes (`MCP_LINK_MINUTES`), maximum 7 days. Set the public URL (installer option 4) or the
-links only work on the LAN. Cloudflare's free plan caps uploads at 100 MB per file: use the
-`lan_url` for bigger ones. Per-file caps: `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` (4 GiB).
+links only work on the LAN. Cloudflare's free plan caps uploads at 100 MB per file. Every link also comes
+as `lan_url` (the host's LAN address), which bypasses Cloudflare when you are at home or connected
+through the Tailscale subnet router, and as `tailscale_url` when the host itself runs Tailscale.
+`MCP_PRIVATE_URL` overrides the private address (e.g. a MagicDNS name). Per-file caps:
+`MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` (4 GiB).
 
 ## Environment
 
@@ -73,5 +76,6 @@ links only work on the LAN. Cloudflare's free plan caps uploads at 100 MB per fi
 | `MCP_READ_ONLY` | `1` hides the write tools; `extract_sheet_images` then needs `inline=true` |
 | `MCP_NAME` | connector name shown to Claude |
 | `MCP_PUBLIC_URL` | `https://<host>` used in download / upload links |
+| `MCP_PRIVATE_URL` | override for the LAN / Tailscale link address |
 | `MCP_LINK_MINUTES` | default link lifetime (60) |
 | `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` | per-file caps (4 GiB) |
