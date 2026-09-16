@@ -5,7 +5,8 @@
 # HTTP endpoints, token gate and health check come from ../common.py.
 # Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py,
 # file transfer (signed download / upload links, fetch_url) in transfer.py and
-# office file creation (xlsx / docx / pptx / pdf from text) in build_tools.py.
+# office file creation (xlsx / docx / pptx / pdf from text) in build_tools.py,
+# archives, OCR and office-to-PDF conversion in host_tools.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -41,6 +42,7 @@ from common import env, env_bool, serve  # noqa: E402
 from extraction_tools import register as register_extraction  # noqa: E402
 from transfer import register as register_transfer  # noqa: E402
 from build_tools import register as register_build  # noqa: E402
+from host_tools import register as register_host  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
@@ -130,7 +132,9 @@ mcp = MCPServer(
         "read_file_base64; view_pdf_page shows a page as a picture. To hand the user an actual "
         "file use download_link; to let them add files use upload_link; fetch_url pulls a public "
         "URL into the share. To deliver a document, build_docx / build_xlsx / build_pptx / "
-        "build_pdf create the real file and return its download link."
+        "build_pdf create the real file and return its download link; convert_to_pdf turns an "
+        "existing office file into a PDF. ocr_text reads scanned pages and screenshots. "
+        "list_archive / extract_archive handle zip and tar files."
     ),
 )
 
@@ -459,6 +463,9 @@ download_link_for = register_transfer(
 # --- Build office files from text (write mode only) ----------------------------
 if not READ_ONLY:
     register_build(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
+
+# --- Archives, OCR, office -> PDF ------------------------------------------------
+register_host(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY, link=download_link_for)
 
 
 # --- Run ---------------------------------------------------------------------

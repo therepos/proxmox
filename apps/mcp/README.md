@@ -13,12 +13,13 @@ apps/mcp/
     ├── extraction_tools.py  # xlsx / pdf / docx -> text
     ├── transfer.py          # signed download / upload links, fetch_url
     ├── build_tools.py       # markdown / CSV -> xlsx, docx, pptx, pdf
+    ├── host_tools.py        # zip / tar, OCR (tesseract), office -> pdf (LibreOffice)
     └── README.md
 ```
 
 | Server | Port | What it does |
 |---|---|---|
-| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; read and build xlsx, docx, pptx and pdf; download / upload links |
+| [mcpshared](mcpshared/) | 8765 | Browse, search, read and optionally write one folder on the host; read and build xlsx, docx, pptx and pdf; OCR; archives; download / upload links |
 
 ## Install
 
@@ -86,6 +87,7 @@ everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `<id>.servi
 3. If it needs its own prompts or writable paths, add `configure_<id>()` next to
    `configure_mcpshared()`. It fills `EXTRA_ENV`, `RW_PATHS`, `RO_PATHS`, `SUMMARY`.
    More than one `.py` file or extra pip packages: set `FILES_<id>` / `PIP_<id>` in the installer.
+   Optional host packages the user is asked about: `APT_<id>=("pkgs|why" ...)`.
 4. Add a `README.md` in the folder and a row in the table above.
 
 ## Security

@@ -13,6 +13,7 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Extract (`extraction_tools.py`) | `list_sheets`, `read_sheet`, `extract_sheet_images`, `extract_pdf_text`, `view_pdf_page`, `extract_docx_text`, `extract_pptx_text` |
 | Transfer (`transfer.py`) | `download_link`, `upload_link`, `fetch_url` |
 | Build (`build_tools.py`, unless read-only) | `build_xlsx`, `build_docx`, `build_pptx`, `build_pdf` |
+| Host (`host_tools.py`) | `list_archive`, `extract_archive`, `ocr_text`, `convert_to_pdf` |
 
 ## Extraction
 
@@ -68,6 +69,18 @@ through the Tailscale subnet router, and as `tailscale_url` when the host itself
 `MCP_PRIVATE_URL` overrides the private address (e.g. a MagicDNS name). Per-file caps:
 `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` (4 GiB).
 
+## Archives, OCR, conversion
+
+| Tool | What it does |
+|---|---|
+| `list_archive(path, pattern)` | Members of a zip or tar archive, index only, fine on multi-GB files. |
+| `extract_archive(path, members, destination)` | Unpacks selected members (names or globs) into the share. Members that try to escape are skipped. Capped by `MCP_EXTRACT_MAX_BYTES` (4 GiB). |
+| `ocr_text(path, pages, lang)` | Tesseract OCR on scanned PDFs (20 pages per call) and images. Needs the optional `tesseract-ocr` package; other languages need `tesseract-ocr-<lang>`. |
+| `convert_to_pdf(path, destination)` | LibreOffice headless conversion of docx, xlsx, pptx, odt, ods, odp, rtf, csv, txt, html to PDF, with a download link. Needs the optional LibreOffice packages (about 500 MB). |
+
+The installer asks once whether to install each optional package (install and update). Without
+it the matching tool explains what is missing; everything else keeps working.
+
 ## Environment
 
 | Variable | Meaning |
@@ -78,4 +91,5 @@ through the Tailscale subnet router, and as `tailscale_url` when the host itself
 | `MCP_PUBLIC_URL` | `https://<host>` used in download / upload links |
 | `MCP_PRIVATE_URL` | override for the LAN / Tailscale link address |
 | `MCP_LINK_MINUTES` | default link lifetime (60) |
-| `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES` | per-file caps (4 GiB) |
+| `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES`, `MCP_EXTRACT_MAX_BYTES` | per-call caps (4 GiB) |
+| `MCP_OCR_LANG` | default tesseract language (`eng`) |
