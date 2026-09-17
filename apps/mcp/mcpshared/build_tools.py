@@ -9,7 +9,8 @@
 # carries a signed download link, so the user gets a one-click download the
 # same way they do in a chat with file output.
 #
-#   build_xlsx(path, csv | sheets)   CSV or markdown tables -> workbook
+#   build_xlsx(path, csv | sheets)   CSV or markdown tables -> workbook, optional
+#                                    native Excel charts (no images: editable in Excel)
 #   build_docx(path, markdown)       markdown -> Word document
 #   build_pptx(path, markdown)       markdown -> slides ("# " = new slide)
 #   build_pdf(path, markdown)        markdown -> PDF
@@ -185,6 +186,86 @@ def _rows_from_text(text: str) -> list[list[str]]:
     return [r for r in csv.reader(io.StringIO(stripped)) if r]
 
 
+# --- Native Excel charts -------------------------------------------------------
+CHART_TYPES = ("column", "bar", "line", "pie", "scatter", "area", "doughnut")
+
+
+def add_native_chart(wb, ws, spec: dict[str, Any]) -> str:  # type: ignore[no-untyped-def]
+    """Add one chart to ws from a spec; returns a short description. Spec keys:
+    type (column|bar|line|pie|scatter|area|doughnut), data ("B1:C13", header row = series names),
+    categories ("A2:A13"), title, x_title, y_title, anchor ("E2"), width, height (cm), stacked."""
+    from openpyxl.chart import AreaChart, BarChart, DoughnutChart, LineChart, PieChart, Reference, ScatterChart, Series
+    from openpyxl.utils.cell import range_boundaries
+
+    ctype = str(spec.get("type", "column")).lower()
+    if ctype not in CHART_TYPES:
+        raise ValueError(f"chart type must be one of {', '.join(CHART_TYPES)}")
+    data = spec.get("data")
+    if not data:
+        raise ValueError("chart needs 'data', e.g. \"B1:C13\" (first row = series names)")
+    target = ws
+    if spec.get("sheet"):
+        if spec["sheet"] not in wb.sheetnames:
+            raise ValueError(f"chart sheet {spec['sheet']!r} not found")
+        target = wb[spec["sheet"]]
+    dmin_col, dmin_row, dmax_col, dmax_row = range_boundaries(str(data).upper())
+    data_ref = Reference(target, min_col=dmin_col, min_row=dmin_row, max_col=dmax_col, max_row=dmax_row)
+    cats_ref = None
+    if spec.get("categories"):
+        cmin_col, cmin_row, cmax_col, cmax_row = range_boundaries(str(spec["categories"]).upper())
+        cats_ref = Reference(target, min_col=cmin_col, min_row=cmin_row, max_col=cmax_col, max_row=cmax_row)
+
+    if ctype in ("column", "bar"):
+        ch = BarChart()
+        ch.type = "col" if ctype == "column" else "bar"
+        if spec.get("stacked"):
+            ch.grouping = "stacked"
+            ch.overlap = 100
+    elif ctype == "line":
+        ch = LineChart()
+    elif ctype == "area":
+        ch = AreaChart()
+        if spec.get("stacked"):
+            ch.grouping = "stacked"
+    elif ctype == "pie":
+        ch = PieChart()
+    elif ctype == "doughnut":
+        ch = DoughnutChart()
+    else:
+        ch = ScatterChart()
+        ch.style = 13
+
+    if ctype == "scatter":
+        if cats_ref is None:
+            raise ValueError("scatter charts need 'categories' as the X values")
+        for col in range(dmin_col, dmax_col + 1):
+            y = Reference(target, min_col=col, min_row=dmin_row, max_row=dmax_row)
+            series = Series(y, cats_ref, title_from_data=True)
+            series.marker.symbol = "circle"
+            ch.series.append(series)
+    else:
+        ch.add_data(data_ref, titles_from_data=True)
+        if cats_ref is not None:
+            ch.set_categories(cats_ref)
+    if spec.get("title"):
+        ch.title = str(spec["title"])
+    if ctype not in ("pie", "doughnut"):
+        if spec.get("x_title"):
+            ch.x_axis.title = str(spec["x_title"])
+        if spec.get("y_title"):
+            ch.y_axis.title = str(spec["y_title"])
+    ch.width = float(spec.get("width", 18))
+    ch.height = float(spec.get("height", 9))
+    anchor = str(spec.get("anchor") or f"{_col_after(dmax_col + 1)}2").upper()
+    ws.add_chart(ch, anchor)
+    return f"{ctype} chart at {ws.title}!{anchor} from {target.title}!{str(data).upper()}"
+
+
+def _col_after(idx: int) -> str:
+    from openpyxl.utils import get_column_letter
+    return get_column_letter(idx + 1)
+
+
 # --- Registration ------------------------------------------------------------
 def register(
     mcp,  # type: ignore[no-untyped-def]
@@ -223,25 +304,29 @@ def register(
         sheets: list[dict[str, str]] | None = None,
         sheet_name: str = "Sheet1",
         header: bool = True,
+        charts: list[dict[str, Any]] | None = None,
         overwrite: bool = False,
     ) -> dict[str, Any]:
         """Create a real Excel workbook from CSV or markdown tables and return a download link.
         Numbers become numeric cells; the header row is bold, frozen and filterable; columns are
-        sized to content.
+        sized to content. Charts are native Excel charts drawn from the cells (editable, no images).
 
         Args:
             path: destination .xlsx relative to the share root.
             csv_text: CSV (or a markdown table) for a single sheet.
-            sheets: several sheets: [{"name": "Summary", "csv": "..."}, ...]. Overrides csv_text.
+            sheets: several sheets: [{"name": "Summary", "csv": "...", "charts": [...]}, ...]. Overrides csv_text.
             sheet_name: name for the single sheet when csv_text is used.
             header: treat the first row as a header.
+            charts: charts for the single sheet, each {"type": "column|bar|line|pie|scatter|area|doughnut",
+                "data": "B1:C13" (first row = series names), "categories": "A2:A13", "title": "...",
+                "x_title": "...", "y_title": "...", "anchor": "E2", "stacked": false}.
             overwrite: replace an existing file.
         """
         openpyxl = _need("openpyxl", "openpyxl")
         from openpyxl.styles import Font
         from openpyxl.utils import get_column_letter
 
-        specs = sheets or ([{"name": sheet_name, "csv": csv_text or ""}])
+        specs = sheets or ([{"name": sheet_name, "csv": csv_text or "", "charts": charts or []}])
         _check_len(*(s.get("csv", "") for s in specs))
         if not any((s.get("csv") or "").strip() for s in specs):
             raise ValueError("No data: pass csv_text or sheets.")
@@ -273,8 +358,12 @@ def register(
                 ws.freeze_panes = "A2"
                 ws.auto_filter.ref = ws.dimensions
             summary.append({"sheet": name, "rows": len(rows), "cols": max((len(r) for r in rows), default=0)})
+        chart_notes = []
+        for spec, ws_name in zip(specs, [x["sheet"] for x in summary]):
+            for c in spec.get("charts") or []:
+                chart_notes.append(add_native_chart(wb, wb[ws_name], dict(c)))
         wb.save(p)
-        return _done(p, sheets=summary)
+        return _done(p, sheets=summary, charts=chart_notes)
 
     # --- docx ----------------------------------------------------------------------
     @guard(RW)

@@ -14,7 +14,7 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Transfer (`transfer.py`) | `download_link`, `upload_link`, `fetch_url` |
 | Build (`build_tools.py`, unless read-only) | `build_xlsx`, `build_docx`, `build_pptx`, `build_pdf` |
 | Host (`host_tools.py`) | `list_archive`, `extract_archive`, `ocr_text`, `convert_to_pdf` |
-| Edit in place (`edit_tools.py`, unless read-only) | `edit_docx`, `edit_pptx`, `write_cells`, `pdf_pages`, `merge_pdfs` |
+| Edit in place (`edit_tools.py`, unless read-only) | `edit_docx`, `edit_pptx`, `write_cells`, `add_chart`, `pdf_pages`, `merge_pdfs` |
 
 ## Extraction
 
@@ -42,7 +42,7 @@ download link, so the user gets a one-click download like file output in a chat.
 
 | Tool | Input |
 |---|---|
-| `build_xlsx(path, csv_text \| sheets)` | CSV or markdown tables, one or many sheets. Numbers become numeric cells; header bold, frozen, filterable. |
+| `build_xlsx(path, csv_text \| sheets, charts)` | CSV or markdown tables, one or many sheets. Numbers become numeric cells; header bold, frozen, filterable. `charts` adds native Excel charts (column, bar, line, pie, scatter, area, doughnut) drawn from the cells: editable in Excel, no images. |
 | `build_docx(path, markdown, title)` | Word document. |
 | `build_pptx(path, markdown)` | Slides: every `# Heading` or `---` starts a slide, `Notes:` lines become speaker notes. |
 | `build_pdf(path, markdown, title)` | A4 PDF. |
@@ -80,6 +80,7 @@ link. Writes are atomic (temp file, then rename).
 |---|---|
 | `edit_docx(path, replacements, case_sensitive)` | Find / replace in body, tables, headers and footers. Works at run level so fonts and styles survive, and matches split across formatting are still found. |
 | `edit_pptx(path, replacements, case_sensitive)` | Same for slides, tables, grouped shapes and speaker notes. |
+| `add_chart(path, sheet, chart, force)` | Native Excel chart into an existing workbook, same spec as `build_xlsx` charts. |
 | `write_cells(path, sheet, cells, append_rows, new_sheet, force)` | Change cells (`"=..."` becomes a formula) or append rows. Pictures, charts, comments and validation are kept. Workbooks with shapes, text boxes, slicers, form controls or in-cell pictures are refused unless `force=true`, because saving would drop them. |
 | `pdf_pages(path, pages, destination, remove, rotate)` | Extract or remove pages into a new PDF, optionally rotated. |
 | `merge_pdfs(paths, destination)` | Concatenate PDFs. |

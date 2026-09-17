@@ -8,6 +8,7 @@
 #   edit_docx(path, replacements)    find / replace text, formatting kept
 #   edit_pptx(path, replacements)    same for slides and notes
 #   write_cells(path, sheet, cells)  change cells / append rows in a workbook
+#   add_chart(path, sheet, chart)    native Excel chart into an existing workbook
 #   pdf_pages(path, pages, dest)     extract, remove or rotate pages
 #   merge_pdfs(paths, dest)          concatenate PDFs
 #
@@ -354,6 +355,39 @@ def register(
             appended += 1
         _atomic_save(p, wb.save)
         out = {"saved": rel(p), "sheet": ws.title, "cells_written": written, "rows_appended": appended, "download": link(p)}
+        if unsafe:
+            out["warning"] = "Saved with force=true; lost: " + ", ".join(unsafe)
+        return out
+
+    @guard(RW)
+    def add_chart(path: str, sheet: str, chart: dict[str, Any], force: bool = False) -> dict[str, Any]:
+        """Add a native Excel chart (editable, not an image) to an existing workbook, drawn from
+        cells already in it. Same safety rule as write_cells.
+
+        Args:
+            path: .xlsx or .xlsm relative to the share root.
+            sheet: sheet that receives the chart (name or 1-based index).
+            chart: {"type": "column|bar|line|pie|scatter|area|doughnut", "data": "B1:C13"
+                (first row = series names), "categories": "A2:A13", "title": "...", "x_title": "...",
+                "y_title": "...", "anchor": "E2", "stacked": false, "sheet": "<data sheet if different>"}.
+            force: save even if unsupported parts would be lost.
+        """
+        openpyxl = _need("openpyxl", "openpyxl")
+        from build_tools import add_native_chart
+        p = _file(path, ".xlsx", ".xlsm")
+        unsafe = _xlsx_unsafe_parts(p)
+        if unsafe and not force:
+            raise ValueError("This workbook contains " + ", ".join(unsafe) + " which would be lost on save. Pass force=true to proceed anyway.")
+        wb = openpyxl.load_workbook(p, keep_vba=p.suffix.lower() == ".xlsm")
+        if isinstance(sheet, str) and sheet.isdigit() and 1 <= int(sheet) <= len(wb.sheetnames):
+            ws = wb.worksheets[int(sheet) - 1]
+        elif sheet in wb.sheetnames:
+            ws = wb[sheet]
+        else:
+            raise ValueError(f"No sheet named {sheet!r}. Sheets: {wb.sheetnames}")
+        note = add_native_chart(wb, ws, dict(chart))
+        _atomic_save(p, wb.save)
+        out = {"saved": rel(p), "chart": note, "download": link(p)}
         if unsafe:
             out["warning"] = "Saved with force=true; lost: " + ", ".join(unsafe)
         return out
