@@ -555,6 +555,13 @@ action_logs() {
     pct exec "$EXISTING_CTID" -- docker logs --tail 100 -f hermes
 }
 
+# Restarts Hermes after a backup, but only if the backup stopped it.
+hermes_restart_after_backup() {
+    [[ -z "${1:-}" ]] && return 0
+    pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" \
+        >/dev/null 2>&1 || warn "Hermes did not restart. Try menu option 4 (status)."
+}
+
 action_backup() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
 
@@ -567,25 +574,43 @@ action_backup() {
         return 1
     fi
 
-    local stamp dest tmp err
+    local stamp dest tmp err rc was_running=""
     stamp="$(date +%Y%m%d-%H%M%S)"
     dest="/root/hermes-backup-${stamp}.tar.gz"
     tmp="/tmp/hermes-backup-${stamp}.tar.gz"
 
+    # Hermes keeps writing to its data dir, so stop it for a consistent copy.
+    if pct exec "$EXISTING_CTID" -- docker inspect -f '{{.State.Running}}' hermes 2>/dev/null \
+        | grep -q true; then
+        was_running=1
+        info "Pausing Hermes for a consistent copy..."
+        pct exec "$EXISTING_CTID" -- docker stop hermes >/dev/null 2>&1 || true
+    fi
+
     # pct exec streams stdout line by line, which corrupts a tar stream, so the
     # archive is written inside the container and copied out with pct pull.
-    if ! err="$(pct exec "$EXISTING_CTID" -- tar czf "$tmp" -C "${DATA_DIR}" data 2>&1)"; then
+    rc=0
+    err="$(pct exec "$EXISTING_CTID" -- \
+        tar --warning=no-file-changed -czf "$tmp" -C "${DATA_DIR}" data 2>&1)" || rc=$?
+    # tar exits 1 for warnings such as a file changing as it was read; the
+    # archive is still usable. Only 2 and above means it did not finish.
+    if (( rc >= 2 )); then
         pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
+        hermes_restart_after_backup "$was_running"
         [[ -n "$err" ]] && warn "$err"
         return 1
     fi
+    [[ $rc -eq 1 && -n "$err" ]] && warn "$err"
+
     if ! err="$(pct pull "$EXISTING_CTID" "$tmp" "$dest" 2>&1)"; then
         pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
         rm -f "$dest"
+        hermes_restart_after_backup "$was_running"
         [[ -n "$err" ]] && warn "$err"
         return 1
     fi
     pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
+    hermes_restart_after_backup "$was_running"
 
     # The archive contains data/.env, so it holds API keys in plain text.
     chmod 600 "$dest"
