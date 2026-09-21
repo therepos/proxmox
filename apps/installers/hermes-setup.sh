@@ -543,14 +543,28 @@ container_online() {
 report_offline_container() {
     local ctid="$1" gw
     gw="$(pct exec "$ctid" -- ip route 2>/dev/null | awk '/^default/{print $3; exit}')"
-    warn "CTID $ctid cannot reach Docker Hub, so there is nothing to download."
+    warn "CTID $ctid cannot reach Docker Hub. Hermes is offline too until this is fixed."
     echo "  Gateway seen by the container: ${gw:-none}"
     echo "  Check from this host:"
     echo "    pct exec $ctid -- ip -4 addr show eth0"
     echo "    pct exec $ctid -- ip route"
     echo "    pct exec $ctid -- cat /etc/resolv.conf"
-    echo "  A reboot usually renews the DHCP lease: pct reboot $ctid"
-    echo "  Hermes keeps running on the version you already have."
+}
+
+# Offers a container reboot, which renews the DHCP lease, then waits for
+# the network to come back. Returns 1 if the user declines or it stays down.
+recover_container_network() {
+    local ctid="$1" c i
+    read -p "  Reboot CTID $ctid now to renew its network lease? [Y/n]: " c </dev/tty
+    [[ "${c:-Y}" =~ ^[Yy]$ ]] || return 1
+    info "Rebooting CTID $ctid..."
+    pct reboot "$ctid" >/dev/null 2>&1 || { warn "pct reboot failed."; return 1; }
+    for i in $(seq 1 12); do
+        sleep 5
+        container_online "$ctid" && { ok "Network is back."; return 0; }
+    done
+    warn "Still no network after the reboot. Check bridge ${BRIDGE} and your DHCP server."
+    return 1
 }
 
 action_update() {
@@ -558,7 +572,8 @@ action_update() {
     info "Checking that the container can reach Docker Hub..."
     if ! container_online "$EXISTING_CTID"; then
         report_offline_container "$EXISTING_CTID"
-        fail "Update stopped before any change was made."
+        recover_container_network "$EXISTING_CTID" \
+            || fail "Update stopped before any change was made."
     fi
     info "Taking a backup first..."
     action_backup || fail "Backup failed, so the update was stopped. Your data was not touched."
