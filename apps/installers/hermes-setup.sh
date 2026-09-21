@@ -50,6 +50,9 @@ DASH_ENABLE=""
 DASH_USER=""
 DASH_PASS=""
 
+PAGES_PORT=8088
+PAGES_DIR="/opt/hermes-pages"
+
 PROVIDER_LABEL=""
 PROVIDER_ENVVAR=""
 PROVIDER_MODEL=""
@@ -697,6 +700,169 @@ action_status() {
     echo ""
 }
 
+action_consent_pages() {
+    # Google requires an external OAuth app in "production" to publish a home
+    # page, privacy policy and terms of service on a domain you own. These are
+    # static pages; they contain no user data. Served from the Hermes LXC and
+    # exposed through an existing Cloudflare Tunnel route.
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
+
+    hr
+    echo "  OAuth consent pages"
+    hr
+    echo ""
+    echo "  Publishing your Google Cloud OAuth app stops refresh tokens from"
+    echo "  expiring every 7 days. Google requires three public pages first."
+    echo "  This serves them from Hermes on port ${PAGES_PORT}."
+    echo ""
+    local c
+    read -p "  1) Install or update pages   2) Remove   [1/2]: " c </dev/tty
+
+    if [[ "$c" == "2" ]]; then
+        pct exec "$EXISTING_CTID" -- bash -c "
+            systemctl disable --now hermes-pages >/dev/null 2>&1 || true
+            rm -f /etc/systemd/system/hermes-pages.service
+            rm -rf ${PAGES_DIR}
+            systemctl daemon-reload >/dev/null 2>&1 || true" || true
+        ok "Consent pages removed. Delete the Cloudflare route manually if unused."
+        return
+    fi
+
+    local host owner email law
+    read -p "  Public hostname (e.g. hermes.example.com): " host </dev/tty
+    host="${host//[[:space:]]/}"
+    [[ -n "$host" ]] || fail "A hostname is required."
+    read -p "  Owner name shown on the pages: " owner </dev/tty
+    owner="${owner:-the owner}"
+    read -p "  Contact email: " email </dev/tty
+    email="${email//[[:space:]]/}"
+    [[ -n "$email" ]] || fail "A contact email is required."
+    read -p "  Governing law / country [Singapore]: " law </dev/tty
+    law="${law:-Singapore}"
+
+    local today; today="$(date +'%-d %B %Y')"
+
+    info "Writing pages into the container..."
+    pct exec "$EXISTING_CTID" -- bash -s <<EOSH || fail "Could not write the consent pages."
+set -e
+command -v python3 >/dev/null 2>&1 || {
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq >/dev/null 2>&1
+    apt-get install -y -qq python3 >/dev/null 2>&1
+}
+mkdir -p ${PAGES_DIR}
+
+cat > ${PAGES_DIR}/index.html <<'HTML'
+<!doctype html><meta charset=utf-8><title>Personal Assistant</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>body{max-width:680px;margin:40px auto;padding:0 16px;font:16px/1.6 system-ui,sans-serif;color:#222}</style>
+<h1>Personal Assistant</h1>
+<p>A private, single-user automation tool operated by ${owner}. It connects only to its owner's own Google account &mdash; Gmail, Calendar and Drive &mdash; to organise mail, events and files.</p>
+<p>There is no sign-up, no hosted service and no other user. The application runs on hardware controlled by its owner.</p>
+<p>Use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+<p>Contact: ${email}</p>
+<p><a href="/privacy.html">Privacy Policy</a> &middot; <a href="/terms.html">Terms of Service</a></p>
+HTML
+
+cat > ${PAGES_DIR}/privacy.html <<'HTML'
+<!doctype html><meta charset=utf-8><title>Privacy Policy</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>body{max-width:680px;margin:40px auto;padding:0 16px;font:16px/1.6 system-ui,sans-serif;color:#222}</style>
+<h1>Privacy Policy</h1>
+<p>Last updated: ${today}</p>
+<p>Personal Assistant is operated by ${owner} (${email}) and has exactly one user: its owner. It does not accept registrations.</p>
+<h2>Data accessed</h2>
+<p>With the owner's explicit Google authorisation, the application may access, in the owner's own account: Gmail messages, labels and settings; Calendar events and availability; Drive files it creates or the owner opens with it; and the account email address.</p>
+<h2>How it is used</h2>
+<p>Solely to carry out tasks the owner requests, when he requests them. Never for advertising, profiling or resale.</p>
+<h2>Storage</h2>
+<p>Data is processed in memory and retained only as needed to complete a task. OAuth tokens are stored on the owner's own machine, readable only by his system account. No copy of Google user data is held on any third-party server operated by this application.</p>
+<h2>Sharing</h2>
+<p>Google user data is never sold, rented or shared. Where an external API is used to process a request, only the minimum content required is sent, and such providers may not use it to train models.</p>
+<h2>Limited Use</h2>
+<p>This application's use and transfer of information received from Google APIs to any other app adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+<h2>Security and revocation</h2>
+<p>Access requires the owner's Google credentials and the application's own client secret. Authorisation can be revoked at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, which immediately ends all access.</p>
+<h2>Deletion</h2>
+<p>Revoking access, or deleting the local token file, removes any further ability to read data. Locally cached data is deleted by removing it from the owner's machine.</p>
+<h2>Contact</h2>
+<p>${email}</p>
+<p><a href="/">Home</a> &middot; <a href="/terms.html">Terms of Service</a></p>
+HTML
+
+cat > ${PAGES_DIR}/terms.html <<'HTML'
+<!doctype html><meta charset=utf-8><title>Terms of Service</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>body{max-width:680px;margin:40px auto;padding:0 16px;font:16px/1.6 system-ui,sans-serif;color:#222}</style>
+<h1>Terms of Service</h1>
+<p>Last updated: ${today}</p>
+<p>Personal Assistant is a private application operated by ${owner} for his own use. It is not a commercial product and is not offered to the public.</p>
+<h2>Permitted use</h2>
+<p>Only the owner may authorise or operate the application. Any other access is unauthorised.</p>
+<h2>Google services</h2>
+<p>The application accesses Google services using the owner's own authorisation and complies with the Google API Services User Data Policy. Data handling is described in the <a href="/privacy.html">Privacy Policy</a>.</p>
+<h2>No warranty</h2>
+<p>Provided "as is", without warranty of any kind. It may be modified or discontinued at any time.</p>
+<h2>Liability</h2>
+<p>To the maximum extent permitted by law, the operator is not liable for any loss or damage arising from use of the application.</p>
+<h2>Termination</h2>
+<p>Authorisation may be revoked at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+<h2>Governing law</h2>
+<p>These terms are governed by the laws of ${law}.</p>
+<h2>Contact</h2>
+<p>${email}</p>
+<p><a href="/">Home</a> &middot; <a href="/privacy.html">Privacy Policy</a></p>
+HTML
+
+cat > /etc/systemd/system/hermes-pages.service <<'UNIT'
+[Unit]
+Description=Hermes OAuth consent pages
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server ${PAGES_PORT} --bind 0.0.0.0 --directory ${PAGES_DIR}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now hermes-pages >/dev/null 2>&1
+EOSH
+
+    sleep 2
+    local ip; ip="$(ct_ip "$EXISTING_CTID")"
+    if pct exec "$EXISTING_CTID" -- systemctl is-active --quiet hermes-pages; then
+        ok "Pages are being served on port ${PAGES_PORT}."
+    else
+        warn "The page server did not start. Check: pct exec $EXISTING_CTID -- journalctl -u hermes-pages -n 30"
+    fi
+
+    echo ""
+    hr
+    echo "  Next steps (done in a browser)"
+    hr
+    echo ""
+    echo "  1. Cloudflare Tunnel route  ->  http://${ip:-<container-ip>}:${PAGES_PORT}"
+    echo "     published as:            https://${host}"
+    echo ""
+    echo "  2. Verify the domain in Google Search Console (DNS TXT record)."
+    echo ""
+    echo "  3. Google Cloud -> Google Auth Platform -> Branding:"
+    echo "       Home page       https://${host}/"
+    echo "       Privacy policy  https://${host}/privacy.html"
+    echo "       Terms           https://${host}/terms.html"
+    echo "       Authorised domain: the root domain of ${host}"
+    echo ""
+    echo "  4. Audience -> Publish app, then re-authorise Gmail once."
+    echo ""
+    echo "  Note: the container uses DHCP, so if its IP changes you must"
+    echo "  update the Cloudflare route."
+    echo ""
+}
+
+
 # --- Menu --------------------------------------------------------------------
 echo ""
 echo "================================================================"
@@ -726,6 +892,7 @@ echo "  6) Backup"
 echo "  7) Update to latest version"
 echo "  8) Uninstall"
 echo "  9) Enable, disable or reset dashboard login"
+echo " 10) OAuth consent pages (needed to publish the Google app)"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -741,6 +908,7 @@ case "$choice" in
     7) action_update ;;
     8) action_uninstall ;;
     9) action_dashboard ;;
+    10) action_consent_pages ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac
