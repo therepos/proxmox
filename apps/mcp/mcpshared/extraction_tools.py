@@ -11,10 +11,11 @@
 # says so in the output when it truncates.
 #
 # Tools: list_sheets, read_sheet, extract_sheet_images, extract_pdf_text,
-#        extract_docx_text
+#        view_pdf_page, extract_docx_text, extract_pptx_text, extract_document_images
 #
 # Third-party deps (installed by mcp-setup.sh, imported lazily so the server
-# still boots without them): openpyxl, pdfplumber, python-docx.
+# still boots without them): openpyxl, pdfplumber (brings pypdfium2 + Pillow),
+# python-docx, python-pptx.
 # The xlsx orientation and image tools only need the stdlib (zipfile + etree),
 # so they stay O(seconds) on 100 MB workbooks: cell data is never parsed.
 # =============================================================================
@@ -37,6 +38,7 @@ from mcp.types import ImageContent, TextContent, ToolAnnotations
 MAX_CHARS = 100_000              # hard cap on text returned by any tool here
 MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_INLINE_IMAGES = 20
+MAX_PAGE_IMAGE_BYTES = 4 * 1024 * 1024
 XLSX_EXT = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 IMAGE_MIME = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -343,6 +345,7 @@ def register(
         max_cols: int | None = None,
         format: str = "markdown",
         skip_empty_rows: bool = True,
+        formulas: bool = False,
     ) -> str:
         """Read one sheet of an xlsx workbook as text. Paged like read_file: pass start_row to
         continue. Streams the file, so it is safe on very large workbooks. The first column of the
@@ -356,6 +359,7 @@ def register(
             max_cols: stop after this many columns (default: all).
             format: "markdown" (table) or "csv".
             skip_empty_rows: drop rows with no values at all.
+            formulas: show formulas (=SUM(...)) instead of their last calculated values.
         """
         openpyxl = _need("openpyxl", "openpyxl")
         p = _xlsx_path(path)
@@ -375,7 +379,7 @@ def register(
         if total_rows:
             stop = min(stop, total_rows)
 
-        wb = openpyxl.load_workbook(p, read_only=True, data_only=True, keep_links=False)
+        wb = openpyxl.load_workbook(p, read_only=True, data_only=not formulas, keep_links=False)
         try:
             ws = wb[meta["name"]]
             rows: list[tuple[int, list[str]]] = []
@@ -606,6 +610,42 @@ def register(
             notes.append(f"Stopped before page {stopped_at} at the character cap; continue with pages=\"{stopped_at}-\".")
         return body + "\n\n" + " ".join(notes)
 
+    # 4b --------------------------------------------------------------------
+    @_tool(RO)
+    def view_pdf_page(path: str, page: int = 1, dpi: int = 110) -> list[ImageContent | TextContent]:
+        """Render one PDF page as an image so it can be looked at: scanned pages, signatures,
+        stamps, diagrams and layouts that extract_pdf_text cannot convey. One page per call.
+
+        Args:
+            path: PDF relative to the share root.
+            page: 1-based page number.
+            dpi: render resolution (60-200). Lower it for dense pages that exceed the size cap.
+        """
+        pdfplumber = _need("pdfplumber", "pdfplumber")
+        import io as _io
+        p = resolve(path)
+        if not p.is_file():
+            raise IsADirectoryError(f"Not a file: {path}")
+        dpi = max(60, min(int(dpi), 200))
+        with pdfplumber.open(p) as pdf:
+            total = len(pdf.pages)
+            if not 1 <= page <= total:
+                raise ValueError(f"Page {page} out of range (document has {total}).")
+            img = pdf.pages[page - 1].to_image(resolution=dpi).original.convert("RGB")
+        data = b""
+        for quality in (85, 70, 55, 40):
+            buf = _io.BytesIO()
+            img.save(buf, "JPEG", quality=quality, optimize=True)
+            data = buf.getvalue()
+            if len(data) <= MAX_PAGE_IMAGE_BYTES:
+                break
+        if len(data) > MAX_PAGE_IMAGE_BYTES:
+            raise ValueError("Rendered page exceeds the size cap; try a lower dpi.")
+        return [
+            TextContent(type="text", text=f"{_rel(p)} page {page} of {total} ({img.width}x{img.height}px, {dpi} dpi)"),
+            ImageContent(type="image", data=base64.b64encode(data).decode(), mimeType="image/jpeg"),
+        ]
+
     # 5 ---------------------------------------------------------------------
     @_tool(RO)
     def extract_docx_text(path: str, max_chars: int = MAX_CHARS) -> str:
@@ -640,7 +680,8 @@ def register(
             if style.lower() == "title":
                 return "# " + text
             if "list" in style.lower() or para._p.find(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numPr") is not None:
-                return "- " + text
+                indent = "  " if style.rstrip().endswith(("2", "3")) else ""
+                return indent + ("1. " if "number" in style.lower() else "- ") + text
             return text
 
         def table_md(tbl: Table) -> str:
@@ -680,6 +721,150 @@ def register(
         if n_images:
             notes.append(f"{n_images} embedded pictures not extracted")
         return text + "\n\n" + ", ".join(notes) + "]"
+
+    # 6 ---------------------------------------------------------------------
+    @_tool(RO)
+    def extract_pptx_text(path: str, max_chars: int = MAX_CHARS) -> str:
+        """Convert a PowerPoint .pptx to text, slide by slide: titles, bullets, tables and speaker
+        notes. Pictures are counted, not returned.
+
+        Args:
+            path: presentation relative to the share root.
+            max_chars: cap on returned characters (hard limit 100k).
+        """
+        pptx = _need("pptx", "python-pptx")
+        p = resolve(path)
+        if not p.is_file():
+            raise IsADirectoryError(f"Not a file: {path}")
+        if p.suffix.lower() != ".pptx":
+            raise ValueError("Only .pptx is supported.")
+        limit = max(1_000, min(int(max_chars), MAX_CHARS))
+        prs = pptx.Presentation(str(p))
+        out: list[str] = []
+        n_pics = 0
+        for n, slide in enumerate(prs.slides, 1):
+            title = slide.shapes.title.text.strip() if slide.shapes.title is not None and slide.shapes.title.has_text_frame else ""
+            out.append(f"--- slide {n}: {title or '(untitled)'} ---")
+            for shape in slide.shapes:
+                if shape.shape_type == 13:  # picture
+                    n_pics += 1
+                if shape.has_text_frame and shape != slide.shapes.title:
+                    for para in shape.text_frame.paragraphs:
+                        t = "".join(r.text for r in para.runs).strip()
+                        if t:
+                            out.append("  " * para.level + "- " + t)
+                if getattr(shape, "has_table", False) and shape.has_table:
+                    rows = [[" ".join(c.text.split()).replace("|", "\\|") for c in r.cells] for r in shape.table.rows]
+                    if rows:
+                        out.append("| " + " | ".join(rows[0]) + " |")
+                        out.append("|" + "---|" * len(rows[0]))
+                        out += ["| " + " | ".join(r) + " |" for r in rows[1:]]
+            if slide.has_notes_slide:
+                notes = slide.notes_slide.notes_text_frame.text.strip()
+                if notes:
+                    out.append("Notes: " + notes.replace("\n", " "))
+            out.append("")
+        text, _ = _cap("\n".join(out).rstrip(), limit, "The deck is longer than the cap.")
+        tail = f"[{len(prs.slides)} slides"
+        if n_pics:
+            tail += f", {n_pics} pictures not extracted"
+        return text + "\n\n" + tail + "]"
+
+    # 7 ---------------------------------------------------------------------
+    @_tool(RW if not read_only else RO)
+    def extract_document_images(path: str, out_dir: str | None = None, inline: bool = False) -> Any:
+        """Pull the pictures out of a Word .docx or PowerPoint .pptx to files and return a manifest
+        (slide number for pptx, order of appearance for docx). View them with view_image afterwards,
+        or pass inline=true to get up to 20 small images in the response.
+
+        Args:
+            path: .docx or .pptx relative to the share root.
+            out_dir: folder to write into (relative to share root). Default: "<folder>/_images/<file name>".
+            inline: return the images in the response instead of writing files.
+        """
+        p = resolve(path)
+        if not p.is_file():
+            raise IsADirectoryError(f"Not a file: {path}")
+        kind = p.suffix.lower()
+        if kind not in (".docx", ".pptx"):
+            raise ValueError("Supported: .docx and .pptx (use extract_sheet_images for workbooks).")
+        x = _Xlsx(p)  # generic OPC package reader
+        try:
+            found: list[dict[str, Any]] = []
+            if kind == ".docx":
+                parts = ["word/document.xml"] + sorted(n for n in x.names if re.fullmatch(r"word/(header|footer)\d*\.xml", n))
+                for part in parts:
+                    rels = x.rels(part)
+                    if part not in x.names:
+                        continue
+                    data = x.z.read(part).decode("utf-8", "replace")
+                    seen: set[str] = set()
+                    for rid in re.findall(r'r:embed="([^"]+)"', data):
+                        if rid in seen:
+                            continue
+                        seen.add(rid)
+                        typ, target = rels.get(rid, ("", ""))
+                        if target and typ.endswith("/image"):
+                            where = "body" if part == "word/document.xml" else part.split("/")[-1].replace(".xml", "")
+                            found.append({"location": f"{where} #{len([f for f in found if f['location'].startswith(where)]) + 1}", "media": target})
+            else:
+                slides = sorted((n for n in x.names if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
+                                key=lambda n: int(re.findall(r"\d+", n)[-1]))
+                for part in slides:
+                    num = int(re.findall(r"\d+", part)[-1])
+                    rels = x.rels(part)
+                    data = x.z.read(part).decode("utf-8", "replace")
+                    seen = set()
+                    for rid in re.findall(r'r:embed="([^"]+)"', data):
+                        if rid in seen:
+                            continue
+                        seen.add(rid)
+                        typ, target = rels.get(rid, ("", ""))
+                        if target and typ.endswith("/image"):
+                            found.append({"location": f"slide {num}", "slide": num, "media": target})
+            manifest: list[dict[str, Any]] = []
+            contents: list[ImageContent | TextContent] = []
+            skipped: list[str] = []
+            dest_dir: Path | None = None
+            if not inline:
+                if read_only:
+                    raise PermissionError("This share is read-only; call with inline=true to see the images.")
+                dest_dir = resolve(out_dir, must_exist=False) if out_dir else resolve(_rel(p.parent / "_images" / p.stem), must_exist=False)
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            for i, f in enumerate(found, 1):
+                member = f["media"]
+                if member not in x.names:
+                    skipped.append(f"{member}: missing")
+                    continue
+                ext = posixpath.splitext(member)[1].lower()
+                info = x.z.getinfo(member)
+                entry = {"location": f["location"], "bytes": info.file_size, "viewable": ext in IMAGE_MIME}
+                name = f"{_safe_name(f['location'])}_{i}{ext or '.bin'}"
+                if inline:
+                    if ext in IMAGE_MIME and info.file_size <= MAX_INLINE_IMAGE_BYTES and len(contents) < MAX_INLINE_IMAGES:
+                        contents.append(ImageContent(type="image", data=base64.b64encode(x.z.read(member)).decode(), mimeType=IMAGE_MIME[ext]))
+                        entry["returned_inline"] = True
+                    else:
+                        skipped.append(f"{name}: not returned inline (type, size or count limit)")
+                else:
+                    assert dest_dir is not None
+                    dest = dest_dir / name
+                    with x.z.open(member) as src, open(dest, "wb") as dst:
+                        while chunk := src.read(1 << 20):
+                            dst.write(chunk)
+                    entry["file"] = _rel(dest)
+                manifest.append(entry)
+        finally:
+            x.close()
+        result: dict[str, Any] = {"path": _rel(p), "images": len(manifest), "manifest": manifest}
+        if dest_dir is not None:
+            result["out_dir"] = _rel(dest_dir)
+            result["next"] = "Use view_image(file) on any entry with viewable=true." if manifest else "No pictures found."
+        if skipped:
+            result["skipped"] = skipped
+        if inline:
+            return [TextContent(type="text", text=_json(result)), *contents]
+        return result
 
 
 def _ranges(nums: list[int]) -> str:

@@ -1,1 +1,3 @@
 apps/win/scan_output/
+__pycache__/
+*.pyc

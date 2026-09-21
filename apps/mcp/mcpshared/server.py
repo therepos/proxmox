@@ -4,7 +4,10 @@
 # Installed by apps/installers/mcp-setup.sh (server id: mcpshared).
 # HTTP endpoints, token gate and health check come from ../common.py.
 # Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py,
-# file transfer (signed download / upload links, fetch_url) in transfer.py.
+# file transfer (signed download / upload links, fetch_url) in transfer.py and
+# office file creation (xlsx / docx / pptx / pdf from text) in build_tools.py,
+# archives, OCR and office-to-PDF conversion in host_tools.py, and in-place
+# editing of docx / pptx / xlsx / pdf in edit_tools.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -39,6 +42,9 @@ sys.path[:0] = [_HERE, os.path.dirname(_HERE)]
 from common import env, env_bool, serve  # noqa: E402
 from extraction_tools import register as register_extraction  # noqa: E402
 from transfer import register as register_transfer  # noqa: E402
+from build_tools import register as register_build  # noqa: E402
+from host_tools import register as register_host  # noqa: E402
+from edit_tools import register as register_edit  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
@@ -125,8 +131,13 @@ mcp = MCPServer(
         "or search_files to find things; use read_file for text and view_image for pictures. "
         "Office files are unpacked on the server: list_sheets / read_sheet / extract_sheet_images "
         "for xlsx, extract_pdf_text for pdf, extract_docx_text for docx. Never read those with "
-        "read_file_base64. To hand the user an actual file use download_link; to let them add "
-        "files use upload_link; fetch_url pulls a public URL into the share."
+        "read_file_base64; view_pdf_page shows a page as a picture. To hand the user an actual "
+        "file use download_link; to let them add files use upload_link; fetch_url pulls a public "
+        "URL into the share. To deliver a document, build_docx / build_xlsx / build_pptx / "
+        "build_pdf create the real file and return its download link; convert_to_pdf turns an "
+        "existing office file into a PDF. To change an existing file in place use edit_docx, "
+        "edit_pptx, write_cells, pdf_pages or merge_pdfs. ocr_text reads scanned pages and "
+        "screenshots. list_archive / extract_archive handle zip and tar files."
     ),
 )
 
@@ -447,10 +458,18 @@ if not READ_ONLY:
 register_extraction(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY)
 
 # --- File transfer (signed links, fetch_url) ----------------------------------
-register_transfer(
+download_link_for = register_transfer(
     mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY,
     token=env("MCP_TOKEN", required=True), public_url=PUBLIC_URL, port=int(env("MCP_PORT", "8765")),
 )
+
+# --- Build office files from text (write mode only) ----------------------------
+if not READ_ONLY:
+    register_build(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
+    register_edit(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
+
+# --- Archives, OCR, office -> PDF ------------------------------------------------
+register_host(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY, link=download_link_for)
 
 
 # --- Run ---------------------------------------------------------------------

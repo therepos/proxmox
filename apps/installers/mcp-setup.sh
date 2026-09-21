@@ -13,7 +13,8 @@
 # Adding a server: drop apps/mcp/<id>/server.py in the repo, then add one line
 # to the SERVERS registry below and, if it needs its own prompts, a
 # configure_<id>() function (see configure_mcpshared). Servers with more than
-# one .py file list them in FILES_<id>; extra pip packages go in PIP_<id>.
+# one .py file list them in FILES_<id>; extra pip packages go in PIP_<id>;
+# optional host packages the user is asked about go in APT_<id> ("pkgs|why").
 # =============================================================================
 
 set -euo pipefail
@@ -48,8 +49,12 @@ SERVERS=(
     "mcpshared|8765|Browse, search, read, write and extract text from files in one folder on this host"
 )
 # Per-server extras (optional): additional files next to server.py, extra pip packages.
-FILES_mcpshared="extraction_tools.py transfer.py"
-PIP_mcpshared="openpyxl pdfplumber python-docx"
+FILES_mcpshared="extraction_tools.py transfer.py build_tools.py host_tools.py edit_tools.py"
+PIP_mcpshared="openpyxl pdfplumber python-docx python-pptx reportlab pypdf"
+APT_mcpshared=(
+    "tesseract-ocr|OCR for scanned PDFs and screenshots (ocr_text), about 60 MB"
+    "libreoffice-writer libreoffice-calc libreoffice-impress|Convert docx/xlsx/pptx to PDF (convert_to_pdf), about 500 MB"
+)
 
 # --- Paths -------------------------------------------------------------------
 BASE_DIR="/opt/mcp"
@@ -199,6 +204,24 @@ setup_venv() {
         "${INSTALL_DIR}/venv/bin/pip" install -q --upgrade $extra >/dev/null 2>&1 \
             || warn "Extras failed to install; tools that need them will say so. See $LOG_FILE"
     fi
+}
+
+setup_optional_apt() {
+    # Ask once per optional host package group that is not installed yet.
+    local var="APT_${ID}[@]" entry pkgs why first c
+    for entry in "${!var}"; do
+        IFS='|' read -r pkgs why <<<"$entry"
+        first="${pkgs%% *}"
+        dpkg -s "$first" >/dev/null 2>&1 && continue
+        echo ""
+        echo "  Optional: ${why}"
+        read -p "  Install ${pkgs}? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || continue
+        info "Installing ${pkgs}..."
+        # shellcheck disable=SC2086
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $pkgs >/dev/null 2>&1 \
+            && ok "Installed." || warn "apt-get failed for ${pkgs}; the matching tools will say so. See $LOG_FILE"
+    done
 }
 
 write_env() {
@@ -377,6 +400,7 @@ action_install() {
 
     fetch_files
     setup_venv
+    setup_optional_apt
     write_env "$port" "$name" "$token" "$pub" "$EXTRA_ENV"
     write_unit
     systemctl enable "$SERVICE" >/dev/null 2>&1 || true
@@ -444,6 +468,7 @@ action_update() {
     ensure_host_deps
     fetch_files
     setup_venv
+    setup_optional_apt
     systemctl restart "$SERVICE"
     smoke_test "$MCP_PORT" "$MCP_TOKEN"
     ok "'${ID}' updated."

@@ -34,8 +34,10 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 - All servers share the endpoint contract in `common.py`: `/healthz`, `/<TOKEN>/mcp`,
   Bearer on `/mcp`, 404 otherwise. Do not add OAuth or change this without discussion.
 - Python deps: `mcp>=2,<3` and `uvicorn`. Stdlib for everything else, except per-server extras
-  declared in `PIP_<id>` in the installer (e.g. mcpshared: openpyxl, pdfplumber, python-docx),
-  which must be imported lazily so the server still boots without them.
+  declared in `PIP_<id>` in the installer (e.g. mcpshared: openpyxl, pdfplumber, python-docx, python-pptx, reportlab, pypdf),
+  which must be imported lazily so the server still boots without them. Host programs
+  (tesseract, LibreOffice) are optional `APT_<id>` entries the installer asks about; a tool
+  that needs one must say so when it is missing.
 
 ## Before pushing
 

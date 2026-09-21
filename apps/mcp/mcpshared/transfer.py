@@ -25,8 +25,14 @@
 # <sig> is an HMAC over (mode, expiry, share-relative path) keyed from MCP_TOKEN,
 # so the token itself never appears in a link and rotating it voids every link.
 #
+# Every link comes in up to three flavours: url (public, via Cloudflare),
+# lan_url (host LAN address: works at home and over a Tailscale subnet router,
+# no 100 MB Cloudflare upload cap) and tailscale_url (only when the host itself
+# runs Tailscale).
+#
 # Environment:
 #   MCP_PUBLIC_URL        https://<host> used in links (falls back to the LAN address)
+#   MCP_PRIVATE_URL       override for the private link, e.g. http://pve.tailnet.ts.net:8765
 #   MCP_LINK_MINUTES      default link lifetime (60)
 #   MCP_UPLOAD_MAX_BYTES  per-file upload cap (default 4 GiB)
 #   MCP_FETCH_MAX_BYTES   fetch_url cap (default 4 GiB)
@@ -79,6 +85,17 @@ def _lan_ip() -> str:
             return s.getsockname()[0]
     except OSError:
         return "127.0.0.1"
+
+
+def _tailscale_ip() -> str | None:
+    """Host's own Tailscale address, if the host runs Tailscale (route to MagicDNS 100.100.100.100)."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("100.100.100.100", 1))
+            ip = s.getsockname()[0]
+    except OSError:
+        return None
+    return ip if ipaddress.ip_address(ip) in ipaddress.ip_network("100.64.0.0/10") else None
 
 
 def _fmt_ts(ts: int) -> str:
@@ -191,7 +208,7 @@ small{color:#777}
 <p>Files are stored on the shared drive. Link expires __EXP__.</p>
 <div id=drop>Tap to choose files, or drop them here<input id=f type=file multiple></div>
 <ul id=list></ul>
-<small>Existing names are kept: a new copy gets a number appended. Large files: use the LAN link.</small>
+<small>Existing names are kept: a new copy gets a number appended. Large files (over 100 MB through Cloudflare): use the LAN or Tailscale link.</small>
 <script>
 const drop=document.getElementById('drop'),inp=document.getElementById('f'),list=document.getElementById('list');
 drop.onclick=()=>inp.click();
@@ -227,13 +244,16 @@ def register(
     token: str,
     public_url: str = "",
     port: int = 8765,
-) -> None:
+) -> Callable[[Path], dict[str, Any]]:
+    """Registers routes and tools; returns download_link_for(Path) for other modules."""
     key = hmac.new(token.encode(), b"mcpshared-files", hashlib.sha256).digest()
     default_minutes = _int_env("MCP_LINK_MINUTES", 60)
     upload_max = _int_env("MCP_UPLOAD_MAX_BYTES", 4 << 30)
     fetch_max = _int_env("MCP_FETCH_MAX_BYTES", 4 << 30)
     public = public_url.rstrip("/")
-    lan = f"http://{_lan_ip()}:{port}"
+    lan = os.environ.get("MCP_PRIVATE_URL", "").strip().rstrip("/") or f"http://{_lan_ip()}:{port}"
+    ts_ip = _tailscale_ip()
+    tailscale = f"http://{ts_ip}:{port}" if ts_ip else ""
 
     def sign(mode: str, exp: int, relpath: str) -> str:
         mac = hmac.new(key, f"{mode}|{exp}|{relpath}".encode(), hashlib.sha256).digest()
@@ -244,6 +264,8 @@ def register(
         exp = int(time.time()) + minutes * 60
         path = f"{PREFIX}/{mode}/{exp}/{sign(mode, exp, relpath)}/{urllib.parse.quote(relpath, safe='/')}"
         out: dict[str, Any] = {"url": (public or lan) + path, "lan_url": lan + path, "expires": _fmt_ts(exp)}
+        if tailscale:
+            out["tailscale_url"] = tailscale + path
         if not public:
             out["note"] = "No public URL configured (installer option 4); this link only works on the LAN."
         return out
@@ -340,8 +362,11 @@ def register(
             out["size"] = _human(p.stat().st_size)
         return out
 
+    def download_link_for(p: Path) -> dict[str, Any]:
+        return link("d", rel(p), default_minutes)
+
     if read_only:
-        return
+        return download_link_for
 
     @guard(RW)
     def upload_link(directory: str = ".", expires_minutes: int = default_minutes) -> dict[str, Any]:
@@ -362,7 +387,7 @@ def register(
         out = link("u", rel(d), expires_minutes)
         out["directory"] = rel(d)
         out["max_file_size"] = _human(upload_max)
-        out["hint"] = "Behind Cloudflare, uploads above 100 MB need the lan_url."
+        out["hint"] = "Files over 100 MB cannot pass through Cloudflare: use lan_url (works at home or over Tailscale) or tailscale_url."
         return out
 
     @guard(NET)
@@ -437,3 +462,5 @@ def register(
         if ctype.startswith("text/html") and not dest.suffix.lower() in (".html", ".htm"):
             result["warning"] = "The server returned an HTML page, not a file. For Google Drive this usually means the file is not shared publicly or needs the large-file confirmation."
         return result
+
+    return download_link_for
