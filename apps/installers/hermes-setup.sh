@@ -538,7 +538,7 @@ action_change_provider() {
 action_update() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
     info "Taking a backup first..."
-    action_backup
+    action_backup || fail "Backup failed, so the update was stopped. Your data was not touched."
     info "Downloading the latest version..."
     # Docker installs do not support `hermes update`; pull a new image instead.
     pct exec "$EXISTING_CTID" -- bash -c "
@@ -557,10 +557,39 @@ action_logs() {
 
 action_backup() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
-    local dest="/root/hermes-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
-    pct exec "$EXISTING_CTID" -- tar czf - -C "${DATA_DIR}" data > "$dest" 2>/dev/null \
-        || fail "Backup failed."
-    ok "Backup saved to: $dest"
+
+    if [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" != "status: running" ]]; then
+        warn "Container $EXISTING_CTID is not running. Start it with: pct start $EXISTING_CTID"
+        return 1
+    fi
+    if ! pct exec "$EXISTING_CTID" -- test -d "${DATA_DIR}/data" 2>/dev/null; then
+        warn "Nothing to back up: ${DATA_DIR}/data does not exist in CTID $EXISTING_CTID."
+        return 1
+    fi
+
+    local stamp dest tmp err
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    dest="/root/hermes-backup-${stamp}.tar.gz"
+    tmp="/tmp/hermes-backup-${stamp}.tar.gz"
+
+    # pct exec streams stdout line by line, which corrupts a tar stream, so the
+    # archive is written inside the container and copied out with pct pull.
+    if ! err="$(pct exec "$EXISTING_CTID" -- tar czf "$tmp" -C "${DATA_DIR}" data 2>&1)"; then
+        pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
+        [[ -n "$err" ]] && warn "$err"
+        return 1
+    fi
+    if ! err="$(pct pull "$EXISTING_CTID" "$tmp" "$dest" 2>&1)"; then
+        pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
+        rm -f "$dest"
+        [[ -n "$err" ]] && warn "$err"
+        return 1
+    fi
+    pct exec "$EXISTING_CTID" -- rm -f "$tmp" >/dev/null 2>&1 || true
+
+    # The archive contains data/.env, so it holds API keys in plain text.
+    chmod 600 "$dest"
+    ok "Backup saved to: $dest ($(du -h "$dest" | awk '{print $1}'))"
 }
 
 action_uninstall_silent() {
@@ -904,7 +933,7 @@ case "$choice" in
     3) action_change_provider ;;
     4) action_status ;;
     5) action_logs ;;
-    6) action_backup ;;
+    6) action_backup || fail "Backup failed." ;;
     7) action_update ;;
     8) action_uninstall ;;
     9) action_dashboard ;;
