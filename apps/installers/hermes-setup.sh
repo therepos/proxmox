@@ -535,15 +535,43 @@ action_change_provider() {
     smoke_test "$EXISTING_CTID" || true
 }
 
+# True when the container can resolve and reach Docker Hub.
+container_online() {
+    pct exec "$1" -- getent hosts registry-1.docker.io >/dev/null 2>&1
+}
+
+report_offline_container() {
+    local ctid="$1" gw
+    gw="$(pct exec "$ctid" -- ip route 2>/dev/null | awk '/^default/{print $3; exit}')"
+    warn "CTID $ctid cannot reach Docker Hub, so there is nothing to download."
+    echo "  Gateway seen by the container: ${gw:-none}"
+    echo "  Check from this host:"
+    echo "    pct exec $ctid -- ip -4 addr show eth0"
+    echo "    pct exec $ctid -- ip route"
+    echo "    pct exec $ctid -- cat /etc/resolv.conf"
+    echo "  A reboot usually renews the DHCP lease: pct reboot $ctid"
+    echo "  Hermes keeps running on the version you already have."
+}
+
 action_update() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    info "Checking that the container can reach Docker Hub..."
+    if ! container_online "$EXISTING_CTID"; then
+        report_offline_container "$EXISTING_CTID"
+        fail "Update stopped before any change was made."
+    fi
     info "Taking a backup first..."
     action_backup || fail "Backup failed, so the update was stopped. Your data was not touched."
     info "Downloading the latest version..."
     # Docker installs do not support `hermes update`; pull a new image instead.
-    pct exec "$EXISTING_CTID" -- bash -c "
+    if ! pct exec "$EXISTING_CTID" -- bash -c "
         cd ${DATA_DIR} && docker compose pull && docker compose up -d && docker image prune -f
-    " || fail "Update failed. Your data was not touched."
+    "; then
+        # The pull may have dropped the network mid-way; leave the old version up.
+        pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" \
+            >/dev/null 2>&1 || true
+        fail "Update failed. Your data was not touched and Hermes is still running."
+    fi
     sleep 15
     ok "Updated. Memory, skills and scheduled jobs were preserved."
 }
