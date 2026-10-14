@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.0.0
+// @version      3.1.0
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -19,11 +19,13 @@
  * Use
  *   1. Open MyHub. Click MH (bottom-right).
  *   2. Tick Dry run to click through without submitting. Untick to submit for real.
- *   3. Start. Stop ends after the current task. Keep the tab open and in the foreground.
+ *   3. Start. Stop ends after the current step. Keep the tab open and in the foreground.
  *
  * Notes
  *   Business Context answers are in CONFIG below. Edit there.
  *   Run state is kept in localStorage so a page reload resumes the run.
+ *   The panel shows the current step while it waits. A skipped task logs what was on the page
+ *   (heading and buttons) so the reason is visible.
  *   A task is skipped when it has no intake question, no Continue or Submit, or no secondary owner.
  *   Source: ext-myhub.zip (content.js + popup.js), popup replaced by an in-page panel.
  */
@@ -48,23 +50,26 @@
   const running = () => !!load().running;
 
   const listeners = [];
+  const notify = () => listeners.forEach((fn) => fn());
   function log(msg, cls = '') {
     const s = load();
-    const logs = (s.logs || []).concat({ msg, cls, ts: Date.now() }).slice(-100);
+    const logs = (s.logs || []).concat({ msg, cls, ts: Date.now() }).slice(-150);
     save({ logs });
     console.log('[MyHub Auto] ' + msg);
-    listeners.forEach((fn) => fn());
+    notify();
   }
-  const setStatus = (patch) => { save(patch); listeners.forEach((fn) => fn()); };
+  const setStatus = (patch) => { save(patch); notify(); };
+  const phase = (text) => setStatus({ phase: text });
 
   /* ================= page helpers ================= */
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const inPanel = (el) => !!el.closest('#mh-panel');
-  const visible = (el) => el.offsetParent !== null;
+  const visible = (el) => !!el && el.offsetParent !== null;
   const buttons = () => [...document.querySelectorAll('button')].filter((b) => visible(b) && !inPanel(b));
   const findButton = (text) => buttons().find((b) => b.innerText.includes(text)) || null;
   const pageHas = (text) => document.body.innerText.includes(text);   // panel lives outside body
+  const snapshot = () => document.body.innerText;
 
   function clickButton(text) {
     const b = findButton(text);
@@ -74,12 +79,20 @@
     return true;
   }
 
-  const cleanText = (t) => t
-    .replace(/[\u25B6\u25B7\u25C0\u25C1\u2795\u2796\u2B50\u26A0\u2714\u2716\u23F1\u23F0]|\uD83D[\uDC00-\uDFFF]|\uFE0F|\u200B|\u00A0/g, '')
+  const cleanText = (t) => (t || '')
+    .replace(/[▶▷◀◁➕➖⭐⚠✔✖⏱⏰]|\uD83D[\uDC00-\uDFFF]|️|​| /g, '')
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
     .replace(/\s+/g, ' ').trim();
 
   const startButtons = () => buttons().filter((b) => b.innerText.includes('Start task'));
+
+  // What is on screen, for the log when a step does not look as expected.
+  const buttonTexts = () => [...new Set(buttons().map((b) => cleanText(b.innerText)).filter(Boolean))].slice(0, 10).join(' | ') || 'none';
+  function headline() {
+    const h = [...document.querySelectorAll('h1, h2, h3, [role="heading"]')].find((x) => visible(x) && !inPanel(x));
+    return cleanText(h ? h.innerText : document.body.innerText.slice(0, 100)).slice(0, 80);
+  }
+  const where = () => 'Page "' + headline() + '", buttons: ' + buttonTexts();
 
   function taskInfo(btn) {
     let el = btn.parentElement;
@@ -95,8 +108,22 @@
   const secondaryOwnerOk = () =>
     !pageHas('Add the Secondary Workspace Owner to proceed') && !pageHas('Add Secondary Workspace Owner');
 
-  async function gotoTodos(ms) {
-    if (!location.hash.includes('todos')) { location.hash = CONFIG.todos; await sleep(ms); }
+  async function gotoTodos() {
+    if (!location.hash.includes('todos')) { location.hash = CONFIG.todos; await sleep(3000); }
+  }
+
+  // Poll pred() once a second until it returns something, showing the wait as the current phase.
+  // Returns pred()'s value, null on timeout, 'stopped' when the user pressed Stop.
+  async function waitFor(pred, ms, label) {
+    const t0 = Date.now();
+    for (;;) {
+      if (!running()) return 'stopped';
+      const r = pred();
+      if (r) return r;
+      if (Date.now() - t0 >= ms) return null;
+      phase(label + ' (' + Math.round((Date.now() - t0) / 1000) + 's)');
+      await sleep(1000);
+    }
   }
 
   /* ================= Business Context form ================= */
@@ -135,6 +162,7 @@
 
   async function fillBusinessContext() {
     for (let i = 0; i < CONFIG.dropdowns.length; i++) {
+      phase('Business Context: dropdown ' + (i + 1) + ' of ' + CONFIG.dropdowns.length);
       let found = false;
       for (let w = 0; w < 10; w++) {
         if (document.querySelectorAll('input[role="combobox"]').length > i) { found = true; break; }
@@ -146,9 +174,9 @@
       await sleep(2500);
     }
     await sleep(1000);
-    clickRadio(CONFIG.purpose); log('    Purpose: ' + CONFIG.purpose, 'ok'); await sleep(500);
-    for (const ct of CONFIG.contentTypes) { clickCheckbox(ct); log('    Content: ' + ct, 'ok'); await sleep(300); }
-    clickRadio(CONFIG.classification); log('    Classification: ' + CONFIG.classification, 'ok');
+    const p = clickRadio(CONFIG.purpose); log('    Purpose: ' + CONFIG.purpose + (p ? '' : ' (not found)'), p ? 'ok' : 'warn'); await sleep(500);
+    for (const ct of CONFIG.contentTypes) { const c = clickCheckbox(ct); log('    Content: ' + ct + (c ? '' : ' (not found)'), c ? 'ok' : 'warn'); await sleep(300); }
+    const k = clickRadio(CONFIG.classification); log('    Classification: ' + CONFIG.classification + (k ? '' : ' (not found)'), k ? 'ok' : 'warn');
     await sleep(2000);
   }
 
@@ -165,25 +193,31 @@
     return 'Step ' + (step + 1);
   }
 
+  const hasIntake = () => pageHas('Do you still need this team') || pageHas('Are you responsible for this team') || pageHas('Required intake question');
+  const wizardButton = () => (findButton('Submit') ? 'submit' : findButton('Continue') ? 'continue' : null);
+
   /* returns true = completed, false = skipped, null = stopped */
   async function processTask(name, dryRun) {
     log('Processing: ' + name, 'info');
 
     let yes = 0;
     for (let i = 0; i < 3; i++) {
+      const got = await waitFor(() => (hasIntake() && findButton('Yes') ? 'intake' : wizardButton()), i ? 5000 : 12000, 'Waiting for the task to open');
+      if (got === 'stopped') return null;
+      if (got !== 'intake') break;
+      clickButton('Yes'); yes++;
+      log('  Clicked Yes (question ' + yes + ')', 'ok');
       await sleep(1500);
-      if (!running()) { log('Stopped by user.', 'warn'); return null; }
-      const intake = pageHas('Do you still need this team') || pageHas('Are you responsible for this team') || pageHas('Required intake question');
-      if (intake && findButton('Yes')) { clickButton('Yes'); yes++; log('  Clicked Yes (question ' + yes + ')', 'ok'); await sleep(1500); }
-      else break;
     }
-    if (!yes) { log('  No intake question found. Skipping.', 'warn'); return false; }
+    if (!yes) { log('  No intake question found, skipping. ' + where(), 'warn'); return false; }
 
+    let stuck = 0;
     for (let step = 0; step < 15; step++) {
-      await sleep(1200);
-      if (!running()) { log('Stopped by user.', 'warn'); return null; }
+      const got = await waitFor(wizardButton, 15000, 'Waiting for wizard step ' + (step + 1));
+      if (got === 'stopped') return null;
+      if (!got) { log('  Step ' + (step + 1) + ': no Submit or Continue after 15s. ' + where(), 'fail'); return false; }
 
-      if (findButton('Submit')) {
+      if (got === 'submit') {
         if (pageHas('Business Context')) {
           log('  Filling Business Context...', 'info');
           await fillBusinessContext();
@@ -191,25 +225,30 @@
           await sleep(1000);
         }
         if (dryRun) { log('  [DRY RUN] Would click Submit. Clicking Cancel.', 'warn'); clickButton('Cancel'); return true; }
+        const before = snapshot();
+        phase('Submitting');
         clickButton('Submit');
+        const moved = await waitFor(() => (snapshot() !== before ? 'changed' : null), 10000, 'Waiting for the submit to go through');
+        if (moved === 'stopped') return null;
+        if (!moved) { log('  Submit did not go through. ' + where(), 'fail'); clickButton('Cancel'); return false; }
         log('  Submitted.', 'ok');
         return true;
       }
 
-      if (findButton('Continue')) {
-        if (pageHas('Workspace Owners') && pageHas('Primary Workspace Owner') && !secondaryOwnerOk()) {
-          log('  Secondary owner missing. Skipping task.', 'warn');
-          clickButton('Cancel');
-          return false;
-        }
-        const label = stepLabel(step);
-        clickButton('Continue');
-        log('  ' + label + ' -> Continue', 'ok');
-        continue;
+      if (pageHas('Workspace Owners') && pageHas('Primary Workspace Owner') && !secondaryOwnerOk()) {
+        log('  Secondary owner missing, skipping task.', 'warn');
+        clickButton('Cancel');
+        return false;
       }
-
-      log('  Step ' + (step + 1) + ': no Submit or Continue found.', 'fail');
-      return false;
+      const label = stepLabel(step);
+      const before = snapshot();
+      clickButton('Continue');
+      log('  ' + label + ' -> Continue', 'ok');
+      const moved = await waitFor(() => (snapshot() !== before ? 'changed' : null), 8000, 'Waiting for the next step');
+      if (moved === 'stopped') return null;
+      if (moved) { stuck = 0; continue; }
+      if (++stuck >= 2) { log('  Page did not change after Continue twice. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+      log('  Page did not change after Continue, trying again.', 'warn');
     }
     log('  Exceeded max steps.', 'fail');
     return false;
@@ -223,67 +262,71 @@
     if (loopActive || !running()) return;
     loopActive = true;
     const dryRun = !!load().dryRun;
-    let completed = 0, skipped = 0;
+    let completed = 0, skipped = 0, total = 0;
     const skippedNames = [];
     const attempted = new Set();
 
     try {
       log('=== MyHub Auto-Complete ===' + (dryRun ? ' (DRY RUN)' : ''), 'info');
-      await gotoTodos(4000);
+      phase('Opening the task list');
+      await gotoTodos();
+      const first = await waitFor(() => (startButtons().length ? 'ok' : null), 30000, 'Loading the task list');
+      if (first === 'stopped') { log('Stopped by user.', 'warn'); return; }
+      if (!first) { log('No "Start task" button after 30s. ' + where(), 'warn'); return; }
 
-      log('Loading task list...', 'info');
-      let found = false;
-      for (let i = 0; i < 15; i++) { await sleep(2000); if (startButtons().length) { found = true; break; } }
-      if (!found) { log('No tasks found. Nothing to do.', 'warn'); setStatus({ status: 'done', running: false, total: 0 }); return; }
-
-      const total = startButtons().length;
-      log('Found ' + total + ' task(s). Starting...', 'info');
+      total = startButtons().length;
+      const names = startButtons().slice(0, 3).map((b) => taskInfo(b).name).join(', ');
+      log('Found ' + total + ' task(s): ' + names + (total > 3 ? ', ...' : ''), 'info');
       setStatus({ status: 'running', completed: 0, skipped: 0, skippedNames: [], total });
 
       let n = 0;
       while (running()) {
-        await gotoTodos(4000);
-        let btns = [];
-        for (let i = 0; i < 10; i++) { await sleep(1500); btns = startButtons(); if (btns.length) break; }
-        if (!btns.length) { log('All tasks processed.', 'ok'); break; }
+        await gotoTodos();
+        const ready = await waitFor(() => (startButtons().length ? 'ok' : null), 15000, 'Loading the task list');
+        if (ready === 'stopped') break;
+        if (!ready) { log('All tasks processed.', 'ok'); break; }
 
         let target = null, info = null;
-        for (const b of btns) {
+        for (const b of startButtons()) {
           const t = taskInfo(b);
           const key = t.name + '|' + t.type;
           if (!attempted.has(key)) { attempted.add(key); target = b; info = t; break; }
         }
-        if (!target) { log('All tasks have been attempted.', 'info'); break; }
+        if (!target) { log('All visible tasks have been attempted.', 'info'); break; }
 
         n++;
         log('--- Task ' + n + ' of ' + total + ': ' + info.name + ' (' + info.type + ') ---', 'info');
+        phase('Opening task ' + n + ': ' + info.name);
         target.scrollIntoView({ block: 'center' });
         target.click();
-        await sleep(2500);
+        await sleep(2000);
 
         let result;
         try { result = await processTask(info.name, dryRun); }
         catch (e) { log('  Error: ' + e.message, 'fail'); result = false; }
-        if (result === null) break;
+        if (result === null) { log('Stopped by user.', 'warn'); break; }
         if (result) { completed++; log('  Task ' + n + ': COMPLETED', 'ok'); }
         else { skipped++; skippedNames.push(info.name); log('  Task ' + n + ': SKIPPED', 'warn'); }
         setStatus({ completed, skipped, skippedNames });
 
-        await sleep(2000);
+        phase('Returning to the task list');
+        await sleep(1500);
         location.hash = CONFIG.todos;
-        await sleep(3000);
+        await sleep(2500);
       }
 
       log('=== SUMMARY === Completed ' + completed + ' of ' + total + (skipped ? ', skipped ' + skipped : ''), completed ? 'ok' : 'warn');
       skippedNames.forEach((s) => log('  - ' + s, 'warn'));
+    } catch (e) {
+      log('Stopped with an error: ' + (e && e.message || e), 'fail');
     } finally {
-      setStatus({ status: 'done', running: false, completed, skipped, skippedNames });
+      setStatus({ status: 'done', running: false, completed, skipped, skippedNames, total, phase: 'Finished' });
       loopActive = false;
     }
   }
 
   function start(dryRun) {
-    save({ running: true, dryRun, status: 'running', logs: [], completed: 0, skipped: 0, skippedNames: [], total: 0 });
+    save({ running: true, dryRun, status: 'running', logs: [], completed: 0, skipped: 0, skippedNames: [], total: 0, phase: 'Starting' });
     run();
   }
   const stop = () => { save({ running: false }); };
@@ -308,7 +351,9 @@
 #mh-panel button.primary { border-color: #1a73e8; color: #1a73e8; font-weight: 600; }
 #mh-panel .row { display: flex; gap: 6px; margin: 8px 0; align-items: center; }
 #mh-panel label { font-size: 12px; display: flex; gap: 6px; align-items: center; cursor: pointer; }
-#mh-panel .log { margin-top: 10px; font: 11px/1.5 ui-monospace, monospace; max-height: 220px; overflow: auto;
+#mh-panel .phase { margin-top: 8px; font-size: 12px; font-weight: 600; color: #1a73e8; min-height: 16px; }
+#mh-panel .phase.fail { color: #d93025; }
+#mh-panel .log { margin-top: 8px; font: 11px/1.5 ui-monospace, monospace; max-height: 220px; overflow: auto;
   border: 1px solid #e8eaed; border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
 #mh-panel .log .ok { color: #188038; } #mh-panel .log .warn { color: #b06000; } #mh-panel .log .fail { color: #d93025; }
 #mh-panel .sum { margin-top: 8px; font-size: 12px; color: #5f6368; }
@@ -331,12 +376,13 @@
     const dryLabel = el('label', { for: 'mh-dry' }); dryLabel.append(dry, 'Dry run (click through, do not Submit)');
     const startBtn = el('button', { type: 'button', class: 'primary' }, 'Start');
     const stopBtn = el('button', { type: 'button', disabled: '' }, 'Stop');
+    const phaseBox = el('div', { class: 'phase' });
     const logBox = el('div', { class: 'log' });
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.0.0'),
-      dryRow, row, logBox, sum);
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.0'),
+      dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };
 
@@ -344,6 +390,9 @@
       const s = load();
       const on = !!s.running;
       startBtn.disabled = on; stopBtn.disabled = !on; dry.disabled = on;
+      const last = (s.logs || []).slice(-1)[0];
+      phaseBox.textContent = on ? 'Working: ' + (s.phase || 'starting') : s.status === 'done' ? 'Finished.' : '';
+      phaseBox.className = 'phase' + (!on && last && last.cls === 'fail' ? ' fail' : '');
       logBox.replaceChildren(...(s.logs || []).map((l) => el('div', { class: l.cls || '' }, l.msg)));
       logBox.scrollTop = logBox.scrollHeight;
       const done = (s.completed || 0) + (s.skipped || 0);
@@ -354,7 +403,7 @@
     render();
 
     startBtn.onclick = () => start(dry.checked);
-    stopBtn.onclick = () => { stop(); log('Stopping after the current task...', 'warn'); render(); };
+    stopBtn.onclick = () => { stop(); log('Stopping after the current step...', 'warn'); render(); };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildPanel);
