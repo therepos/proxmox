@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.1.0
+// @version      3.1.1
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -26,7 +26,8 @@
  *   Run state is kept in localStorage so a page reload resumes the run.
  *   The panel shows the current step while it waits. A skipped task logs what was on the page
  *   (heading and buttons) so the reason is visible.
- *   A task is skipped when it has no intake question, no Continue or Submit, or no secondary owner.
+ *   A task is skipped when it has no intake question, no Continue or Submit, no secondary owner,
+ *   or when a wizard page stays put for 90 seconds. Continue is retried while a page loads.
  *   Source: ext-myhub.zip (content.js + popup.js), popup replaced by an in-page panel.
  */
 
@@ -59,6 +60,18 @@
     notify();
   }
   const setStatus = (patch) => { save(patch); notify(); };
+  // One line per wizard page: repeated Continue clicks on the same page update the count in place.
+  function logStep(label, n) {
+    const prefix = '  ' + label + ' -> Continue';
+    const msg = prefix + (n > 1 ? ' (x' + n + ')' : '');
+    const logs = (load().logs || []).slice(-150);
+    const last = logs[logs.length - 1];
+    if (n > 1 && last && last.msg.startsWith(prefix)) logs[logs.length - 1] = { msg, cls: 'ok', ts: Date.now() };
+    else logs.push({ msg, cls: 'ok', ts: Date.now() });
+    save({ logs });
+    console.log('[MyHub Auto] ' + msg);
+    notify();
+  }
   const phase = (text) => setStatus({ phase: text });
 
   /* ================= page helpers ================= */
@@ -67,7 +80,9 @@
   const inPanel = (el) => !!el.closest('#mh-panel');
   const visible = (el) => !!el && el.offsetParent !== null;
   const buttons = () => [...document.querySelectorAll('button')].filter((b) => visible(b) && !inPanel(b));
-  const findButton = (text) => buttons().find((b) => b.innerText.includes(text)) || null;
+  const findButton = (text) => { const all = buttons(); return all.find((b) => cleanText(b.innerText) === text) || all.find((b) => b.innerText.includes(text)) || null; };
+  const isDisabled = (b) => !b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('is-disabled');
+  const TASK_MS = 8 * 60000, DISABLED_MS = 90000, SAME_MS = 90000;
   const pageHas = (text) => document.body.innerText.includes(text);   // panel lives outside body
   const snapshot = () => document.body.innerText;
 
@@ -92,7 +107,11 @@
     const h = [...document.querySelectorAll('h1, h2, h3, [role="heading"]')].find((x) => visible(x) && !inPanel(x));
     return cleanText(h ? h.innerText : document.body.innerText.slice(0, 100)).slice(0, 80);
   }
-  const where = () => 'Page "' + headline() + '", buttons: ' + buttonTexts();
+  function alerts() {
+    const els = [...document.querySelectorAll('[role="alert"], .ms-MessageBar, [class*="error" i]')].filter((e) => visible(e) && !inPanel(e));
+    return cleanText(els.map((e) => e.innerText).join(' | ')).slice(0, 160);
+  }
+  const where = () => { const a = alerts(); return 'Page "' + headline() + '", buttons: ' + buttonTexts() + (a ? ', message: ' + a : ''); };
 
   function taskInfo(btn) {
     let el = btn.parentElement;
@@ -211,11 +230,14 @@
     }
     if (!yes) { log('  No intake question found, skipping. ' + where(), 'warn'); return false; }
 
-    let stuck = 0;
-    for (let step = 0; step < 15; step++) {
-      const got = await waitFor(wizardButton, 15000, 'Waiting for wizard step ' + (step + 1));
+    // Steps are bounded by time, not by count: a page may need several Continue clicks while it loads.
+    const t0 = Date.now();
+    let label = '', clicks = 0, sameSince = 0, steps = 0;
+    for (;;) {
+      if (Date.now() - t0 > TASK_MS) { log('  Task is taking more than ' + Math.round(TASK_MS / 60000) + ' minutes, giving up. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+      const got = await waitFor(wizardButton, 15000, 'Waiting for wizard step ' + (steps + 1));
       if (got === 'stopped') return null;
-      if (!got) { log('  Step ' + (step + 1) + ': no Submit or Continue after 15s. ' + where(), 'fail'); return false; }
+      if (!got) { log('  Step ' + (steps + 1) + ': no Submit or Continue after 15s. ' + where(), 'fail'); return false; }
 
       if (got === 'submit') {
         if (pageHas('Business Context')) {
@@ -240,18 +262,27 @@
         clickButton('Cancel');
         return false;
       }
-      const label = stepLabel(step);
+
+      const cur = stepLabel(steps);
+      if (isDisabled(findButton('Continue'))) {
+        const en = await waitFor(() => (findButton('Submit') ? 'submit' : !isDisabled(findButton('Continue')) ? 'enabled' : null),
+          DISABLED_MS, cur + ': Continue is disabled, waiting for the page to finish');
+        if (en === 'stopped') return null;
+        if (!en) { log('  ' + cur + ': Continue stayed disabled for ' + Math.round(DISABLED_MS / 1000) + 's. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+        if (en === 'submit') continue;
+      }
+      if (cur !== label) { label = cur; clicks = 0; sameSince = Date.now(); steps++; }
+      clicks++;
+      if (clicks > 1 && Date.now() - sameSince > SAME_MS) { log('  Still on ' + label + ' after ' + clicks + ' clicks. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+      if (steps > 40) { log('  More than 40 wizard steps, giving up. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+
       const before = snapshot();
       clickButton('Continue');
-      log('  ' + label + ' -> Continue', 'ok');
+      logStep(label, clicks);
       const moved = await waitFor(() => (snapshot() !== before ? 'changed' : null), 8000, 'Waiting for the next step');
       if (moved === 'stopped') return null;
-      if (moved) { stuck = 0; continue; }
-      if (++stuck >= 2) { log('  Page did not change after Continue twice. ' + where(), 'fail'); clickButton('Cancel'); return false; }
-      log('  Page did not change after Continue, trying again.', 'warn');
+      await sleep(moved ? 500 : 1500);
     }
-    log('  Exceeded max steps.', 'fail');
-    return false;
   }
 
   /* ================= main loop ================= */
@@ -381,7 +412,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.0'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.1'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };
