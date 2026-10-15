@@ -24,8 +24,17 @@ Zips are legacy unpacked Chrome extensions. Do not add new zips unless a userscr
 
 ## Test before commit
 
-`node --check <tool>.user.js`, then a Playwright run against a mock HTML page that mimics the
-target markup (rows, menu, dialog). Live site cannot be tested here, it needs the user's login.
+`node --check <tool>.user.js`, then `node apps/ext/tests/<tool>.test.js`. Each test drives the script with
+Playwright against `apps/ext/tests/<tool>-mock.html`, a page that mimics the target markup. When the site
+changes (new wizard page, renamed step, new question, new table), update the mock first so the test
+reproduces the live behaviour, then fix the script until it is green. Keep the mock faithful: the wizard
+mock carries the left step column because that is what broke page detection on the live site.
+`myhub.test.js` also unpacks `ext-myhub.zip` and runs the popup and content script against the mock,
+including a tab opened before the extension loaded. Live site cannot be tested here, it needs the
+user's login; after a MyHub UI change run once with Dry run and read the log.
+
+`ext-myhub.zip` is rebuilt from the unpacked files with `zip -X -r`. Keep its `content.js` logic in step
+with `myhub.user.js`; both carry the same CONFIG (answers and the intake questions allowed a Yes).
 
 ## Reference
 

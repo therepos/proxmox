@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.1.2
+// @version      3.2.0
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -22,11 +22,12 @@
  *   3. Start. Stop ends after the current step. Keep the tab open and in the foreground.
  *
  * Notes
- *   Business Context answers are in CONFIG below. Edit there.
+ *   Business Context answers and the intake questions it may answer Yes to are in CONFIG below.
+ *   An unknown intake question is logged with its wording and the task is skipped, never answered.
  *   Run state is kept in localStorage so a page reload resumes the run.
  *   The panel shows the current step while it waits. A skipped task logs what was on the page
  *   (heading and buttons) so the reason is visible.
- *   A task is skipped when it has no intake question, no Continue or Submit, no secondary owner,
+ *   A task is skipped when it has no or an unknown intake question, no Continue or Submit, no secondary owner,
  *   or when a wizard page stays put for 90 seconds. Continue is retried while a page loads.
  *   Source: ext-myhub.zip (content.js + popup.js), popup replaced by an in-page panel.
  */
@@ -40,6 +41,8 @@
     purpose: 'Work Collaboration',
     contentTypes: ['EY Business Data/Information', 'Client Data/Information', 'Client Owned Records'],
     classification: 'EY Confidential C3',
+    // Intake questions the script may answer Yes to. Any other question is logged and the task skipped.
+    intake: ['Do you still need this team', 'Are you responsible for this team'],
     todos: '/v2/todos',
   };
 
@@ -234,7 +237,14 @@
     return headline() || 'Step ' + (step + 1);
   }
 
-  const hasIntake = () => pageHas('Do you still need this team') || pageHas('Are you responsible for this team') || pageHas('Required intake question');
+  const intakeMarker = () => pageHas('Required intake question') || CONFIG.intake.some((q) => pageHas(q));
+  const knownIntake = () => CONFIG.intake.find((q) => pageHas(q)) || '';
+  // The question shown under the "Required intake question" badge, for the log.
+  function intakeText() {
+    const lines = mainText().split('\n').map(cleanText).filter(Boolean);
+    const i = lines.findIndex((l) => /Required intake question/i.test(l));
+    return (i >= 0 ? lines.slice(i + 1, i + 3) : lines.filter((l) => /\?$/.test(l)).slice(0, 2)).join(' ').slice(0, 160);
+  }
   const wizardButton = () => (findButton('Submit') ? 'submit' : findButton('Continue') ? 'continue' : null);
 
   /* returns true = completed, false = skipped, null = stopped */
@@ -243,11 +253,17 @@
 
     let yes = 0;
     for (let i = 0; i < 3; i++) {
-      const got = await waitFor(() => (hasIntake() && findButton('Yes') ? 'intake' : wizardButton()), i ? 5000 : 12000, 'Waiting for the task to open');
+      const got = await waitFor(() => (intakeMarker() && findButton('Yes') ? 'intake' : wizardButton()), i ? 5000 : 12000, 'Waiting for the task to open');
       if (got === 'stopped') return null;
       if (got !== 'intake') break;
+      const q = knownIntake();
+      if (!q) {
+        log('  Unknown intake question, not answering: "' + (intakeText() || '?') + '". Add it to CONFIG.intake if Yes is the right answer.', 'warn');
+        clickButton('Cancel');
+        return false;
+      }
       clickButton('Yes'); yes++;
-      log('  Clicked Yes (question ' + yes + ')', 'ok');
+      log('  Clicked Yes: ' + q, 'ok');
       await sleep(1500);
     }
     if (!yes) { log('  No intake question found, skipping. ' + where(), 'warn'); return false; }
@@ -434,7 +450,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.2'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.2.0'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };

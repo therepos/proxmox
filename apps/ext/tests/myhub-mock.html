@@ -1,0 +1,189 @@
+<!doctype html><html><head><meta charset="utf-8"><title>MyHub</title>
+<style>
+body { font-family: sans-serif; margin: 0; display: flex; } #side { width: 180px; background: #2e2e5e; color: #fff; padding: 16px; min-height: 100vh; }
+#side div { margin: 8px 0; } #app { flex: 1; padding: 16px; }
+.row { display: flex; gap: 24px; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
+#wizard { display: flex; gap: 24px; } #steps { width: 220px; border-right: 1px solid #ddd; } #steps .step { padding: 8px 0; border-bottom: 1px solid #eee; }
+#steps .desc { font-size: 12px; color: #555; } #content { flex: 1; } .foot { border-top: 1px solid #ddd; padding-top: 12px; margin-top: 24px; }
+.ms-ComboBox { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; } ul[role=listbox] { border: 1px solid #999; list-style: none; padding: 4px; margin: 0; width: 100%; background: #fff; }
+li[role=option] { padding: 2px 4px; cursor: pointer; } label { display: block; } table { border-collapse: collapse; } td, th { padding: 4px 12px; text-align: left; }
+</style></head><body>
+<div id="side"><div>MyHub</div><div>Service requests</div><div>Tasks and to-dos</div><div>Spaces</div><div>Quick links</div><div>Personal settings</div></div>
+<div id="app"></div>
+<script>
+(() => {
+  const fast = /fast=1/.test(location.search);
+  const LEVELS = [['Americas', 'Asia-Pacific', 'EMEIA'], ['ASEAN', 'Greater China', 'Oceania'], ['Singapore', 'Malaysia', 'Thailand'],
+    ['Assurance', 'Consulting', 'Tax'], ['Business Consulting', 'Risk Consulting', 'Technology Consulting']];
+  const ALL = [
+    { id: 1, name: 'Team Alpha 2024', type: 'Renew Microsoft Team', intake: true, secondary: true },
+    { id: 2, name: 'Team Beta: Interim Testing', type: 'Renew Microsoft Team', intake: true, secondary: false },
+    { id: 3, name: 'Team Gamma 2024', type: 'Renew Microsoft Team', intake: false },
+    { id: 4, name: 'Mystery Team', type: 'Confirm Details', intake: 'unknown' },
+  ];
+  const tasks = fast ? ALL.filter((t) => t.id === 3) : ALL.slice();
+  const M = window.__mock = { tasks, submissions: [], events: [], visited: [] };
+  const app = document.getElementById('app');
+  const h = (html) => { app.innerHTML = html; };
+  const delay = (fn, ms) => { h('<p>Loading...</p>'); setTimeout(fn, ms); };
+  const goTodos = () => { if (location.hash === '#/v2/todos') route(); else location.hash = '#/v2/todos'; };
+  let wiz = null;
+
+  const STEP_NAMES = ['Workspace Owners', 'Membership', 'SharePoint permissions', 'Site admin', 'Sharing Links', 'Business Context'];
+  const DESC = ['Confirm whether the current Primary and Secondary Workspace Owners are still correct. If necessary, you can assign the Workspace Owner role to others.',
+    'Review the workspace membership. If necessary, you can update the membership.',
+    'Review the unique SharePoint permissions for the following users and groups. If necessary, you can update the permissions.',
+    'Review the site collection administrators.', 'Review the links shared from this workspace.', 'Confirm the business context of the workspace.'];
+  const PAGES = ['owners', 'members', 'spusers', 'spgroups', 'siteadmin', 'sharing', 'bc'];
+  const STEP_OF = { owners: 1, members: 2, spusers: 3, spgroups: 3, siteadmin: 4, sharing: 5, bc: 6 };
+
+  function renderTodos() {
+    delay(() => {
+      h('<h2>Tasks and to-dos</h2>' + (tasks.length ? tasks.map((t) => '<div class="row"><b>' + t.name + '</b><span>' + t.type
+        + '</span><span>Expired</span><span>Due on 01/01/2026</span><button data-id="' + t.id + '">▶ Start task</button></div>').join('') : '<p>No tasks</p>'));
+      app.querySelectorAll('button[data-id]').forEach((b) => { b.onclick = () => { location.hash = '#/task/' + b.dataset.id; }; });
+    }, 800);
+  }
+
+  function renderTask(id) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) { goTodos(); return; }
+    wiz = { task: t, page: '', bc: { dropdowns: [] } };
+    if (!t.intake) {
+      delay(() => { h('<h2>' + t.name + '</h2><p>This task has expired and can no longer be renewed.</p><button id="close">Close</button>');
+        document.getElementById('close').onclick = goTodos; }, 600);
+      return;
+    }
+    if (t.intake === 'unknown') {
+      // A question the script has never seen: it must skip, never answer Yes.
+      delay(() => {
+        h('<h2>' + t.name + '</h2><h3>Confirm details</h3><p><b>Required intake question</b></p><p>Does this team store client data?</p><p>Click "Yes" if it does.</p>'
+          + '<button id="cancel">Cancel</button> <button id="no">No</button> <button id="yes">Yes</button>');
+        document.getElementById('yes').onclick = () => { M.events.push('yes-on-unknown-question'); renderPage('owners'); };
+        document.getElementById('no').onclick = goTodos;
+        document.getElementById('cancel').onclick = goTodos;
+      }, 600);
+      return;
+    }
+    delay(() => {
+      h('<h2>' + t.name + '</h2><p>As a Workspace Owner, YOU are accountable to make sure the content you share is compliant with EY policy.</p>'
+        + '<h3>Renew team</h3><p>Please review the following and complete the required intake questions below.</p>'
+        + '<p>Primary Workspace Owner: Alice</p><p>Secondary Workspace Owner: Bob</p>'
+        + '<p><b>Required intake question</b></p><p>Do you still need this team?</p><p>Click "Yes" to keep this workspace, "No" to delete it.</p>'
+        + '<button id="cancel">Cancel</button> <button id="no">No</button> <button id="yes">Yes</button>');
+      document.getElementById('yes').onclick = () => renderPage('owners');
+      document.getElementById('no').onclick = goTodos;
+      document.getElementById('cancel').onclick = goTodos;
+    }, 600);
+  }
+
+  function nav(page) {
+    const active = STEP_OF[page];
+    return '<div id="steps"><div>Renewal in progress</div><div>' + wiz.task.name + '</div><div><a href="#">Delete this team</a></div>'
+      + STEP_NAMES.map((n, i) => {
+        const num = i + 1;
+        let x = '<div class="step"><div>' + (num < active ? '✓ ' : num + ' ') + n + '</div>';
+        if (num === active) x += '<div class="desc">' + DESC[i] + '</div>';
+        if (num === 3 && active === 3) x += '<div>Users with direct access ' + (page === 'spusers' ? '→' : '✓') + '</div><div>Group ' + (page === 'spgroups' ? '→' : '') + '</div>';
+        return x + '</div>';
+      }).join('') + '</div>';
+  }
+  const foot = (last) => '<div class="foot"><button id="cancel">Cancel</button> <button id="back">Back</button> <button id="' + (last ? 'submit' : 'continue') + '">' + (last ? 'Submit' : 'Continue') + '</button></div>';
+  const guide = '<a href="#" class="hg">Hide guidance</a>';
+  const SP_TEXT = '<p>Permissions last updated: 10/6/2026 04:06:46</p><p>The SharePoint permissions listed here apply to the SharePoint site and files, these permissions are distinct from any M365 Group permissions. '
+    + 'SharePoint permissions can be granted directly to Users or applied through Groups (SharePoint groups, Entra ID groups, or M365 Groups).</p><p><button>Reset all</button></p>';
+
+  function body(page) {
+    const t = wiz.task;
+    if (page === 'owners') return '<h2>Workspace Owners renewal</h2>' + guide + '<p>You have indicated that you are responsible for this workspace. Each workspace requires a primary and secondary Workspace Owner that will be responsible for governance tasks related to this workspace. Confirm or change the Workspace Owners below.</p>'
+      + '<p>Review and confirm that the business context of the workspace remains accurate.</p><p><button>Reset all</button></p>'
+      + '<p>Primary Workspace Owner: Alice <button>Change Workspace Owners</button></p>'
+      + (t.secondary ? '<p>Secondary Workspace Owner: Bob <button>Change Workspace Owners</button></p>' : '<p>Add the Secondary Workspace Owner to proceed</p>') + foot();
+    if (page === 'members') return '<h2>Membership renewal</h2>' + guide + '<p>Important note: The membership of Loop workspaces created from this team\'s channel is dynamically synchronized with the team\'s membership.</p>'
+      + '<p>The Membership listed here has been granted via the M365 Group. You must review all Internal and External users. Users with Owner permission should be the Workspace Owners and their designated admins.</p>'
+      + '<input placeholder="Search..."> <button>Add</button> <button>Reset all</button><p id="load">Loading members (0 of 60)</p><p>Important note: There must be at least 2 active owners in this group.</p>' + foot();
+    if (page === 'spusers') return '<h2>SharePoint permissions (users with direct access)</h2>' + guide + SP_TEXT
+      + '<table><tr><th>Name</th><th>Site permissions</th></tr><tr><td>Carol Ng</td><td>No permissions</td></tr></table><p>Site collection administrators and default Members groups cannot be removed from site collections.</p>' + foot();
+    if (page === 'spgroups') return '<h2>SharePoint permissions (groups)</h2>' + guide + SP_TEXT
+      + '<table><tr><th>Name</th><th>Explicit permission</th></tr><tr><td>S3 Members</td><td>Edit</td></tr><tr><td>S3 Owners</td><td>Full Control</td></tr></table><p id="chk"></p>' + foot();
+    if (page === 'siteadmin') return '<h2>Site admin renewal</h2>' + guide + '<p>Review the site collection administrators of this SharePoint site.</p>' + foot();
+    if (page === 'sharing') return '<h2>Sharing Links renewal</h2>' + guide + '<p>Review the anonymous and company-wide links shared from this site.</p>' + foot();
+    return '<h2>Business Context</h2>' + guide + '<div id="combos"></div><fieldset><legend>Purpose</legend>' + radios('purpose', ['Work Collaboration', 'Project Delivery', 'Social'])
+      + '</fieldset><fieldset><legend>Content</legend>' + checks(['EY Business Data/Information', 'Client Data/Information', 'Client Owned Records', 'Personal Data'])
+      + '</fieldset><fieldset><legend>Classification</legend>' + radios('classification', ['EY Public', 'EY Confidential C3', 'EY Highly Confidential C4'])
+      + '</fieldset><p id="err" style="color:red"></p>' + foot(true);
+  }
+
+  function renderPage(page) {
+    wiz.page = page;
+    delay(() => {
+      M.visited.push(page);
+      h('<div id="wizard">' + nav(page) + '<div id="content">' + body(page) + '</div></div>');
+      const next = PAGES[PAGES.indexOf(page) + 1];
+      document.getElementById('cancel').onclick = goTodos;
+      document.getElementById('back').onclick = () => { M.events.push('back'); renderPage(PAGES[Math.max(0, PAGES.indexOf(page) - 1)]); };
+      const c = document.getElementById('continue');
+      if (page === 'owners') c.onclick = () => { if (!wiz.task.secondary) M.events.push('continue-without-secondary:' + wiz.task.name); renderPage(next); };
+      else if (page === 'members') {
+        // Continue is disabled while the member list loads; the text changes on every tick.
+        c.disabled = true; c.setAttribute('aria-disabled', 'true');
+        let k = 0;
+        const tick = setInterval(() => {
+          const l = document.getElementById('load'); if (!l) { clearInterval(tick); return; }
+          k += 15; l.textContent = k >= 60 ? '60 members loaded' : 'Loading members (' + k + ' of 60)';
+          if (k >= 60) { clearInterval(tick); c.disabled = false; c.removeAttribute('aria-disabled'); }
+        }, 900);
+        c.onclick = () => renderPage(next);
+      } else if (page === 'spgroups') {
+        // Continue is enabled but the first two clicks are ignored while a check runs; the text toggles each time.
+        let ignored = 0;
+        c.onclick = () => { if (ignored < 2) { ignored++; M.events.push('sp-ignored'); document.getElementById('chk').textContent = 'Checking permissions... attempt ' + ignored; return; } renderPage(next); };
+      } else if (page === 'bc') { addCombo(0); document.getElementById('submit').onclick = submitBC; }
+      else c.onclick = () => renderPage(next);
+    }, 600);
+  }
+
+  const radios = (name, vals) => vals.map((v) => '<label><input type="radio" name="' + name + '" value="' + v + '"> ' + v + '</label>').join('');
+  const checks = (vals) => vals.map((v) => '<label><input type="checkbox" name="ct:' + v + '" value="' + v + '"> ' + v + '</label>').join('');
+  function addCombo(i) {
+    if (i >= LEVELS.length) return;
+    const wrap = document.createElement('div'); wrap.className = 'ms-ComboBox';
+    wrap.innerHTML = '<input role="combobox" readonly placeholder="Select"><button type="button" aria-label="Open">▼</button>';
+    document.getElementById('combos').append(wrap);
+    const input = wrap.querySelector('input'), btn = wrap.querySelector('button');
+    let list = null;
+    const close = () => { if (list) { list.remove(); list = null; } };
+    btn.onclick = () => {
+      if (list) { close(); return; }
+      list = document.createElement('ul'); list.setAttribute('role', 'listbox');
+      LEVELS[i].forEach((v) => {
+        const li = document.createElement('li'); li.setAttribute('role', 'option'); li.textContent = v;
+        li.onclick = () => { const first = !input.value; input.value = v; wiz.bc.dropdowns[i] = v; close(); if (first) setTimeout(() => addCombo(i + 1), 300); };
+        list.append(li);
+      });
+      wrap.append(list);
+    };
+    document.addEventListener('click', (e) => { if (list && !wrap.contains(e.target)) close(); }, true);
+  }
+  function submitBC() {
+    const bc = wiz.bc;
+    bc.purpose = (document.querySelector('input[name=purpose]:checked') || {}).value || '';
+    bc.contentTypes = [...document.querySelectorAll('input[type=checkbox]:checked')].map((c) => c.value);
+    bc.classification = (document.querySelector('input[name=classification]:checked') || {}).value || '';
+    if (bc.dropdowns.filter(Boolean).length < LEVELS.length || !bc.purpose || !bc.contentTypes.length || !bc.classification) {
+      document.getElementById('err').textContent = 'Please complete all fields'; M.events.push('submit-rejected'); return;
+    }
+    M.submissions.push(Object.assign({ task: wiz.task.name }, bc));
+    tasks.splice(tasks.indexOf(wiz.task), 1);
+    h('<h2>Submitted</h2><p>Thank you.</p>');
+    setTimeout(goTodos, 500);
+  }
+
+  function route() {
+    const m = (location.hash || '').match(/^#\/task\/(\d+)/);
+    if (m) renderTask(Number(m[1])); else renderTodos();
+  }
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script></body></html>

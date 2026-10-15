@@ -1,0 +1,80 @@
+<!doctype html><html><head><meta charset="utf-8"><title>mock</title>
+<style>
+.hiddentab { display: none; } .sapMListTblNone { display: none; } .red { background: #f08080; }
+.k-icon::before { content: "\2191"; }
+</style></head><body>
+
+<!-- 1. Kendo-style engagement grid, header and body in separate tables -->
+<div class="k-grid" role="grid" id="eng">
+  <div class="k-grid-header"><table role="presentation"><thead><tr role="row">
+    <th role="columnheader"><span class="k-column-title">Client ID</span></th>
+    <th role="columnheader" aria-sort="ascending"><a class="k-link" href="#"><span class="k-column-title">Engagement ID</span><span class="k-icon k-i-sort-asc-small"></span><span class="k-sort-order">2</span></a></th>
+    <th role="columnheader"><span class="k-column-title">Client Name</span></th>
+    <th role="columnheader"><span class="k-column-title">Engagement Name</span></th>
+    <th role="columnheader"><span class="k-column-title">Items Missing</span></th>
+    <th role="columnheader"><span class="k-column-title">Days Since Engagement is Actionable</span></th>
+    <th role="columnheader"><span class="k-column-title">Actions</span></th>
+  </tr></thead></table></div>
+  <div class="k-grid-content"><table role="presentation"><tbody>
+    <tr role="row" class="k-grouping-row"><td colspan="7">Overdue</td></tr>
+    <tr role="row" class="red" data-uid="u1"><td role="gridcell"></td><td role="gridcell"><a href="#">70240119</a></td><td role="gridcell">ACME HOLDINGS PTE. LTD.</td><td role="gridcell">Acme FY26 Secondment</td><td role="gridcell">SOW Posted, MSA/GFA not linked</td><td role="gridcell"></td><td role="gridcell"><button type="button" aria-label="More">•••</button></td></tr>
+    <tr role="row" data-uid="u2"><td role="gridcell">C-2</td><td role="gridcell"><a href="#">70240120</a></td><td role="gridcell">ACME, PTE. LTD.</td><td role="gridcell">ACME FY26 Audit</td><td role="gridcell">GFA not linked</td><td role="gridcell">12</td><td role="gridcell"><button type="button">•••</button></td></tr>
+  </tbody></table></div>
+</div>
+
+<!-- 2. sap.m.Table resourcing table with highlight/select columns, a button column, a popin and totals -->
+<div class="sapMList"><table class="sapMListTbl" id="resourcingTbl-listUl" role="grid">
+  <thead><tr class="sapMListTblHeader" role="row">
+    <th class="sapMListTblHighlightCol" aria-hidden="true"></th>
+    <th class="sapMListTblSelCol"><input type="checkbox"></th>
+    <th class="sapMListTblHeaderCell" data-sap-ui-column="__column1"><div class="sapMLabel"><span class="sapMLabelTextWrapper"><bdi>Name</bdi></span></div></th>
+    <th class="sapMListTblHeaderCell" data-sap-ui-column="__column2"><div class="sapMLabel"><span class="sapMLabelTextWrapper"><bdi>Planned</bdi></span></div><div class="sapMLabel"><span class="sapMLabelTextWrapper"><bdi>Hours</bdi></span></div></th>
+    <th class="sapMListTblHeaderCell sapMListTblNone" data-sap-ui-column="__column3"><div class="sapMLabel"><span class="sapMLabelTextWrapper"><bdi>Role</bdi></span></div></th>
+    <th class="sapMListTblHeaderCell" data-sap-ui-column="__column9"><div class="sapMLabel sapMLabelNoText"><span class="sapMLabelTextWrapper"><bdi></bdi></span></div></th>
+    <th class="sapMListTblDummyCell"></th>
+  </tr></thead>
+  <tbody class="sapMTableTBody">
+    <tr class="sapMListTblRow" role="row"><td class="sapMListTblHighlightCell"></td><td class="sapMListTblSelCol"><input type="checkbox"></td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column1"><span class="sapUiInvisibleText">Row 1</span>Alice Tan</td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column2"><input class="sapMInputBaseInner" value="40"></td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column9"><button class="sapMBtn" title="Delete"><span class="sapUiIcon" data-sap-ui-icon-content="&#xe03d;"></span></button></td>
+      <td class="sapMListTblDummyCell"></td></tr>
+    <tr class="sapMListTblSubRow"><td class="sapMListTblSubRowCell" colspan="6"><div class="sapMListTblSubCnt"><div class="sapMListTblSubCntRow"><div class="sapMListTblSubCntHdr">Role</div><div class="sapMListTblSubCntSpr">:</div><div class="sapMListTblSubCntVal">Senior</div></div></div></td></tr>
+    <tr class="sapMListTblRow" role="row"><td class="sapMListTblHighlightCell"></td><td class="sapMListTblSelCol"><input type="checkbox"></td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column1">Bob Lim</td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column2"><input class="sapMInputBaseInner" value="12.5"></td>
+      <td class="sapMListTblCell" data-sap-ui-column="__column9"><button class="sapMBtn"><span class="sapUiIcon"></span></button></td>
+      <td class="sapMListTblDummyCell"></td></tr>
+    <tr class="sapMListTblSubRow"><td class="sapMListTblSubRowCell" colspan="6"><div class="sapMListTblSubCnt"><div class="sapMListTblSubCntRow"><div class="sapMListTblSubCntHdr">Role</div><div class="sapMListTblSubCntSpr">:</div><div class="sapMListTblSubCntVal">Manager</div></div></div></td></tr>
+    <tr class="sapMListTblRow sapMGHLI" role="row"><td class="sapMListTblCell" colspan="6">Group header</td></tr>
+  </tbody>
+  <tfoot><tr class="sapMListTblFooter"><td class="sapMListTblHighlightCell"></td><td class="sapMListTblSelCol"></td>
+    <td class="sapMListTblFooterCell" data-sap-ui-column="__column1">Total</td>
+    <td class="sapMListTblFooterCell" data-sap-ui-column="__column2">52.5</td>
+    <td class="sapMListTblFooterCell" data-sap-ui-column="__column9"></td>
+    <td class="sapMListTblDummyCell"></td></tr></tfoot>
+</table></div>
+
+<!-- 3. sap.ui.table-like grid split into fixed and scrolling halves, merged on data-sap-ui-rowindex -->
+<div class="sapUiTable" role="grid" id="grid3">
+  <div class="fixed"><table><thead><tr role="row"><td role="columnheader"><span class="sapUiTableColText">ID</span></td></tr></thead>
+    <tbody><tr role="row" data-sap-ui-rowindex="0"><td role="rowheader"></td><td role="gridcell">1</td></tr>
+           <tr role="row" data-sap-ui-rowindex="1"><td role="rowheader"></td><td role="gridcell">2</td></tr>
+           <tr role="row" data-sap-ui-rowindex="2"><td role="rowheader"></td><td role="gridcell"></td></tr></tbody></table></div>
+  <div class="scroll"><table><thead><tr role="row"><td role="columnheader"><span class="sapUiTableColText">Client</span></td><td role="columnheader"><span class="sapUiTableColText">Status</span></td></tr></thead>
+    <tbody><tr role="row" data-sap-ui-rowindex="0"><td role="gridcell">Client A</td><td role="gridcell">Open</td></tr>
+           <tr role="row" data-sap-ui-rowindex="1"><td role="gridcell">Client B</td><td role="gridcell">Closed</td></tr>
+           <tr role="row" data-sap-ui-rowindex="2"><td role="gridcell"></td><td role="gridcell"></td></tr></tbody></table></div>
+</div>
+
+<!-- 4. plain table with a text sort marker, a checkbox column and a tfoot -->
+<table id="plain"><thead><tr><th><input type="checkbox"></th><th>↑2 Engagement ID</th><th>Client</th><th>Hours ↓</th><th></th></tr></thead>
+  <tbody><tr><td><input type="checkbox"></td><td>1001</td><td>Zeta "Z" Ltd</td><td>8</td><td><span class="material-icons">more_vert</span></td></tr>
+         <tr><td><input type="checkbox" checked></td><td>1002</td><td>Omega Ltd</td><td>4</td><td><i class="fa fa-ellipsis-h"></i></td></tr>
+         <tr><td colspan="5">No more rows</td></tr></tbody>
+  <tfoot><tr><td></td><td>Total</td><td></td><td>12</td><td></td></tr></tfoot></table>
+
+<!-- 5. hidden tab must be skipped -->
+<div class="hiddentab"><table id="hidden"><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr><tr><td>5</td><td>6</td></tr></tbody></table></div>
+
+</body></html>
