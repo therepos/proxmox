@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.1.1
+// @version      3.1.2
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -84,7 +84,20 @@
   const isDisabled = (b) => !b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('is-disabled');
   const TASK_MS = 8 * 60000, DISABLED_MS = 90000, SAME_MS = 90000;
   const pageHas = (text) => document.body.innerText.includes(text);   // panel lives outside body
-  const snapshot = () => document.body.innerText;
+  // The wizard's left column names every step on every page, so page checks ignore that step list:
+  // pageText() returns the body text and the text of the smallest element that lists all six steps.
+  const STEPS = ['Workspace Owners', 'Membership', 'SharePoint permissions', 'Site admin', 'Sharing Links', 'Business Context'];
+  const listsSteps = (el) => { const t = el.innerText || ''; return STEPS.every((s) => t.includes(s)); };
+  function pageText() {
+    const body = document.body.innerText || '';
+    let nav = listsSteps(document.body) ? document.body : null;
+    while (nav) { const next = [...nav.children].find((c) => c.getClientRects().length && listsSteps(c)); if (!next) break; nav = next; }
+    const t = nav && nav !== document.body ? nav.innerText || '' : '';
+    return { body, nav: t && body.includes(t) ? t : '' };
+  }
+  const mainText = () => { const p = pageText(); return p.nav ? p.body.replace(p.nav, '') : p.body; };
+  const mainHas = (text) => mainText().includes(text);
+  const snapshot = () => mainText();
 
   function clickButton(text) {
     const b = findButton(text);
@@ -103,9 +116,14 @@
 
   // What is on screen, for the log when a step does not look as expected.
   const buttonTexts = () => [...new Set(buttons().map((b) => cleanText(b.innerText)).filter(Boolean))].slice(0, 10).join(' | ') || 'none';
+  // Title of the current wizard page: the first line after the step list, else the first heading on the page.
   function headline() {
+    const p = pageText();
+    const after = p.nav ? p.body.slice(p.body.indexOf(p.nav) + p.nav.length).split('\n').map(cleanText) : [];
+    const first = after.find((l) => l && !/guidance$/i.test(l));
+    if (first) return first.slice(0, 80);
     const h = [...document.querySelectorAll('h1, h2, h3, [role="heading"]')].find((x) => visible(x) && !inPanel(x));
-    return cleanText(h ? h.innerText : document.body.innerText.slice(0, 100)).slice(0, 80);
+    return cleanText(h ? h.innerText : p.body.slice(0, 100)).slice(0, 80);
   }
   function alerts() {
     const els = [...document.querySelectorAll('[role="alert"], .ms-MessageBar, [class*="error" i]')].filter((e) => visible(e) && !inPanel(e));
@@ -201,15 +219,19 @@
 
   /* ================= one task ================= */
 
+  // Most specific phrases first; all checks are on the content column, not the step list.
   function stepLabel(step) {
-    if (pageHas('Workspace Owners') && (pageHas('Confirm or change') || pageHas('governance tasks'))) return 'Workspace Owners';
-    if (pageHas('Membership renewal') || (pageHas('Membership') && pageHas('M365'))) return 'Membership';
-    if (pageHas('users with direct access')) return 'SharePoint (users)';
-    if (pageHas('SharePoint permissions') && pageHas('groups')) return 'SharePoint (groups)';
-    if (pageHas('Site admin')) return 'Site admin';
-    if (pageHas('Sharing Links')) return 'Sharing Links';
-    if (pageHas('Business Context')) return 'Business Context';
-    return 'Step ' + (step + 1);
+    if (mainHas('Membership renewal')) return 'Membership';
+    if (mainHas('users with direct access')) return 'SharePoint (users)';
+    if (mainHas('SharePoint permissions (groups)')) return 'SharePoint (groups)';
+    if (mainHas('Workspace Owners renewal') || mainHas('Change Workspace Owners') || mainHas('Confirm or change')) return 'Workspace Owners';
+    if (mainHas('Site admin')) return 'Site admin';
+    if (mainHas('Sharing Links')) return 'Sharing Links';
+    if (mainHas('Business Context')) return 'Business Context';
+    if (mainHas('SharePoint permissions')) return 'SharePoint';
+    if (mainHas('Workspace Owners')) return 'Workspace Owners';
+    if (mainHas('Membership')) return 'Membership';
+    return headline() || 'Step ' + (step + 1);
   }
 
   const hasIntake = () => pageHas('Do you still need this team') || pageHas('Are you responsible for this team') || pageHas('Required intake question');
@@ -257,7 +279,7 @@
         return true;
       }
 
-      if (pageHas('Workspace Owners') && pageHas('Primary Workspace Owner') && !secondaryOwnerOk()) {
+      if (stepLabel(steps) === 'Workspace Owners' && !secondaryOwnerOk()) {
         log('  Secondary owner missing, skipping task.', 'warn');
         clickButton('Cancel');
         return false;
@@ -412,7 +434,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.1'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.2'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };
