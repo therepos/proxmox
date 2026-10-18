@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.1.0
+// @version      3.2.0
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -22,11 +22,13 @@
  *   3. Start. Stop ends after the current step. Keep the tab open and in the foreground.
  *
  * Notes
- *   Business Context answers are in CONFIG below. Edit there.
+ *   Business Context answers and the intake questions it may answer Yes to are in CONFIG below.
+ *   An unknown intake question is logged with its wording and the task is skipped, never answered.
  *   Run state is kept in localStorage so a page reload resumes the run.
  *   The panel shows the current step while it waits. A skipped task logs what was on the page
  *   (heading and buttons) so the reason is visible.
- *   A task is skipped when it has no intake question, no Continue or Submit, or no secondary owner.
+ *   A task is skipped when it has no or an unknown intake question, no Continue or Submit, no secondary owner,
+ *   or when a wizard page stays put for 90 seconds. Continue is retried while a page loads.
  *   Source: ext-myhub.zip (content.js + popup.js), popup replaced by an in-page panel.
  */
 
@@ -39,6 +41,8 @@
     purpose: 'Work Collaboration',
     contentTypes: ['EY Business Data/Information', 'Client Data/Information', 'Client Owned Records'],
     classification: 'EY Confidential C3',
+    // Intake questions the script may answer Yes to. Any other question is logged and the task skipped.
+    intake: ['Do you still need this team', 'Are you responsible for this team'],
     todos: '/v2/todos',
   };
 
@@ -59,6 +63,18 @@
     notify();
   }
   const setStatus = (patch) => { save(patch); notify(); };
+  // One line per wizard page: repeated Continue clicks on the same page update the count in place.
+  function logStep(label, n) {
+    const prefix = '  ' + label + ' -> Continue';
+    const msg = prefix + (n > 1 ? ' (x' + n + ')' : '');
+    const logs = (load().logs || []).slice(-150);
+    const last = logs[logs.length - 1];
+    if (n > 1 && last && last.msg.startsWith(prefix)) logs[logs.length - 1] = { msg, cls: 'ok', ts: Date.now() };
+    else logs.push({ msg, cls: 'ok', ts: Date.now() });
+    save({ logs });
+    console.log('[MyHub Auto] ' + msg);
+    notify();
+  }
   const phase = (text) => setStatus({ phase: text });
 
   /* ================= page helpers ================= */
@@ -67,9 +83,24 @@
   const inPanel = (el) => !!el.closest('#mh-panel');
   const visible = (el) => !!el && el.offsetParent !== null;
   const buttons = () => [...document.querySelectorAll('button')].filter((b) => visible(b) && !inPanel(b));
-  const findButton = (text) => buttons().find((b) => b.innerText.includes(text)) || null;
+  const findButton = (text) => { const all = buttons(); return all.find((b) => cleanText(b.innerText) === text) || all.find((b) => b.innerText.includes(text)) || null; };
+  const isDisabled = (b) => !b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('is-disabled');
+  const TASK_MS = 8 * 60000, DISABLED_MS = 90000, SAME_MS = 90000;
   const pageHas = (text) => document.body.innerText.includes(text);   // panel lives outside body
-  const snapshot = () => document.body.innerText;
+  // The wizard's left column names every step on every page, so page checks ignore that step list:
+  // pageText() returns the body text and the text of the smallest element that lists all six steps.
+  const STEPS = ['Workspace Owners', 'Membership', 'SharePoint permissions', 'Site admin', 'Sharing Links', 'Business Context'];
+  const listsSteps = (el) => { const t = el.innerText || ''; return STEPS.every((s) => t.includes(s)); };
+  function pageText() {
+    const body = document.body.innerText || '';
+    let nav = listsSteps(document.body) ? document.body : null;
+    while (nav) { const next = [...nav.children].find((c) => c.getClientRects().length && listsSteps(c)); if (!next) break; nav = next; }
+    const t = nav && nav !== document.body ? nav.innerText || '' : '';
+    return { body, nav: t && body.includes(t) ? t : '' };
+  }
+  const mainText = () => { const p = pageText(); return p.nav ? p.body.replace(p.nav, '') : p.body; };
+  const mainHas = (text) => mainText().includes(text);
+  const snapshot = () => mainText();
 
   function clickButton(text) {
     const b = findButton(text);
@@ -88,11 +119,20 @@
 
   // What is on screen, for the log when a step does not look as expected.
   const buttonTexts = () => [...new Set(buttons().map((b) => cleanText(b.innerText)).filter(Boolean))].slice(0, 10).join(' | ') || 'none';
+  // Title of the current wizard page: the first line after the step list, else the first heading on the page.
   function headline() {
+    const p = pageText();
+    const after = p.nav ? p.body.slice(p.body.indexOf(p.nav) + p.nav.length).split('\n').map(cleanText) : [];
+    const first = after.find((l) => l && !/guidance$/i.test(l));
+    if (first) return first.slice(0, 80);
     const h = [...document.querySelectorAll('h1, h2, h3, [role="heading"]')].find((x) => visible(x) && !inPanel(x));
-    return cleanText(h ? h.innerText : document.body.innerText.slice(0, 100)).slice(0, 80);
+    return cleanText(h ? h.innerText : p.body.slice(0, 100)).slice(0, 80);
   }
-  const where = () => 'Page "' + headline() + '", buttons: ' + buttonTexts();
+  function alerts() {
+    const els = [...document.querySelectorAll('[role="alert"], .ms-MessageBar, [class*="error" i]')].filter((e) => visible(e) && !inPanel(e));
+    return cleanText(els.map((e) => e.innerText).join(' | ')).slice(0, 160);
+  }
+  const where = () => { const a = alerts(); return 'Page "' + headline() + '", buttons: ' + buttonTexts() + (a ? ', message: ' + a : ''); };
 
   function taskInfo(btn) {
     let el = btn.parentElement;
@@ -182,18 +222,29 @@
 
   /* ================= one task ================= */
 
+  // Most specific phrases first; all checks are on the content column, not the step list.
   function stepLabel(step) {
-    if (pageHas('Workspace Owners') && (pageHas('Confirm or change') || pageHas('governance tasks'))) return 'Workspace Owners';
-    if (pageHas('Membership renewal') || (pageHas('Membership') && pageHas('M365'))) return 'Membership';
-    if (pageHas('users with direct access')) return 'SharePoint (users)';
-    if (pageHas('SharePoint permissions') && pageHas('groups')) return 'SharePoint (groups)';
-    if (pageHas('Site admin')) return 'Site admin';
-    if (pageHas('Sharing Links')) return 'Sharing Links';
-    if (pageHas('Business Context')) return 'Business Context';
-    return 'Step ' + (step + 1);
+    if (mainHas('Membership renewal')) return 'Membership';
+    if (mainHas('users with direct access')) return 'SharePoint (users)';
+    if (mainHas('SharePoint permissions (groups)')) return 'SharePoint (groups)';
+    if (mainHas('Workspace Owners renewal') || mainHas('Change Workspace Owners') || mainHas('Confirm or change')) return 'Workspace Owners';
+    if (mainHas('Site admin')) return 'Site admin';
+    if (mainHas('Sharing Links')) return 'Sharing Links';
+    if (mainHas('Business Context')) return 'Business Context';
+    if (mainHas('SharePoint permissions')) return 'SharePoint';
+    if (mainHas('Workspace Owners')) return 'Workspace Owners';
+    if (mainHas('Membership')) return 'Membership';
+    return headline() || 'Step ' + (step + 1);
   }
 
-  const hasIntake = () => pageHas('Do you still need this team') || pageHas('Are you responsible for this team') || pageHas('Required intake question');
+  const intakeMarker = () => pageHas('Required intake question') || CONFIG.intake.some((q) => pageHas(q));
+  const knownIntake = () => CONFIG.intake.find((q) => pageHas(q)) || '';
+  // The question shown under the "Required intake question" badge, for the log.
+  function intakeText() {
+    const lines = mainText().split('\n').map(cleanText).filter(Boolean);
+    const i = lines.findIndex((l) => /Required intake question/i.test(l));
+    return (i >= 0 ? lines.slice(i + 1, i + 3) : lines.filter((l) => /\?$/.test(l)).slice(0, 2)).join(' ').slice(0, 160);
+  }
   const wizardButton = () => (findButton('Submit') ? 'submit' : findButton('Continue') ? 'continue' : null);
 
   /* returns true = completed, false = skipped, null = stopped */
@@ -202,20 +253,29 @@
 
     let yes = 0;
     for (let i = 0; i < 3; i++) {
-      const got = await waitFor(() => (hasIntake() && findButton('Yes') ? 'intake' : wizardButton()), i ? 5000 : 12000, 'Waiting for the task to open');
+      const got = await waitFor(() => (intakeMarker() && findButton('Yes') ? 'intake' : wizardButton()), i ? 5000 : 12000, 'Waiting for the task to open');
       if (got === 'stopped') return null;
       if (got !== 'intake') break;
+      const q = knownIntake();
+      if (!q) {
+        log('  Unknown intake question, not answering: "' + (intakeText() || '?') + '". Add it to CONFIG.intake if Yes is the right answer.', 'warn');
+        clickButton('Cancel');
+        return false;
+      }
       clickButton('Yes'); yes++;
-      log('  Clicked Yes (question ' + yes + ')', 'ok');
+      log('  Clicked Yes: ' + q, 'ok');
       await sleep(1500);
     }
     if (!yes) { log('  No intake question found, skipping. ' + where(), 'warn'); return false; }
 
-    let stuck = 0;
-    for (let step = 0; step < 15; step++) {
-      const got = await waitFor(wizardButton, 15000, 'Waiting for wizard step ' + (step + 1));
+    // Steps are bounded by time, not by count: a page may need several Continue clicks while it loads.
+    const t0 = Date.now();
+    let label = '', clicks = 0, sameSince = 0, steps = 0;
+    for (;;) {
+      if (Date.now() - t0 > TASK_MS) { log('  Task is taking more than ' + Math.round(TASK_MS / 60000) + ' minutes, giving up. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+      const got = await waitFor(wizardButton, 15000, 'Waiting for wizard step ' + (steps + 1));
       if (got === 'stopped') return null;
-      if (!got) { log('  Step ' + (step + 1) + ': no Submit or Continue after 15s. ' + where(), 'fail'); return false; }
+      if (!got) { log('  Step ' + (steps + 1) + ': no Submit or Continue after 15s. ' + where(), 'fail'); return false; }
 
       if (got === 'submit') {
         if (pageHas('Business Context')) {
@@ -235,23 +295,32 @@
         return true;
       }
 
-      if (pageHas('Workspace Owners') && pageHas('Primary Workspace Owner') && !secondaryOwnerOk()) {
+      if (stepLabel(steps) === 'Workspace Owners' && !secondaryOwnerOk()) {
         log('  Secondary owner missing, skipping task.', 'warn');
         clickButton('Cancel');
         return false;
       }
-      const label = stepLabel(step);
+
+      const cur = stepLabel(steps);
+      if (isDisabled(findButton('Continue'))) {
+        const en = await waitFor(() => (findButton('Submit') ? 'submit' : !isDisabled(findButton('Continue')) ? 'enabled' : null),
+          DISABLED_MS, cur + ': Continue is disabled, waiting for the page to finish');
+        if (en === 'stopped') return null;
+        if (!en) { log('  ' + cur + ': Continue stayed disabled for ' + Math.round(DISABLED_MS / 1000) + 's. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+        if (en === 'submit') continue;
+      }
+      if (cur !== label) { label = cur; clicks = 0; sameSince = Date.now(); steps++; }
+      clicks++;
+      if (clicks > 1 && Date.now() - sameSince > SAME_MS) { log('  Still on ' + label + ' after ' + clicks + ' clicks. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+      if (steps > 40) { log('  More than 40 wizard steps, giving up. ' + where(), 'fail'); clickButton('Cancel'); return false; }
+
       const before = snapshot();
       clickButton('Continue');
-      log('  ' + label + ' -> Continue', 'ok');
+      logStep(label, clicks);
       const moved = await waitFor(() => (snapshot() !== before ? 'changed' : null), 8000, 'Waiting for the next step');
       if (moved === 'stopped') return null;
-      if (moved) { stuck = 0; continue; }
-      if (++stuck >= 2) { log('  Page did not change after Continue twice. ' + where(), 'fail'); clickButton('Cancel'); return false; }
-      log('  Page did not change after Continue, trying again.', 'warn');
+      await sleep(moved ? 500 : 1500);
     }
-    log('  Exceeded max steps.', 'fail');
-    return false;
   }
 
   /* ================= main loop ================= */
@@ -381,7 +450,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.1.0'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.2.0'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };
