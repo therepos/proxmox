@@ -742,8 +742,8 @@ ghb_setup() {
     repo="${repo#https://github.com/}"; repo="${repo%.git}"; repo="${repo%/}"
     [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "Enter it as owner/name, e.g. jane/backups."
 
-    read -p "  Folder inside the repo [hermes]: " dir </dev/tty
-    dir="${dir:-hermes}"; dir="${dir#/}"; dir="${dir%/}"
+    read -p "  Folder inside the repo [backup/hermes]: " dir </dev/tty
+    dir="${dir:-backup/hermes}"; dir="${dir#/}"; dir="${dir%/}"
     [[ "$dir" =~ ^[A-Za-z0-9_./-]+$ && "$dir" != *..* ]] || fail "Use letters, digits, - _ . and / only."
     if [[ "$dir" =~ ^(docs|static|public|src/pages)(/|$) ]]; then
         warn "Website builders (Docusaurus, MkDocs...) publish '${dir%%/*}/'."
