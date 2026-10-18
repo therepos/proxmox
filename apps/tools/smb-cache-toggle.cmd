@@ -1,9 +1,11 @@
 @echo off
 :: Purpose: Toggle Windows SMB client caching so mapped network drives refresh instantly
 :: Double-click to switch between "caching off" and Windows defaults. Asks for admin.
+:: Admin windows cannot see mapped drives, so it re-launches a copy from %TEMP%.
 
 net session >nul 2>&1 || (
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    copy /y "%~f0" "%TEMP%\smb-cache-toggle.cmd" >nul
+    powershell -NoProfile -Command "Start-Process -FilePath '%TEMP%\smb-cache-toggle.cmd' -Verb RunAs"
     exit /b
 )
 
