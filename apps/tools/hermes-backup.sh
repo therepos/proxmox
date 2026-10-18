@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# pct push 120 hermes-backup.sh /usr/local/bin/hermes-backup.sh --perms 755 && pct exec 120 -- hermes-backup.sh --install
+# pct exec 120 -- bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/tools/hermes-backup.sh?$(date +%s))" _ --install
 # Purpose: Nightly backup of Hermes skills, scripts, jobs, config and memories to a private GitHub repo (run inside the Hermes LXC)
 # =============================================================================
-# Usage (inside the Hermes LXC):
-#   hermes-backup.sh --install   install git/rsync/cron, schedule 03:30 daily, run once
+# Usage:
+#   line 2 above (on the PVE host; 120 is the Hermes CT)  install and run once
+#   hermes-backup.sh --install   same, from inside the Hermes LXC
 #   hermes-backup.sh             back up now (what the schedule runs)
 #
 # Needs a GitHub deploy key with write access at /root/.ssh/hermes_backup.
@@ -28,16 +29,23 @@ KEY=/root/.ssh/hermes_backup
 WORK=/root/hermes-backup-repo
 SELF=/usr/local/bin/hermes-backup.sh
 CRON=/etc/cron.d/hermes-backup
+RAW_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/hermes-backup.sh"
 
 # Tokens that must never reach the repo, even inside a skill or script.
 SECRET_RE='sk-ant-[A-Za-z0-9_-]{20,}|sk-or-v1-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|"refresh_token": *"1//|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
-install() {
+do_install() {
     [[ $EUID -eq 0 ]] || fail "Run as root."
     [[ -f "$KEY" ]] || fail "Deploy key $KEY not found."
-    info "Installing git, rsync and cron..."
-    apt-get install -y git rsync cron >/dev/null 2>&1 || fail "apt-get install failed."
-    [[ "$(realpath "$0")" == "$SELF" ]] || install -m 755 "$0" "$SELF"
+    info "Installing git, rsync, cron and curl..."
+    apt-get install -y git rsync cron curl >/dev/null 2>&1 || fail "apt-get install failed."
+    # Run via bash -c there is no file to copy, so fetch the script itself.
+    if [[ -f "$0" ]]; then
+        [[ "$(realpath "$0")" == "$SELF" ]] || install -m 755 "$0" "$SELF"
+    else
+        curl -fsSL "$RAW_URL" -o "$SELF.tmp" || fail "Could not download $RAW_URL"
+        chmod 755 "$SELF.tmp" && mv "$SELF.tmp" "$SELF"
+    fi
     echo "30 3 * * * root $SELF >>/var/log/hermes-backup.log 2>&1" >"$CRON"
     chmod 644 "$CRON"
     ok "Scheduled daily at 03:30 (log: /var/log/hermes-backup.log)."
@@ -90,7 +98,7 @@ backup() {
 }
 
 case "${1:-}" in
-    --install) install ;;
+    --install) do_install ;;
     "")        backup ;;
     *)         fail "Usage: $0 [--install]" ;;
 esac
