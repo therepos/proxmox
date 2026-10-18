@@ -71,6 +71,7 @@
 - [Webmin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/webmin-setup.sh) – Install webmin on PVE9.  
 
 ## Tools
+- [hermes-backup.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/hermes-backup.sh) – Nightly backup of Hermes skills, scripts, jobs, config and memories to a private GitHub repo (run inside the Hermes LXC).  
 - [llmfit.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/llmfit.sh) – Recommend local LLMs that fit this machine's GPU/RAM via llmfit (VM/LXC, no sudo).  
 - [pve-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/pve-report.sh) – Dump a full Proxmox VE configuration/health report to a text file (PVE host).  
 - [vm-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/vm-report.sh) – Dump a full guest (VM or LXC) configuration/health report to a text file (Debian/Ubuntu).  
