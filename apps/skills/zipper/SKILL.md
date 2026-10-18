@@ -1,5 +1,5 @@
 ---
-name: archive-extract
+name: zipper
 description: Extract archives the user transfers as a 7-Zip or zip file with the extension removed and password 123 (typical names look like log-YYYYMMDD-HHMM-xxx). Use this whenever an uploaded file has no extension or a wrong extension, whenever the user says "add .zip and extract", "password is 123", "this is a zip/7z", "unpack this", or when unzip fails on an upload. Do not ask what the file is; run the extractor first. Applies to any content (workpapers, reports, data, code, images), not only audit files.
 ---
 
@@ -17,11 +17,11 @@ password `123`. Some are zip. The user may call either one "a zip". `file` repor
    on claude.ai it also copies to `/mnt/user-data/outputs/<name>/`.
 
    ```bash
-   python3 .claude/skills/archive-extract/scripts/extract.py <uploaded-file>
+   python3 <skill-folder>/scripts/extract.py <uploaded-file>
    # optional: --password XXXX   --no-copy   --out DIR
    ```
 
-   Run it from the repo root, or use the absolute path of this skill folder.
+   `<skill-folder>` is the folder holding this SKILL.md, e.g. `~/.claude/skills/zipper`.
 
 2. Show the extracted files to the user (`present_files` on claude.ai, `SendUserFile`
    in Claude Code) and give a one-line summary: file count, folder names, file types,
