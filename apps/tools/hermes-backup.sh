@@ -11,7 +11,7 @@
 #
 # Settings come from /etc/hermes-backup.conf (written by hermes-setup.sh) or the environment:
 #   HERMES_BACKUP_REPO   git URL, e.g. git@github.com:owner/repo.git   (required)
-#   HERMES_BACKUP_DIR    folder inside the repo                         (default hermes)
+#   HERMES_BACKUP_DIR    folder inside the repo                         (default backup/hermes)
 #   HERMES_DATA          Hermes data folder                             (default /opt/hermes/data)
 # =============================================================================
 set -euo pipefail
@@ -26,7 +26,7 @@ CONF=/etc/hermes-backup.conf
 [[ -f "$CONF" ]] && . "$CONF"
 
 REPO_URL="${HERMES_BACKUP_REPO:-}"
-DEST="${HERMES_BACKUP_DIR:-hermes}"
+DEST="${HERMES_BACKUP_DIR:-backup/hermes}"
 SRC="${HERMES_DATA:-/opt/hermes/data}"
 KEY=/root/.ssh/hermes_backup
 WORK=/root/hermes-backup-repo
