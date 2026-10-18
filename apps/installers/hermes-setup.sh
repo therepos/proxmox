@@ -715,8 +715,17 @@ action_github_backup() {
     ghb_setup "$id"
 }
 
+# True when GitHub accepts the container's key for <repo>. Output in GHB_SSH_OUT.
+# Read access is enough to pass; a key added without write access fails at push.
+GHB_SSH_OUT=""
+ghb_key_works() {  # ghb_key_works <ctid> <owner/repo>
+    GHB_SSH_OUT=$(pct exec "$1" -- ssh -i "$GHB_KEY" -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com 2>&1 || true)
+    [[ "${GHB_SSH_OUT,,}" == *"hi ${2,,}!"* ]]
+}
+
 ghb_setup() {
-    local id="$1" repo dir c code pub out
+    local id="$1" repo dir c code pub
 
     hr
     echo "  Back up Hermes to GitHub"
@@ -756,32 +765,33 @@ ghb_setup() {
     pct exec "$id" -- bash -c "mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
         { [ -f $GHB_KEY ] || ssh-keygen -t ed25519 -N '' -C hermes-backup -f $GHB_KEY >/dev/null; }" \
         || fail "Could not create the backup key."
-    pub=$(pct exec "$id" -- cat "$GHB_KEY.pub")
-
-    echo ""
-    hr
-    echo "  Add this key to GitHub (it can only reach $repo):"
-    hr
-    echo ""
-    echo "  1. Open https://github.com/$repo/settings/keys/new"
-    echo "  2. Title: hermes-backup"
-    echo "  3. Key:"
-    echo ""
-    echo "     $pub"
-    echo ""
-    echo "  4. Tick 'Allow write access', then click 'Add key'."
-    echo ""
-    read -p "  Press Enter once the key is added..." _ </dev/tty
-    echo ""
-
-    out=$(pct exec "$id" -- ssh -i "$GHB_KEY" -o IdentitiesOnly=yes \
-        -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)
-    if [[ "${out,,}" != *"hi ${repo,,}!"* ]]; then
-        warn "GitHub did not accept the key for $repo:"
-        echo "$out" | sed 's/^/    /'
-        fail "Check the key was added to $repo with write access, then run this option again."
+    # Reuse an existing key: only ask the user to add it if GitHub refuses it.
+    if ghb_key_works "$id" "$repo"; then
+        ok "GitHub already accepts this container's key for $repo."
+    else
+        pub=$(pct exec "$id" -- cat "$GHB_KEY.pub")
+        echo ""
+        hr
+        echo "  Add this key to GitHub (it can only reach $repo):"
+        hr
+        echo ""
+        echo "  1. Open https://github.com/$repo/settings/keys/new"
+        echo "  2. Title: hermes-backup"
+        echo "  3. Key:"
+        echo ""
+        echo "     $pub"
+        echo ""
+        echo "  4. Tick 'Allow write access', then click 'Add key'."
+        echo ""
+        read -p "  Press Enter once the key is added..." _ </dev/tty
+        echo ""
+        if ! ghb_key_works "$id" "$repo"; then
+            warn "GitHub did not accept the key for $repo:"
+            echo "$GHB_SSH_OUT" | sed 's/^/    /'
+            fail "Check the key was added to $repo with write access, then run this option again."
+        fi
+        ok "GitHub accepted the key."
     fi
-    ok "GitHub accepted the key."
 
     pct exec "$id" -- bash -c "umask 077; printf '%s\n' \
         'HERMES_BACKUP_REPO=git@github.com:${repo}.git' 'HERMES_BACKUP_DIR=${dir}' > $GHB_CONF" \
