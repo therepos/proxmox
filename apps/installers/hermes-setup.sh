@@ -117,10 +117,10 @@ choose_provider() {
     local c
     read -p "  Select [1-4]: " c </dev/tty
     case "$c" in
-        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_MODEL="claude-sonnet-5" ;;
-        2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_MODEL="gemini-3.6-flash" ;;
-        3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_MODEL="" ;;
-        4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_MODEL="" ;;
+        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-sonnet-5" ;;
+        2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_ID="gemini";     PROVIDER_MODEL="gemini-3.6-flash" ;;
+        3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_ID="";           PROVIDER_MODEL="" ;;
+        4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_ID="openrouter"; PROVIDER_MODEL="" ;;
         *) fail "Invalid choice." ;;
     esac
 
@@ -339,6 +339,21 @@ sed -i 's/0\.0\.0\.0:${DASH_PORT}:/127.0.0.1:${DASH_PORT}:/' ${DATA_DIR}/docker-
     ok "Dashboard settings saved."
 }
 
+# Hermes reads the active model from model.default / model.provider.
+set_model() {
+    local ctid="$1"
+    if [[ -n "$PROVIDER_ID" ]]; then
+        hx "$ctid" config set model.provider "$PROVIDER_ID" >/dev/null 2>&1 \
+            || warn "Could not set model.provider to ${PROVIDER_ID}."
+    fi
+    if [[ -n "$PROVIDER_MODEL" ]]; then
+        hx "$ctid" config set model.default "$PROVIDER_MODEL" >/dev/null 2>&1 \
+            || warn "Could not set model.default to ${PROVIDER_MODEL}."
+    else
+        info "Pick a ${PROVIDER_LABEL} model: pct exec ${ctid} -- docker exec -it hermes hermes setup model"
+    fi
+}
+
 enable_telegram_platform() {
     # The setup wizard stores the token but does not add a platforms: block,
     # so the gateway starts with "no messaging platforms enabled". Set it here.
@@ -469,9 +484,7 @@ YAML
     write_env "$ctid"
     write_dashboard_env "$ctid"
     enable_telegram_platform "$ctid"
-    if [[ -n "$PROVIDER_MODEL" ]]; then
-        hx "$ctid" config set model.name "$PROVIDER_MODEL" >/dev/null 2>&1 || true
-    fi
+    set_model "$ctid"
 
     info "Restarting to apply settings..."
     pct exec "$ctid" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null
@@ -528,9 +541,7 @@ action_change_provider() {
     ensure_host_deps
     choose_provider
     write_env "$EXISTING_CTID"
-    if [[ -n "$PROVIDER_MODEL" ]]; then
-        hx "$EXISTING_CTID" config set model.name "$PROVIDER_MODEL" >/dev/null 2>&1 || true
-    fi
+    set_model "$EXISTING_CTID"
     pct exec "$EXISTING_CTID" -- docker restart hermes >/dev/null; sleep 15
     smoke_test "$EXISTING_CTID" || true
 }
