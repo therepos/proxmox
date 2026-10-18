@@ -17,11 +17,11 @@ password `123`. Some are zip. The user may call either one "a zip". `file` repor
    on claude.ai it also copies to `/mnt/user-data/outputs/<name>/`.
 
    ```bash
-   python3 .claude/skills/zipper/scripts/extract.py <uploaded-file>
+   python3 <skill-folder>/scripts/extract.py <uploaded-file>
    # optional: --password XXXX   --no-copy   --out DIR
    ```
 
-   Run it from the repo root, or use the absolute path of this skill folder.
+   `<skill-folder>` is the folder holding this SKILL.md, e.g. `~/.claude/skills/zipper`.
 
 2. Show the extracted files to the user (`present_files` on claude.ai, `SendUserFile`
    in Claude Code) and give a one-line summary: file count, folder names, file types,
