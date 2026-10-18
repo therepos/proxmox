@@ -671,6 +671,147 @@ action_backup() {
     ok "Backup saved to: $dest ($(du -h "$dest" | awk '{print $1}'))"
 }
 
+# --- GitHub backup -----------------------------------------------------------
+# A nightly job inside the container copies skills, scripts, scheduled jobs,
+# settings and memories to a private GitHub repo, using a deploy key that can
+# only reach that one repo. The job itself is apps/tools/hermes-backup.sh.
+GHB_TOOL_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/hermes-backup.sh"
+GHB_KEY="/root/.ssh/hermes_backup"
+GHB_CONF="/etc/hermes-backup.conf"
+GHB_CRON="/etc/cron.d/hermes-backup"
+GHB_LOG="/var/log/hermes-backup.log"
+
+ghb_conf_get() {  # ghb_conf_get <ctid> <VAR>
+    pct exec "$1" -- sh -c ". $GHB_CONF 2>/dev/null; printf '%s' \"\$$2\"" 2>/dev/null || true
+}
+
+action_github_backup() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" == "status: running" ]] \
+        || fail "Container $EXISTING_CTID is not running. Start it with: pct start $EXISTING_CTID"
+    local id="$EXISTING_CTID" c
+
+    if pct exec "$id" -- test -f "$GHB_CRON" 2>/dev/null; then
+        echo "  GitHub backup is on, nightly at 03:30."
+        echo "    Repo   : $(ghb_conf_get "$id" HERMES_BACKUP_REPO)"
+        echo "    Folder : $(ghb_conf_get "$id" HERMES_BACKUP_DIR)/"
+        echo "  Last run:"
+        pct exec "$id" -- tail -n 3 "$GHB_LOG" 2>/dev/null | sed 's/^/    /' \
+            || echo "    (no runs yet)"
+        echo ""
+        echo "    1) Back up now"
+        echo "    2) Change repo or folder"
+        echo "    3) Turn off"
+        echo ""
+        read -p "  Select [1-3]: " c </dev/tty
+        echo ""
+        case "$c" in
+            1) pct exec "$id" -- /usr/local/bin/hermes-backup.sh || fail "Backup failed."; return ;;
+            2) ;;
+            3) ghb_off "$id"; return ;;
+            *) fail "Invalid choice." ;;
+        esac
+    fi
+    ghb_setup "$id"
+}
+
+ghb_setup() {
+    local id="$1" repo dir c code pub out
+
+    hr
+    echo "  Back up Hermes to GitHub"
+    hr
+    echo ""
+    echo "  Every night Hermes copies its skills, scripts, scheduled jobs,"
+    echo "  settings and memories to a GitHub repo. API keys and the Google"
+    echo "  sign-in are never copied."
+    echo ""
+    echo "  Use a PRIVATE repo: memories and job prompts are personal."
+    echo "  No repo yet? Create one at https://github.com/new (tick Private)."
+    echo ""
+    read -p "  Repo (owner/name): " repo </dev/tty
+    repo="${repo#https://github.com/}"; repo="${repo%.git}"; repo="${repo%/}"
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "Enter it as owner/name, e.g. jane/backups."
+
+    read -p "  Folder inside the repo [hermes]: " dir </dev/tty
+    dir="${dir:-hermes}"; dir="${dir#/}"; dir="${dir%/}"
+    [[ "$dir" =~ ^[A-Za-z0-9_./-]+$ && "$dir" != *..* ]] || fail "Use letters, digits, - _ . and / only."
+    if [[ "$dir" =~ ^(docs|static|public|src/pages)(/|$) ]]; then
+        warn "Website builders (Docusaurus, MkDocs...) publish '${dir%%/*}/'."
+        read -p "  Use '$dir' anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+    fi
+
+    ensure_host_deps
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://github.com/$repo" || echo 000)
+    if [[ "$code" == "200" ]]; then
+        warn "github.com/$repo is PUBLIC. Anyone could read your memories and prompts."
+        read -p "  Continue anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled. Make the repo private and try again."; return; }
+    fi
+
+    info "Preparing the container..."
+    pct exec "$id" -- bash -c "apt-get install -y git rsync cron openssh-client >/dev/null 2>&1" \
+        || fail "Could not install git/rsync/cron in the container."
+    pct exec "$id" -- bash -c "mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+        { [ -f $GHB_KEY ] || ssh-keygen -t ed25519 -N '' -C hermes-backup -f $GHB_KEY >/dev/null; }" \
+        || fail "Could not create the backup key."
+    pub=$(pct exec "$id" -- cat "$GHB_KEY.pub")
+
+    echo ""
+    hr
+    echo "  Add this key to GitHub (it can only reach $repo):"
+    hr
+    echo ""
+    echo "  1. Open https://github.com/$repo/settings/keys/new"
+    echo "  2. Title: hermes-backup"
+    echo "  3. Key:"
+    echo ""
+    echo "     $pub"
+    echo ""
+    echo "  4. Tick 'Allow write access', then click 'Add key'."
+    echo ""
+    read -p "  Press Enter once the key is added..." _ </dev/tty
+    echo ""
+
+    out=$(pct exec "$id" -- ssh -i "$GHB_KEY" -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new -T git@github.com 2>&1 || true)
+    if [[ "${out,,}" != *"hi ${repo,,}!"* ]]; then
+        warn "GitHub did not accept the key for $repo:"
+        echo "$out" | sed 's/^/    /'
+        fail "Check the key was added to $repo with write access, then run this option again."
+    fi
+    ok "GitHub accepted the key."
+
+    pct exec "$id" -- bash -c "umask 077; printf '%s\n' \
+        'HERMES_BACKUP_REPO=git@github.com:${repo}.git' 'HERMES_BACKUP_DIR=${dir}' > $GHB_CONF" \
+        || fail "Could not save backup settings."
+
+    local tmp
+    tmp=$(mktemp)
+    curl -fsSL --max-time 30 "$GHB_TOOL_URL" -o "$tmp" || { rm -f "$tmp"; fail "Could not download the backup job."; }
+    pct push "$id" "$tmp" /usr/local/bin/hermes-backup.sh --perms 755 || { rm -f "$tmp"; fail "Could not copy the backup job."; }
+    rm -f "$tmp"
+
+    pct exec "$id" -- /usr/local/bin/hermes-backup.sh --install || fail "First backup failed."
+    echo ""
+    ok "GitHub backup is on: github.com/$repo/tree/HEAD/$dir"
+}
+
+ghb_off() {
+    local id="$1" c repo
+    repo=$(ghb_conf_get "$id" HERMES_BACKUP_REPO)
+    read -p "  Turn off the nightly GitHub backup? [y/N]: " c </dev/tty
+    [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+    pct exec "$id" -- rm -rf "$GHB_CRON" "$GHB_CONF" /root/hermes-backup-repo \
+        "$GHB_KEY" "$GHB_KEY.pub" /usr/local/bin/hermes-backup.sh
+    ok "Nightly backup turned off. Files already on GitHub were left as they are."
+    repo="${repo#git@github.com:}"; repo="${repo%.git}"
+    if [[ -n "$repo" ]]; then
+        echo "  Also delete the 'hermes-backup' key at https://github.com/$repo/settings/keys"
+    fi
+}
+
 action_uninstall_silent() {
     if [[ -n "$EXISTING_CTID" ]]; then
         pct stop "$EXISTING_CTID" 2>/dev/null || true
@@ -693,6 +834,10 @@ action_uninstall() {
     else
         botname=""
     fi
+
+    local ghb_repo
+    ghb_repo=$(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)
+    ghb_repo="${ghb_repo#git@github.com:}"; ghb_repo="${ghb_repo%.git}"
 
     echo "  This permanently deletes container $EXISTING_CTID and everything inside:"
     echo "  memory, skills, sessions, scheduled jobs and saved API keys."
@@ -753,6 +898,11 @@ action_uninstall() {
     echo ""
     echo "  Also consider revoking the API key you used, at your"
     echo "  provider's website."
+    if [[ -n "$ghb_repo" ]]; then
+        echo ""
+        echo "  GitHub backup: delete the 'hermes-backup' key at"
+        echo "    https://github.com/${ghb_repo}/settings/keys"
+    fi
     echo ""
 }
 
@@ -803,6 +953,12 @@ action_status() {
         echo "  Dashboard : off (menu option 9 to enable)"
     fi
     echo ""
+    if pct exec "$EXISTING_CTID" -- test -f "$GHB_CRON" 2>/dev/null; then
+        echo "  GitHub    : nightly backup to $(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)"
+        pct exec "$EXISTING_CTID" -- tail -n 1 "$GHB_LOG" 2>/dev/null | sed 's/^/              last: /' || true
+    else
+        echo "  GitHub    : no backup (menu option 11)"
+    fi
     echo -n "  Data size : "
     pct exec "$EXISTING_CTID" -- du -sh "${DATA_DIR}/data" 2>/dev/null | awk '{print $1}' || echo "unknown"
     echo ""
@@ -996,11 +1152,12 @@ echo "  2) Connect or re-pair Telegram"
 echo "  3) Change AI provider or key"
 echo "  4) Show status"
 echo "  5) View logs"
-echo "  6) Backup"
+echo "  6) Backup to a file on this host"
 echo "  7) Update to latest version"
 echo "  8) Uninstall"
 echo "  9) Enable, disable or reset dashboard login"
 echo " 10) OAuth consent pages (needed to publish the Google app)"
+echo " 11) Back up to GitHub (nightly)"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -1017,6 +1174,7 @@ case "$choice" in
     8) action_uninstall ;;
     9) action_dashboard ;;
     10) action_consent_pages ;;
+    11) action_github_backup ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac
