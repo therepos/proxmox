@@ -528,6 +528,9 @@ desktop:
   allow_resize: true
 encoding:
   max_frame_rate: 60
+  rect_encoding_mode:
+    min_quality: 5
+    max_quality: 6
   video_encoding_mode:
     enter_video_encoding_mode:
       area_threshold: 100%
