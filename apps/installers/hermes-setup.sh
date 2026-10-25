@@ -117,7 +117,7 @@ choose_provider() {
     local c
     read -p "  Select [1-4]: " c </dev/tty
     case "$c" in
-        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-sonnet-5" ;;
+        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-haiku-5-5" ;;
         2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_ID="gemini";     PROVIDER_MODEL="gemini-3.6-flash" ;;
         3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_ID="";           PROVIDER_MODEL="" ;;
         4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_ID="openrouter"; PROVIDER_MODEL="" ;;
@@ -284,7 +284,16 @@ EXISTING_CTID="$(find_ctid || true)"
 
 ct_ip() { pct exec "$1" -- ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || true; }
 
-hx() { local id="$1"; shift; pct exec "$id" -- docker exec hermes hermes "$@"; }
+# Files in the data dir belong to the Hermes user, not root. docker exec runs as
+# root by default, so commands that write there (config, tokens) must run as
+# the data dir's owner or Hermes can no longer update them.
+hermes_uid() {
+    local uid
+    uid=$(pct exec "$1" -- stat -c %u "${DATA_DIR}/data" 2>/dev/null || true)
+    [[ "$uid" =~ ^[1-9][0-9]*$ ]] || uid=10000
+    echo "$uid"
+}
+hx() { local id="$1"; shift; pct exec "$id" -- docker exec -u "$(hermes_uid "$id")" hermes hermes "$@"; }
 
 pick_template() {
     pveam update >/dev/null 2>&1 || warn "Could not refresh template list; using cached."
@@ -350,7 +359,7 @@ set_model() {
         hx "$ctid" config set model.default "$PROVIDER_MODEL" >/dev/null 2>&1 \
             || warn "Could not set model.default to ${PROVIDER_MODEL}."
     else
-        info "Pick a ${PROVIDER_LABEL} model: pct exec ${ctid} -- docker exec -it hermes hermes setup model"
+        info "Pick a ${PROVIDER_LABEL} model: pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
     fi
 }
 
@@ -370,19 +379,19 @@ enable_telegram_platform() {
 smoke_test() {
     local ctid="$1" out=""
     info "Testing the AI connection (makes one real API call)..."
-    out=$(pct exec "$ctid" -- docker exec hermes hermes chat -q "Reply with exactly: hermes-ok" 2>&1 || true)
+    out=$(hx "$ctid" chat -q "Reply with exactly: hermes-ok" 2>&1 || true)
     if grep -q "hermes-ok" <<<"$out"; then
         ok "AI provider is working."
     else
         warn "The test reply did not come back as expected:"
         echo "$out" | tail -12 | sed 's/^/    /'
         warn "Fix the provider with menu option 3, or run:"
-        warn "  pct exec ${ctid} -- docker exec -it hermes hermes setup model"
+        warn "  pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
         return 1
     fi
 
     if [[ -n "$TG_TOKEN" && -n "$TG_USERID" ]]; then
-        if pct exec "$ctid" -- docker exec hermes hermes send --to telegram \
+        if hx "$ctid" send --to telegram \
              "Hermes is online and ready." >/dev/null 2>&1; then
             ok "Test message sent to your Telegram."
         else
@@ -528,7 +537,7 @@ action_add_telegram() {
     write_env "$EXISTING_CTID"
     enable_telegram_platform "$EXISTING_CTID"
     pct exec "$EXISTING_CTID" -- docker restart hermes >/dev/null; sleep 15
-    if pct exec "$EXISTING_CTID" -- docker exec hermes hermes send --to telegram \
+    if hx "$EXISTING_CTID" send --to telegram \
          "Hermes is online and ready." >/dev/null 2>&1; then
         ok "Done. Check Telegram for a test message."
     else
@@ -822,6 +831,90 @@ ghb_off() {
     fi
 }
 
+# --- Google (Gmail, Calendar) -------------------------------------------------
+# Hermes' google-workspace skill signs in with OAuth. The browser lands on an
+# unreachable http://localhost:1/?code=... page; the user pastes that address
+# back and setup.py exchanges it for a token. Everything runs as the Hermes
+# user so the token stays writable for the hourly refresh.
+GSETUP="/opt/data/skills/productivity/google-workspace/scripts/setup.py"
+
+gsetup() {  # gsetup <ctid> <setup.py args...>
+    local id="$1"; shift
+    pct exec "$id" -- docker exec -u "$(hermes_uid "$id")" hermes python "$GSETUP" "$@"
+}
+
+google_status() {  # one line: AUTHENTICATED... / NOT_AUTHENTICATED... / unavailable
+    gsetup "$1" --check 2>&1 | head -n 1 || true
+}
+
+action_google() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" == "status: running" ]] \
+        || fail "Container $EXISTING_CTID is not running. Start it with: pct start $EXISTING_CTID"
+    local id="$EXISTING_CTID" c st path url code uid
+    uid="$(hermes_uid "$id")"
+    pct exec "$id" -- docker exec hermes test -f "$GSETUP" \
+        || fail "The google-workspace skill is missing. Update Hermes (menu option 7) and try again."
+
+    st="$(google_status "$id")"
+    echo "  Google: $st"
+    echo ""
+    if [[ "$st" == AUTHENTICATED* ]]; then
+        read -p "  Already connected. Reconnect anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || return 0
+    fi
+
+    if ! pct exec "$id" -- test -f "${DATA_DIR}/data/google_client_secret.json"; then
+        echo "  First, Hermes needs a Google OAuth client (a JSON file):"
+        echo "    1. https://console.cloud.google.com/apis/credentials"
+        echo "    2. Create credentials -> OAuth client ID -> Desktop app"
+        echo "    3. Download the JSON and copy it to this Proxmox host"
+        echo "  Enable the Gmail and Google Calendar APIs in the same project."
+        echo ""
+        read -p "  Path to the JSON on this host: " path </dev/tty
+        [[ -f "$path" ]] || fail "File not found: $path"
+        pct push "$id" "$path" "${DATA_DIR}/data/.client_secret_upload.json" \
+            --user "$uid" --group "$uid" --perms 600 || fail "Could not copy the file."
+        gsetup "$id" --client-secret /opt/data/.client_secret_upload.json >/dev/null 2>&1 || true
+        pct exec "$id" -- rm -f "${DATA_DIR}/data/.client_secret_upload.json"
+        pct exec "$id" -- test -f "${DATA_DIR}/data/google_client_secret.json" \
+            || fail "Hermes did not accept that file. Check it is the Desktop app JSON."
+        ok "OAuth client saved."
+        rm -i "$path" </dev/tty || true
+    fi
+
+    url="$(gsetup "$id" --auth-url 2>&1 | grep -oE 'https://accounts\.google\.com/[^ "]+' | head -n 1)"
+    [[ -n "$url" ]] || fail "Could not get a sign-in link from Hermes."
+
+    echo ""
+    hr
+    echo "  1. Open this link and sign in with the Google account Hermes should use:"
+    hr
+    echo ""
+    echo "$url"
+    echo ""
+    echo "  2. If Google warns the app is unverified: Advanced -> Go to ... (unsafe)."
+    echo "  3. Tick every box and Continue."
+    echo "  4. The browser ends on a 'site can't be reached' page at http://localhost:1/..."
+    echo "     That is expected. Copy the WHOLE address from the address bar."
+    echo ""
+    read -r -p "  Paste the address here: " code </dev/tty
+    code="${code//[[:space:]]/}"
+    [[ "$code" == *code=* || ${#code} -gt 20 ]] || fail "That does not look like the address. Run this option again."
+
+    gsetup "$id" --auth-code "$code" >/dev/null 2>&1 || true
+    # Whatever ran setup before, the token must belong to Hermes and be private.
+    pct exec "$id" -- sh -c "f=${DATA_DIR}/data/google_token.json; [ -f \$f ] && chown $uid:$uid \$f && chmod 600 \$f" || true
+
+    st="$(google_status "$id")"
+    if [[ "$st" == AUTHENTICATED* ]]; then
+        ok "Google connected. Gmail and Calendar jobs will work from the next run."
+    else
+        warn "Google did not connect: $st"
+        fail "The address may have expired (it lasts a few minutes). Run this option again."
+    fi
+}
+
 action_uninstall_silent() {
     if [[ -n "$EXISTING_CTID" ]]; then
         pct stop "$EXISTING_CTID" 2>/dev/null || true
@@ -948,12 +1041,12 @@ action_status() {
 
     echo ""
     echo "  Health check:"
-    pct exec "$EXISTING_CTID" -- docker exec hermes hermes doctor 2>/dev/null \
+    hx "$EXISTING_CTID" doctor 2>/dev/null \
         | sed 's/^/    /' || warn "    health check unavailable"
 
     echo ""
     echo "  Messaging:"
-    pct exec "$EXISTING_CTID" -- docker exec hermes hermes gateway status 2>/dev/null \
+    hx "$EXISTING_CTID" gateway status 2>/dev/null \
         | sed 's/^/    /' || warn "    gateway not responding"
 
     echo ""
@@ -962,6 +1055,15 @@ action_status() {
     else
         echo "  Dashboard : off (menu option 9 to enable)"
     fi
+    echo ""
+    echo "  Google    : $(google_status "$EXISTING_CTID")"
+    echo ""
+    echo "  Scheduled jobs (last result):"
+    hx "$EXISTING_CTID" cron list 2>/dev/null | awk '
+        /Name:/     { sub(/^.*Name: */, ""); name = $0 }
+        /Last run:/ { sub(/^.*Last run: */, ""); split($0, a, "  ")
+                      printf "    %-34s %s\n", substr(name, 1, 34), substr(a[2], 1, 40) }' \
+        || echo "    (unavailable)"
     echo ""
     if pct exec "$EXISTING_CTID" -- test -f "$GHB_CRON" 2>/dev/null; then
         echo "  GitHub    : nightly backup to $(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)"
@@ -1129,7 +1231,7 @@ EOSH
     echo "       Terms           https://${host}/terms.html"
     echo "       Authorised domain: the root domain of ${host}"
     echo ""
-    echo "  4. Audience -> Publish app, then re-authorise Gmail once."
+    echo "  4. Audience -> Publish app, then reconnect Google (menu option 12)."
     echo ""
     echo "  Note: the container uses DHCP, so if its IP changes you must"
     echo "  update the Cloudflare route."
@@ -1168,6 +1270,7 @@ echo "  8) Uninstall"
 echo "  9) Enable, disable or reset dashboard login"
 echo " 10) OAuth consent pages (needed to publish the Google app)"
 echo " 11) Back up to GitHub (nightly)"
+echo " 12) Connect or reconnect Google (Gmail, Calendar)"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -1185,6 +1288,7 @@ case "$choice" in
     9) action_dashboard ;;
     10) action_consent_pages ;;
     11) action_github_backup ;;
+    12) action_google ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac
