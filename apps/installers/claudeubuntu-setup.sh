@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/claude-setup.sh?$(date +%s))"
-# Purpose: Installs Claude Code with Remote Control as a boot service, plus an optional Claude Desktop Chat bridge (Ubuntu VM)
+# Purpose: Installs Claude Code with Remote Control as a boot service, plus optional Claude Desktop in the browser via KasmVNC (Ubuntu VM)
 # =============================================================================
 # Usage:
 #   Run inside the Ubuntu VM (not the PVE host), as root or via sudo, from a
@@ -9,17 +9,17 @@
 #     2) Status       service, version, working folder
 #     3) Update       update Claude Code and restart the service
 #     4) Static IP    pin the VM's LAN address (netplan, auto-reverts if broken)
-#     5) Desktop      Claude Desktop on an auto-login XFCE desktop, so claude.ai
-#                     Chat (any browser) can use this VM's folder ("Add folder")
-#     6) Uninstall    remove the service, the desktop bridge (optionally Claude Code)
+#     5) Desktop      Claude Desktop on XFCE, streamed to any browser by KasmVNC,
+#                     so the app's Chat can use folders on this VM from anywhere
+#     6) Uninstall    remove the service, the desktop (optionally Claude Code)
 #   Args skip the menu: install | status | update | ip | desktop | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
-#   After Desktop (once, in the Proxmox noVNC console): sign in to the app, then
+#   After Desktop: open https://<host-ip>:8444, sign in to the app, then
 #   project -> Add folder -> the working folder. claude-rc keeps running alongside.
 #
-# Config (env): CLAUDE_USER, CLAUDE_WORKDIR, CLAUDE_RC_NAME
+# Config (env): CLAUDE_USER, CLAUDE_WORKDIR, CLAUDE_RC_NAME, CLAUDE_DESKTOP_PORT
 # =============================================================================
 
 set -euo pipefail
@@ -37,9 +37,13 @@ DESKTOP_KEY_FILE="/usr/share/keyrings/claude-desktop-archive-keyring.asc"
 DESKTOP_KEY_FPR="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
 DESKTOP_REPO_FILE="/etc/apt/sources.list.d/claude-desktop.list"
 DESKTOP_REPO_LINE="deb [arch=amd64,arm64 signed-by=${DESKTOP_KEY_FILE}] https://downloads.claude.ai/claude-desktop/apt/stable stable main"
-AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"
+DESKTOP_SERVICE="claude-desktop"
+DESKTOP_SERVICE_FILE="/etc/systemd/system/${DESKTOP_SERVICE}.service"
+DESKTOP_DISPLAY=":1"
+DESKTOP_PORT="${CLAUDE_DESKTOP_PORT:-8444}"
+AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"   # older versions only
 SLEEP_TARGETS="sleep.target suspend.target hibernate.target hybrid-sleep.target"
-DESKTOP_PKGS="xfce4 xfce4-terminal lightdm lightdm-gtk-greeter dbus-x11 xserver-xorg gnome-keyring libpam-gnome-keyring"
+DESKTOP_PKGS="xfce4 xfce4-terminal dbus-x11 gnome-keyring ssl-cert"
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -322,7 +326,7 @@ do_status() {
     echo "  tmux            ${tmux_txt}"
     echo "  Service         ${svc}"
     echo "  Remote Control  ${rc_txt}"
-    echo "  Desktop bridge  $(desktop_state "$u")"
+    echo "  Desktop         $(desktop_state "$u")"
     echo "  User            ${u:--}"
     echo "  Folder          ${CLAUDE_WORKDIR:--}"
     echo "  LAN IP          $(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -432,59 +436,160 @@ EOF
     fi
 }
 
-# --- Desktop bridge ----------------------------------------------------------
-# Claude Desktop is a GUI app, so it needs a logged-in graphical session. A lean
-# XFCE desktop logs in automatically on boot and starts the app, which keeps the
-# folder added in the app reachable from claude.ai Chat in any browser.
+# --- Desktop (Claude Desktop in the browser) ---------------------------------
+# Claude Desktop is a GUI app. KasmVNC runs a lean XFCE desktop as a boot
+# service and streams it to any browser (same tech as the kasmweb/brave
+# container), so the app's Chat, with folders on this VM, is reachable remotely.
 pkg_ver()        { dpkg-query -W -f='${Version}' "$1" 2>/dev/null || true; }
 autostart_file() { echo "$(user_home "$1")/.config/autostart/claude-desktop.desktop"; }
 noblank_file()   { echo "$(user_home "$1")/.config/autostart/no-blank.desktop"; }
 
 # One-line summary for Status.
 desktop_state() {
-    local u="$1" ver run al masked=0 t
+    local u="$1" ver svc masked=0 t
     ver="$(pkg_ver claude-desktop)"
     [[ -n "$ver" ]] || { echo "not installed"; return; }
-    pgrep -f '/claude-desktop' >/dev/null && run="running" || run="NOT running"
-    al="$(awk -F= '/^autologin-user=/{print $2; exit}' "$AUTOLOGIN_FILE" 2>/dev/null || true)"
+    svc="$(systemctl is-active "$DESKTOP_SERVICE" 2>/dev/null || true)"
     for t in $SLEEP_TARGETS; do
         [[ "$(systemctl is-enabled "$t" 2>/dev/null || true)" == "masked" ]] && masked=$((masked + 1))
     done
-    echo "${ver}, ${run}, auto-login ${al:-not set}, autostart $( [[ -n "$u" && -f "$(autostart_file "$u")" ]] && echo yes || echo no), sleep ${masked}/4 masked"
+    echo "app ${ver}, ${DESKTOP_SERVICE} ${svc:-inactive}, https://$(hostname -I 2>/dev/null | awk '{print $1}'):${DESKTOP_PORT}, sleep ${masked}/4 masked"
+}
+
+# Earlier versions used LightDM auto-login on the console. KasmVNC replaces it;
+# two sessions would start two copies of the app.
+remove_autologin() {
+    [[ -f "$AUTOLOGIN_FILE" ]] || systemctl is-enabled --quiet lightdm 2>/dev/null || return 0
+    info "Switching off the console auto-login (KasmVNC replaces it)..."
+    rm -f "$AUTOLOGIN_FILE"
+    systemctl disable --now lightdm >/dev/null 2>&1 || true
+    systemctl set-default multi-user.target >/dev/null
+    ok "Console auto-login removed."
+}
+
+install_kasmvnc() {
+    if [[ -n "$(pkg_ver kasmvncserver)" ]]; then
+        ok "KasmVNC already installed ($(pkg_ver kasmvncserver))."
+        return 0
+    fi
+    local codename arch url tmp
+    codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+    arch="$(dpkg --print-architecture)"
+    info "Finding the KasmVNC package for ${codename} (${arch})..."
+    local assets
+    assets="$(curl -fsSL https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
+        | grep -o '"browser_download_url": *"[^"]*\.deb"' | cut -d'"' -f4)" \
+        || fail "Cannot reach GitHub to find KasmVNC."
+    url="$(grep "/kasmvncserver_${codename}_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
+    if [[ -z "$url" ]]; then
+        url="$(grep "/kasmvncserver_noble_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
+        [[ -n "$url" ]] || fail "No KasmVNC package for ${codename}/${arch}."
+        warn "No KasmVNC build for ${codename}; using the Ubuntu 24.04 (noble) one."
+    fi
+    tmp="$(mktemp -d)"
+    curl -fsSLo "${tmp}/${url##*/}" "$url" || fail "KasmVNC download failed."
+    apt-get install -y -qq "${tmp}/${url##*/}" >/dev/null || fail "KasmVNC install failed."
+    rm -rf "$tmp"
+    ok "KasmVNC $(pkg_ver kasmvncserver) installed."
+}
+
+# Browser login for KasmVNC: username = the Linux user, password asked here.
+set_kasm_password() {
+    local home pw pw2; home="$(user_home "$CLAUDE_USER")"
+    if [[ -f "${home}/.kasmpasswd" ]] && ! confirm "Browser login already set. Change the password?" "N"; then
+        return 0
+    fi
+    while true; do
+        read -rsp "  Browser login password for '${CLAUDE_USER}' (min 6 chars): " pw </dev/tty; echo ""
+        read -rsp "  Repeat: " pw2 </dev/tty; echo ""
+        [[ "$pw" == "$pw2" && ${#pw} -ge 6 ]] && break
+        warn "Passwords differ or are too short. Try again."
+    done
+    printf '%s\n%s\n' "$pw" "$pw" | as_user "$CLAUDE_USER" kasmvncpasswd -u "$CLAUDE_USER" -wo "${home}/.kasmpasswd" >/dev/null \
+        || fail "Could not set the browser login."
+    chmod 600 "${home}/.kasmpasswd"
+    ok "Browser login set (user '${CLAUDE_USER}')."
+}
+
+write_kasm_config() {
+    local home; home="$(user_home "$CLAUDE_USER")"
+    mkdir -p "${home}/.vnc"
+    cat > "${home}/.vnc/kasmvnc.yaml" <<EOF
+network:
+  protocol: http
+  interface: 0.0.0.0
+  websocket_port: ${DESKTOP_PORT}
+  ssl:
+    require_ssl: true
+desktop:
+  resolution:
+    width: 1920
+    height: 1080
+  allow_resize: true
+EOF
+    cat > "${home}/.vnc/xstartup" <<'EOF'
+#!/bin/sh
+unset SESSION_MANAGER DBUS_SESSION_BUS_ADDRESS
+exec dbus-launch --exit-with-session startxfce4
+EOF
+    chmod 755 "${home}/.vnc/xstartup"
+    touch "${home}/.vnc/.de-was-selected"
+    chown -R "$CLAUDE_USER:" "${home}/.vnc"
+
+    local mount_dep="" mnt
+    mnt="$(findmnt -n -o TARGET --target "$CLAUDE_WORKDIR" 2>/dev/null || true)"
+    [[ -n "$mnt" && "$mnt" != "/" ]] && mount_dep="RequiresMountsFor=${mnt}"
+
+    cat > "$DESKTOP_SERVICE_FILE" <<EOF
+[Unit]
+Description=Claude Desktop in the browser (KasmVNC)
+After=network-online.target
+Wants=network-online.target
+${mount_dep}
+
+[Service]
+Type=forking
+User=${CLAUDE_USER}
+SupplementaryGroups=ssl-cert
+Environment=HOME=${home}
+WorkingDirectory=${home}
+ExecStartPre=-/usr/bin/vncserver -kill ${DESKTOP_DISPLAY}
+ExecStart=/usr/bin/vncserver ${DESKTOP_DISPLAY}
+ExecStop=/usr/bin/vncserver -kill ${DESKTOP_DISPLAY}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable "$DESKTOP_SERVICE" >/dev/null 2>&1
+    systemctl restart "$DESKTOP_SERVICE"
+    sleep 5
+    systemctl is-active --quiet "$DESKTOP_SERVICE" \
+        || fail "KasmVNC failed to start. Check: journalctl -u ${DESKTOP_SERVICE} -n 50"
+    ok "Boot service '${DESKTOP_SERVICE}' enabled and running."
 }
 
 do_desktop() {
     echo ""
-    echo "Claude Desktop (Chat bridge) - Install"
+    echo "Claude Desktop in the browser - Install"
     echo "================================================="
     load_conf
     [[ -n "${CLAUDE_USER:-}" ]] || pick_settings
     local home; home="$(user_home "$CLAUDE_USER")"
-    info "Desktop logs in automatically as '${CLAUDE_USER}' and starts Claude Desktop."
+    info "XFCE + Claude Desktop run as '${CLAUDE_USER}', streamed by KasmVNC on port ${DESKTOP_PORT}."
     confirm "Continue?" "Y" || { info "Cancelled."; return 0; }
 
     export DEBIAN_FRONTEND=noninteractive
-    info "Installing a minimal XFCE desktop with LightDM (several minutes)..."
+    info "Installing a minimal XFCE desktop (several minutes)..."
     apt-get update -qq
     # shellcheck disable=SC2086
     apt-get install -y -qq --no-install-recommends $DESKTOP_PKGS >/dev/null \
         || fail "Desktop package install failed."
     ok "Desktop installed."
 
-    mkdir -p "$(dirname "$AUTOLOGIN_FILE")"
-    cat > "$AUTOLOGIN_FILE" <<EOF
-[Seat:*]
-autologin-user=${CLAUDE_USER}
-autologin-user-timeout=0
-autologin-session=xfce
-user-session=xfce
-EOF
-    groupadd -f autologin
-    usermod -aG autologin "$CLAUDE_USER"
-    echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
-    systemctl enable lightdm >/dev/null 2>&1 || true
-    systemctl set-default graphical.target >/dev/null
-    ok "Auto-login set for '${CLAUDE_USER}' (XFCE)."
+    remove_autologin
 
     # shellcheck disable=SC2086
     systemctl mask $SLEEP_TARGETS >/dev/null 2>&1
@@ -495,17 +600,18 @@ Type=Application
 Name=Disable screen blanking
 Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false"
 EOF
-    ok "Sleep/suspend masked, screen blanking off at login."
+    ok "Sleep/suspend masked, screen blanking off."
 
-    apt-get install -y -qq curl gnupg >/dev/null
-    info "Adding Anthropic's apt repository..."
-    curl -fsSLo "$DESKTOP_KEY_FILE" "$DESKTOP_KEY_URL" || fail "Key download failed. Check access to downloads.claude.ai."
-    gpg --show-keys --with-colons "$DESKTOP_KEY_FILE" 2>/dev/null | grep -q "^fpr:::::::::${DESKTOP_KEY_FPR}:" \
-        || { rm -f "$DESKTOP_KEY_FILE"; fail "Signing key fingerprint mismatch. Not installing."; }
-    echo "$DESKTOP_REPO_LINE" > "$DESKTOP_REPO_FILE"
-    apt-get update -qq
-    info "Installing claude-desktop..."
-    apt-get install -y -qq claude-desktop >/dev/null || fail "claude-desktop install failed."
+    if [[ -z "$(pkg_ver claude-desktop)" ]]; then
+        info "Adding Anthropic's apt repository..."
+        curl -fsSLo "$DESKTOP_KEY_FILE" "$DESKTOP_KEY_URL" || fail "Key download failed. Check access to downloads.claude.ai."
+        gpg --show-keys --with-colons "$DESKTOP_KEY_FILE" 2>/dev/null | grep -q "^fpr:::::::::${DESKTOP_KEY_FPR}:" \
+            || { rm -f "$DESKTOP_KEY_FILE"; fail "Signing key fingerprint mismatch. Not installing."; }
+        echo "$DESKTOP_REPO_LINE" > "$DESKTOP_REPO_FILE"
+        apt-get update -qq
+        info "Installing claude-desktop..."
+        apt-get install -y -qq claude-desktop >/dev/null || fail "claude-desktop install failed."
+    fi
     ok "Claude Desktop $(pkg_ver claude-desktop) installed."
 
     cat > "$(autostart_file "$CLAUDE_USER")" <<'EOF'
@@ -515,50 +621,55 @@ Name=Claude
 Exec=claude-desktop
 EOF
     chown -R "$CLAUDE_USER:" "${home}/.config"
-    ok "Claude Desktop starts at login."
+    ok "Claude Desktop starts with the desktop."
+
+    install_kasmvnc
+    usermod -aG ssl-cert "$CLAUDE_USER"
+    set_kasm_password
+    write_kasm_config
 
     echo ""
-    echo "Desktop bridge ready"
+    echo "Desktop ready"
     echo "================================================="
     echo ""
-    echo "  One-time, in the Proxmox noVNC console:"
-    echo "    1. If asked to create a keyring password, leave it BLANK"
-    echo "       (auto-login cannot unlock a passworded keyring; the sign-in would be lost)."
-    echo "    2. Sign in to Claude in the app."
-    echo "    3. Open your project -> Add folder -> ${CLAUDE_WORKDIR}"
+    echo "  Open          https://$(hostname -I 2>/dev/null | awk '{print $1}'):${DESKTOP_PORT}"
+    echo "                (self-signed certificate: accept the browser warning)"
+    echo "  Login         ${CLAUDE_USER} + the password you just set"
+    echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
+    echo "                behind Cloudflare Access"
+    echo "  Keyring       if asked for a new keyring password, leave it BLANK"
+    echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
     echo ""
-    echo "  Then use claude.ai Chat from any browser. Reboot once to test it comes back."
-    echo ""
-    if confirm "Start the desktop now (switches the console to the GUI)?" "Y"; then
-        systemctl restart lightdm || systemctl isolate graphical.target
-    fi
 }
 
 desktop_remove() {
-    pkill -f '/claude-desktop' 2>/dev/null || true
+    systemctl disable --now "$DESKTOP_SERVICE" >/dev/null 2>&1 || true
+    rm -f "$DESKTOP_SERVICE_FILE"
+    systemctl daemon-reload
     apt-get remove -y -qq claude-desktop >/dev/null 2>&1 || true
     rm -f "$DESKTOP_REPO_FILE"
     [[ -n "${CLAUDE_USER:-}" ]] && rm -f "$(autostart_file "$CLAUDE_USER")"
-    ok "Claude Desktop removed."
+    ok "Claude Desktop and its service removed."
 
-    if confirm "Also remove auto-login, the sleep mask and the XFCE desktop?" "N"; then
-        rm -f "$AUTOLOGIN_FILE"
-        [[ -n "${CLAUDE_USER:-}" ]] && rm -f "$(noblank_file "$CLAUDE_USER")"
+    if confirm "Also remove KasmVNC, the sleep mask and the XFCE desktop?" "N"; then
+        remove_autologin
+        if [[ -n "${CLAUDE_USER:-}" ]]; then
+            local home; home="$(user_home "$CLAUDE_USER")"
+            rm -rf "$(noblank_file "$CLAUDE_USER")" "${home}/.vnc" "${home}/.kasmpasswd"
+        fi
         # shellcheck disable=SC2086
         systemctl unmask $SLEEP_TARGETS >/dev/null 2>&1 || true
-        systemctl set-default multi-user.target >/dev/null
-        systemctl disable lightdm >/dev/null 2>&1 || true
         # shellcheck disable=SC2086
-        apt-get remove -y -qq $DESKTOP_PKGS >/dev/null 2>&1 || true
+        apt-get remove -y -qq kasmvncserver $DESKTOP_PKGS lightdm lightdm-gtk-greeter >/dev/null 2>&1 || true
         apt-get autoremove -y -qq >/dev/null 2>&1 || true
-        ok "Desktop removed. Reboot to return to the text console."
+        ok "KasmVNC and the desktop removed."
     fi
 }
 
 # --- Uninstall ---------------------------------------------------------------
 do_uninstall() {
     load_conf
-    if [[ -n "$(pkg_ver claude-desktop)" ]] && confirm "Remove the Claude Desktop bridge?" "N"; then
+    if [[ -n "$(pkg_ver claude-desktop)" ]] && confirm "Remove Claude Desktop and its browser desktop?" "N"; then
         desktop_remove
     fi
     confirm "Remove the '${SERVICE_NAME}' boot service?" "N" || { info "Cancelled."; return 0; }
@@ -597,7 +708,7 @@ while true; do
     echo "  2) Status"
     echo "  3) Update"
     echo "  4) Static IP"
-    echo "  5) Desktop (Chat bridge)"
+    echo "  5) Desktop (browser)"
     echo "  6) Uninstall"
     echo "  0) Exit"
     echo ""
