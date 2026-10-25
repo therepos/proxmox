@@ -597,8 +597,8 @@ do_desktop() {
     cat > "$(noblank_file "$CLAUDE_USER")" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Disable screen blanking
-Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false"
+Name=Disable screen blanking and compositing
+Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false; xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false"
 EOF
     ok "Sleep/suspend masked, screen blanking off."
 
