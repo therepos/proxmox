@@ -526,6 +526,13 @@ desktop:
     width: 1920
     height: 1080
   allow_resize: true
+encoding:
+  max_frame_rate: 60
+  video_encoding_mode:
+    enter_video_encoding_mode:
+      area_threshold: 100%
+  scrolling:
+    detect_vertical_scrolling: true
 EOF
     cat > "${home}/.vnc/xstartup" <<'EOF'
 #!/bin/sh
