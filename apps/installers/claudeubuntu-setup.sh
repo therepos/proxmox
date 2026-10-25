@@ -480,9 +480,9 @@ install_kasmvnc() {
     assets="$(curl -fsSL https://api.github.com/repos/kasmtech/KasmVNC/releases/latest \
         | grep -o '"browser_download_url": *"[^"]*\.deb"' | cut -d'"' -f4)" \
         || fail "Cannot reach GitHub to find KasmVNC."
-    url="$(grep "/kasmvncserver_${codename}_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
+    url="$(grep "/kasmvncserver_[a-z]*_${codename}_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
     if [[ -z "$url" ]]; then
-        url="$(grep "/kasmvncserver_noble_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
+        url="$(grep "/kasmvncserver_ubuntu_noble_[^/]*_${arch}\.deb$" <<<"$assets" | head -1 || true)"
         [[ -n "$url" ]] || fail "No KasmVNC package for ${codename}/${arch}."
         warn "No KasmVNC build for ${codename}; using the Ubuntu 24.04 (noble) one."
     fi
