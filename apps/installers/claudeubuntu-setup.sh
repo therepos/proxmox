@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/claude-setup.sh?$(date +%s))"
-# Purpose: Installs Claude Code with Remote Control as a boot service (Ubuntu VM)
+# Purpose: Installs Claude Code with Remote Control as a boot service, plus an optional Claude Desktop Chat bridge (Ubuntu VM)
 # =============================================================================
 # Usage:
 #   Run inside the Ubuntu VM (not the PVE host), as root or via sudo, from a
@@ -9,11 +9,15 @@
 #     2) Status       service, version, working folder
 #     3) Update       update Claude Code and restart the service
 #     4) Static IP    pin the VM's LAN address (netplan, auto-reverts if broken)
-#     5) Uninstall    remove the service (optionally Claude Code itself)
-#   Args skip the menu: install | status | update | ip | uninstall
+#     5) Desktop      Claude Desktop on an auto-login XFCE desktop, so claude.ai
+#                     Chat (any browser) can use this VM's folder ("Add folder")
+#     6) Uninstall    remove the service, the desktop bridge (optionally Claude Code)
+#   Args skip the menu: install | status | update | ip | desktop | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
+#   After Desktop (once, in the Proxmox noVNC console): sign in to the app, then
+#   project -> Add folder -> the working folder. claude-rc keeps running alongside.
 #
 # Config (env): CLAUDE_USER, CLAUDE_WORKDIR, CLAUDE_RC_NAME
 # =============================================================================
@@ -27,6 +31,15 @@ CONF_FILE="/etc/claude-rc.conf"
 TMUX_SESSION="claude"
 DEFAULT_WORKDIR="/mnt/sec/media/shared"
 INSTALL_URL="https://claude.ai/install.sh"
+# Desktop bridge (Claude Desktop for Linux, Anthropic apt repo)
+DESKTOP_KEY_URL="https://downloads.claude.ai/claude-desktop/key.asc"
+DESKTOP_KEY_FILE="/usr/share/keyrings/claude-desktop-archive-keyring.asc"
+DESKTOP_KEY_FPR="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+DESKTOP_REPO_FILE="/etc/apt/sources.list.d/claude-desktop.list"
+DESKTOP_REPO_LINE="deb [arch=amd64,arm64 signed-by=${DESKTOP_KEY_FILE}] https://downloads.claude.ai/claude-desktop/apt/stable stable main"
+AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"
+SLEEP_TARGETS="sleep.target suspend.target hibernate.target hybrid-sleep.target"
+DESKTOP_PKGS="xfce4 xfce4-terminal lightdm lightdm-gtk-greeter dbus-x11 xserver-xorg gnome-keyring libpam-gnome-keyring"
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -309,6 +322,7 @@ do_status() {
     echo "  tmux            ${tmux_txt}"
     echo "  Service         ${svc}"
     echo "  Remote Control  ${rc_txt}"
+    echo "  Desktop bridge  $(desktop_state "$u")"
     echo "  User            ${u:--}"
     echo "  Folder          ${CLAUDE_WORKDIR:--}"
     echo "  LAN IP          $(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -327,6 +341,13 @@ do_update() {
     as_user "$CLAUDE_USER" "$bin" update || warn "Update command reported an error."
     systemctl restart "$SERVICE_NAME"
     ok "Updated to $(as_user "$CLAUDE_USER" "$bin" --version 2>/dev/null | head -1). Service restarted."
+    if [[ -n "$(pkg_ver claude-desktop)" ]]; then
+        info "Updating Claude Desktop..."
+        apt-get update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --only-upgrade claude-desktop >/dev/null \
+            || warn "Claude Desktop update failed."
+        ok "Claude Desktop $(pkg_ver claude-desktop). Restart the app (or reboot) to use it."
+    fi
 }
 
 # --- Static IP ---------------------------------------------------------------
@@ -411,9 +432,135 @@ EOF
     fi
 }
 
+# --- Desktop bridge ----------------------------------------------------------
+# Claude Desktop is a GUI app, so it needs a logged-in graphical session. A lean
+# XFCE desktop logs in automatically on boot and starts the app, which keeps the
+# folder added in the app reachable from claude.ai Chat in any browser.
+pkg_ver()        { dpkg-query -W -f='${Version}' "$1" 2>/dev/null || true; }
+autostart_file() { echo "$(user_home "$1")/.config/autostart/claude-desktop.desktop"; }
+noblank_file()   { echo "$(user_home "$1")/.config/autostart/no-blank.desktop"; }
+
+# One-line summary for Status.
+desktop_state() {
+    local u="$1" ver run al masked=0 t
+    ver="$(pkg_ver claude-desktop)"
+    [[ -n "$ver" ]] || { echo "not installed"; return; }
+    pgrep -f '/claude-desktop' >/dev/null && run="running" || run="NOT running"
+    al="$(awk -F= '/^autologin-user=/{print $2; exit}' "$AUTOLOGIN_FILE" 2>/dev/null || true)"
+    for t in $SLEEP_TARGETS; do
+        [[ "$(systemctl is-enabled "$t" 2>/dev/null || true)" == "masked" ]] && masked=$((masked + 1))
+    done
+    echo "${ver}, ${run}, auto-login ${al:-not set}, autostart $( [[ -n "$u" && -f "$(autostart_file "$u")" ]] && echo yes || echo no), sleep ${masked}/4 masked"
+}
+
+do_desktop() {
+    echo ""
+    echo "Claude Desktop (Chat bridge) - Install"
+    echo "================================================="
+    load_conf
+    [[ -n "${CLAUDE_USER:-}" ]] || pick_settings
+    local home; home="$(user_home "$CLAUDE_USER")"
+    info "Desktop logs in automatically as '${CLAUDE_USER}' and starts Claude Desktop."
+    confirm "Continue?" "Y" || { info "Cancelled."; return 0; }
+
+    export DEBIAN_FRONTEND=noninteractive
+    info "Installing a minimal XFCE desktop with LightDM (several minutes)..."
+    apt-get update -qq
+    # shellcheck disable=SC2086
+    apt-get install -y -qq --no-install-recommends $DESKTOP_PKGS >/dev/null \
+        || fail "Desktop package install failed."
+    ok "Desktop installed."
+
+    mkdir -p "$(dirname "$AUTOLOGIN_FILE")"
+    cat > "$AUTOLOGIN_FILE" <<EOF
+[Seat:*]
+autologin-user=${CLAUDE_USER}
+autologin-user-timeout=0
+autologin-session=xfce
+user-session=xfce
+EOF
+    groupadd -f autologin
+    usermod -aG autologin "$CLAUDE_USER"
+    echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
+    systemctl enable lightdm >/dev/null 2>&1 || true
+    systemctl set-default graphical.target >/dev/null
+    ok "Auto-login set for '${CLAUDE_USER}' (XFCE)."
+
+    # shellcheck disable=SC2086
+    systemctl mask $SLEEP_TARGETS >/dev/null 2>&1
+    mkdir -p "${home}/.config/autostart"
+    cat > "$(noblank_file "$CLAUDE_USER")" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Disable screen blanking
+Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false"
+EOF
+    ok "Sleep/suspend masked, screen blanking off at login."
+
+    apt-get install -y -qq curl gnupg >/dev/null
+    info "Adding Anthropic's apt repository..."
+    curl -fsSLo "$DESKTOP_KEY_FILE" "$DESKTOP_KEY_URL" || fail "Key download failed. Check access to downloads.claude.ai."
+    gpg --show-keys --with-colons "$DESKTOP_KEY_FILE" 2>/dev/null | grep -q "^fpr:::::::::${DESKTOP_KEY_FPR}:" \
+        || { rm -f "$DESKTOP_KEY_FILE"; fail "Signing key fingerprint mismatch. Not installing."; }
+    echo "$DESKTOP_REPO_LINE" > "$DESKTOP_REPO_FILE"
+    apt-get update -qq
+    info "Installing claude-desktop..."
+    apt-get install -y -qq claude-desktop >/dev/null || fail "claude-desktop install failed."
+    ok "Claude Desktop $(pkg_ver claude-desktop) installed."
+
+    cat > "$(autostart_file "$CLAUDE_USER")" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Claude
+Exec=claude-desktop
+EOF
+    chown -R "$CLAUDE_USER:" "${home}/.config"
+    ok "Claude Desktop starts at login."
+
+    echo ""
+    echo "Desktop bridge ready"
+    echo "================================================="
+    echo ""
+    echo "  One-time, in the Proxmox noVNC console:"
+    echo "    1. If asked to create a keyring password, leave it BLANK"
+    echo "       (auto-login cannot unlock a passworded keyring; the sign-in would be lost)."
+    echo "    2. Sign in to Claude in the app."
+    echo "    3. Open your project -> Add folder -> ${CLAUDE_WORKDIR}"
+    echo ""
+    echo "  Then use claude.ai Chat from any browser. Reboot once to test it comes back."
+    echo ""
+    if confirm "Start the desktop now (switches the console to the GUI)?" "Y"; then
+        systemctl restart lightdm || systemctl isolate graphical.target
+    fi
+}
+
+desktop_remove() {
+    pkill -f '/claude-desktop' 2>/dev/null || true
+    apt-get remove -y -qq claude-desktop >/dev/null 2>&1 || true
+    rm -f "$DESKTOP_REPO_FILE"
+    [[ -n "${CLAUDE_USER:-}" ]] && rm -f "$(autostart_file "$CLAUDE_USER")"
+    ok "Claude Desktop removed."
+
+    if confirm "Also remove auto-login, the sleep mask and the XFCE desktop?" "N"; then
+        rm -f "$AUTOLOGIN_FILE"
+        [[ -n "${CLAUDE_USER:-}" ]] && rm -f "$(noblank_file "$CLAUDE_USER")"
+        # shellcheck disable=SC2086
+        systemctl unmask $SLEEP_TARGETS >/dev/null 2>&1 || true
+        systemctl set-default multi-user.target >/dev/null
+        systemctl disable lightdm >/dev/null 2>&1 || true
+        # shellcheck disable=SC2086
+        apt-get remove -y -qq $DESKTOP_PKGS >/dev/null 2>&1 || true
+        apt-get autoremove -y -qq >/dev/null 2>&1 || true
+        ok "Desktop removed. Reboot to return to the text console."
+    fi
+}
+
 # --- Uninstall ---------------------------------------------------------------
 do_uninstall() {
     load_conf
+    if [[ -n "$(pkg_ver claude-desktop)" ]] && confirm "Remove the Claude Desktop bridge?" "N"; then
+        desktop_remove
+    fi
     confirm "Remove the '${SERVICE_NAME}' boot service?" "N" || { info "Cancelled."; return 0; }
     systemctl disable --now "$SERVICE_NAME" 2>/dev/null || true
     rm -f "$SERVICE_FILE"
@@ -435,9 +582,10 @@ case "${1:-}" in
     status)    do_status;     exit 0 ;;
     update)    do_update;     exit 0 ;;
     ip)        do_static_ip;  exit 0 ;;
+    desktop)   do_desktop;    exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | ip | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | ip | desktop | uninstall" ;;
 esac
 
 while true; do
@@ -449,16 +597,18 @@ while true; do
     echo "  2) Status"
     echo "  3) Update"
     echo "  4) Static IP"
-    echo "  5) Uninstall"
+    echo "  5) Desktop (Chat bridge)"
+    echo "  6) Uninstall"
     echo "  0) Exit"
     echo ""
-    read -rp "  Choose [0-5]: " choice </dev/tty || choice=0
+    read -rp "  Choose [0-6]: " choice </dev/tty || choice=0
     case "$choice" in
         1) do_install ;;
         2) do_status ;;
         3) do_update ;;
         4) do_static_ip ;;
-        5) do_uninstall ;;
+        5) do_desktop ;;
+        6) do_uninstall ;;
         0) exit 0 ;;
         *) warn "Invalid choice." ;;
     esac
