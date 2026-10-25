@@ -526,6 +526,16 @@ desktop:
     width: 1920
     height: 1080
   allow_resize: true
+encoding:
+  max_frame_rate: 60
+  rect_encoding_mode:
+    min_quality: 5
+    max_quality: 6
+  video_encoding_mode:
+    enter_video_encoding_mode:
+      area_threshold: 100%
+  scrolling:
+    detect_vertical_scrolling: true
 EOF
     cat > "${home}/.vnc/xstartup" <<'EOF'
 #!/bin/sh
@@ -597,8 +607,8 @@ do_desktop() {
     cat > "$(noblank_file "$CLAUDE_USER")" <<'EOF'
 [Desktop Entry]
 Type=Application
-Name=Disable screen blanking
-Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false"
+Name=Disable screen blanking and compositing
+Exec=sh -c "xset s off -dpms s noblank; xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false; xfconf-query -c xfce4-screensaver -p /saver/enabled -n -t bool -s false; xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false"
 EOF
     ok "Sleep/suspend masked, screen blanking off."
 
