@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.2.0
+// @version      3.3.0
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -24,6 +24,8 @@
  * Notes
  *   Business Context answers and the intake questions it may answer Yes to are in CONFIG below.
  *   An unknown intake question is logged with its wording and the task is skipped, never answered.
+ *   Each dropdown lists acceptable options in order of preference. When none is offered, the log shows
+ *   the options that were, and the task is skipped instead of submitting an incomplete form.
  *   Run state is kept in localStorage so a page reload resumes the run.
  *   The panel shows the current step while it waits. A skipped task logs what was on the page
  *   (heading and buttons) so the reason is visible.
@@ -37,7 +39,9 @@
   if (window.MH) return;
 
   const CONFIG = {
-    dropdowns: ['Asia-Pacific', 'ASEAN', 'Singapore', 'Consulting', 'Risk Consulting'],
+    // One list per dropdown, in order of preference: the first option present is picked, by exact text
+    // first, then by an option that starts with the text. MyHub renamed ASEAN to Asia East in 2026.
+    dropdowns: [['Asia-Pacific'], ['ASEAN', 'Asia East', 'All Regions'], ['Singapore', 'All Locations'], ['Consulting'], ['Risk Consulting']],
     purpose: 'Work Collaboration',
     contentTypes: ['EY Business Data/Information', 'Client Data/Information', 'Client Owned Records'],
     classification: 'EY Confidential C3',
@@ -90,7 +94,10 @@
   // The wizard's left column names every step on every page, so page checks ignore that step list:
   // pageText() returns the body text and the text of the smallest element that lists all six steps.
   const STEPS = ['Workspace Owners', 'Membership', 'SharePoint permissions', 'Site admin', 'Sharing Links', 'Business Context'];
-  const listsSteps = (el) => { const t = el.innerText || ''; return STEPS.every((s) => t.includes(s)); };
+  const listsSteps = (el) => {   // the renewal wizard's six steps, or the two-step confirm wizard
+    const t = el.innerText || '';
+    return STEPS.every((s) => t.includes(s)) || (t.includes('Workspace Owners') && t.includes('Business Context') && t.includes('Confirm whether'));
+  };
   function pageText() {
     const body = document.body.innerText || '';
     let nav = listsSteps(document.body) ? document.body : null;
@@ -168,22 +175,33 @@
 
   /* ================= Business Context form ================= */
 
-  async function fillCombo(index, value) {
+  // Pick the first acceptable option of a dropdown: exact text first, then an option starting with the text.
+  const matchOption = (texts, wanted) => {
+    for (const w of wanted) { const i = texts.indexOf(w); if (i >= 0) return i; }
+    for (const w of wanted) { const i = texts.findIndex((t) => t.startsWith(w)); if (i >= 0) return i; }
+    return -1;
+  };
+
+  // { ok, picked, options }: options lists what the dropdown offered when nothing matched.
+  async function fillCombo(index, wanted) {
     const inputs = document.querySelectorAll('input[role="combobox"]');
-    if (index >= inputs.length) return false;
+    if (index >= inputs.length) return { ok: false, options: [] };
     const inp = inputs[index];
-    if (inp.value === value) return true;
+    if (inp.value && matchOption([cleanText(inp.value)], wanted) >= 0) return { ok: true, picked: cleanText(inp.value) + ' (already set)' };
     const arrow = (inp.closest('.ms-ComboBox') || inp.parentElement)?.querySelector('button');
-    if (!arrow) return false;
+    if (!arrow) return { ok: false, options: [] };
+    let options = [];
     for (let attempt = 0; attempt < 3; attempt++) {
       arrow.click();
       await sleep(1500);
-      const opt = [...document.querySelectorAll('[role="option"]')].find((o) => o.innerText.trim() === value);
-      if (opt) { opt.click(); await sleep(2000); return true; }
+      const opts = [...document.querySelectorAll('[role="option"]')];
+      options = opts.map((o) => cleanText(o.innerText));
+      const i = matchOption(options, wanted);
+      if (i >= 0) { opts[i].click(); await sleep(2000); return { ok: true, picked: options[i] }; }
       document.body.click();
       await sleep(1000);
     }
-    return false;
+    return { ok: false, options };
   }
 
   function pick(sel, match) {
@@ -200,24 +218,29 @@
   const clickCheckbox = (label) => pick('input[type="checkbox"]', (c) =>
     (c.name || '').includes(label) || (c.parentElement?.innerText?.trim() || '').startsWith(label));
 
+  // Returns the fields it could not set. Nothing is submitted while that list is not empty.
   async function fillBusinessContext() {
+    const problems = [];
     for (let i = 0; i < CONFIG.dropdowns.length; i++) {
+      const wanted = CONFIG.dropdowns[i];
       phase('Business Context: dropdown ' + (i + 1) + ' of ' + CONFIG.dropdowns.length);
       let found = false;
       for (let w = 0; w < 10; w++) {
         if (document.querySelectorAll('input[role="combobox"]').length > i) { found = true; break; }
         await sleep(1500);
       }
-      if (!found) { log('    Dropdown ' + (i + 1) + ': did not appear. Skipping rest.', 'warn'); break; }
-      const ok = await fillCombo(i, CONFIG.dropdowns[i]);
-      log('    Dropdown ' + (i + 1) + ': ' + CONFIG.dropdowns[i] + (ok ? '' : ' (FAILED)'), ok ? 'ok' : 'warn');
+      if (!found) { log('    Dropdown ' + (i + 1) + ': did not appear.', 'fail'); problems.push('dropdown ' + (i + 1) + ' missing'); break; }
+      const r = await fillCombo(i, wanted);
+      if (r.ok) log('    Dropdown ' + (i + 1) + ': ' + r.picked, 'ok');
+      else { log('    Dropdown ' + (i + 1) + ': none of ' + wanted.join(' | ') + ' found. Options: ' + (r.options.join(' | ') || 'none'), 'fail'); problems.push('dropdown ' + (i + 1)); }
       await sleep(2500);
     }
     await sleep(1000);
-    const p = clickRadio(CONFIG.purpose); log('    Purpose: ' + CONFIG.purpose + (p ? '' : ' (not found)'), p ? 'ok' : 'warn'); await sleep(500);
-    for (const ct of CONFIG.contentTypes) { const c = clickCheckbox(ct); log('    Content: ' + ct + (c ? '' : ' (not found)'), c ? 'ok' : 'warn'); await sleep(300); }
-    const k = clickRadio(CONFIG.classification); log('    Classification: ' + CONFIG.classification + (k ? '' : ' (not found)'), k ? 'ok' : 'warn');
+    const p = clickRadio(CONFIG.purpose); log('    Purpose: ' + CONFIG.purpose + (p ? '' : ' (not found)'), p ? 'ok' : 'fail'); if (!p) problems.push('purpose'); await sleep(500);
+    for (const ct of CONFIG.contentTypes) { const c = clickCheckbox(ct); log('    Content: ' + ct + (c ? '' : ' (not found)'), c ? 'ok' : 'fail'); if (!c) problems.push('content'); await sleep(300); }
+    const k = clickRadio(CONFIG.classification); log('    Classification: ' + CONFIG.classification + (k ? '' : ' (not found)'), k ? 'ok' : 'fail'); if (!k) problems.push('classification');
     await sleep(2000);
+    return problems;
   }
 
   /* ================= one task ================= */
@@ -280,7 +303,12 @@
       if (got === 'submit') {
         if (pageHas('Business Context')) {
           log('  Filling Business Context...', 'info');
-          await fillBusinessContext();
+          const problems = await fillBusinessContext();
+          if (problems.length) {
+            log('  Business Context incomplete (' + problems.join(', ') + '), not submitting. Fix CONFIG and run again.', 'fail');
+            clickButton('Cancel');
+            return false;
+          }
           log('  Business Context filled.', 'ok');
           await sleep(1000);
         }
@@ -450,7 +478,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.2.0'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.3.0'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };

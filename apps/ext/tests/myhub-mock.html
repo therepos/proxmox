@@ -13,13 +13,15 @@ li[role=option] { padding: 2px 4px; cursor: pointer; } label { display: block; }
 <script>
 (() => {
   const fast = /fast=1/.test(location.search);
-  const LEVELS = [['Americas', 'Asia-Pacific', 'EMEIA'], ['ASEAN', 'Greater China', 'Oceania'], ['Singapore', 'Malaysia', 'Thailand'],
-    ['Assurance', 'Consulting', 'Tax'], ['Business Consulting', 'Risk Consulting', 'Technology Consulting']];
+  const LEVELS = [['Americas', 'Asia-Pacific', 'EMEIA'], ['All Regions - Asia-Pacific', 'Asia East', 'Greater China', 'Oceania'],
+    ['All Locations - Asia East', 'Singapore', 'Malaysia'], ['Assurance', 'Consulting', 'Tax'], ['Business Consulting', 'Risk Consulting', 'Technology Consulting']];
+  const levels = () => (wiz && wiz.task.badRegion ? LEVELS.map((l, i) => (i === 1 ? ['Europe West', 'Nordics'] : l)) : LEVELS);
   const ALL = [
     { id: 1, name: 'Team Alpha 2024', type: 'Renew Microsoft Team', intake: true, secondary: true },
     { id: 2, name: 'Team Beta: Interim Testing', type: 'Renew Microsoft Team', intake: true, secondary: false },
     { id: 3, name: 'Team Gamma 2024', type: 'Renew Microsoft Team', intake: false },
     { id: 4, name: 'Mystery Team', type: 'Confirm Details', intake: 'unknown' },
+    { id: 5, name: 'Team Delta', type: 'Renew Microsoft Team', intake: true, secondary: true, badRegion: true },
   ];
   const tasks = fast ? ALL.filter((t) => t.id === 3) : ALL.slice();
   const M = window.__mock = { tasks, submissions: [], events: [], visited: [] };
@@ -146,7 +148,7 @@ li[role=option] { padding: 2px 4px; cursor: pointer; } label { display: block; }
   const radios = (name, vals) => vals.map((v) => '<label><input type="radio" name="' + name + '" value="' + v + '"> ' + v + '</label>').join('');
   const checks = (vals) => vals.map((v) => '<label><input type="checkbox" name="ct:' + v + '" value="' + v + '"> ' + v + '</label>').join('');
   function addCombo(i) {
-    if (i >= LEVELS.length) return;
+    if (i >= levels().length) return;
     const wrap = document.createElement('div'); wrap.className = 'ms-ComboBox';
     wrap.innerHTML = '<input role="combobox" readonly placeholder="Select"><button type="button" aria-label="Open">▼</button>';
     document.getElementById('combos').append(wrap);
@@ -156,7 +158,7 @@ li[role=option] { padding: 2px 4px; cursor: pointer; } label { display: block; }
     btn.onclick = () => {
       if (list) { close(); return; }
       list = document.createElement('ul'); list.setAttribute('role', 'listbox');
-      LEVELS[i].forEach((v) => {
+      levels()[i].forEach((v) => {
         const li = document.createElement('li'); li.setAttribute('role', 'option'); li.textContent = v;
         li.onclick = () => { const first = !input.value; input.value = v; wiz.bc.dropdowns[i] = v; close(); if (first) setTimeout(() => addCombo(i + 1), 300); };
         list.append(li);
@@ -170,7 +172,7 @@ li[role=option] { padding: 2px 4px; cursor: pointer; } label { display: block; }
     bc.purpose = (document.querySelector('input[name=purpose]:checked') || {}).value || '';
     bc.contentTypes = [...document.querySelectorAll('input[type=checkbox]:checked')].map((c) => c.value);
     bc.classification = (document.querySelector('input[name=classification]:checked') || {}).value || '';
-    if (bc.dropdowns.filter(Boolean).length < LEVELS.length || !bc.purpose || !bc.contentTypes.length || !bc.classification) {
+    if (bc.dropdowns.filter(Boolean).length < levels().length || !bc.purpose || !bc.contentTypes.length || !bc.classification) {
       document.getElementById('err').textContent = 'Please complete all fields'; M.events.push('submit-rejected'); return;
     }
     M.submissions.push(Object.assign({ task: wiz.task.name }, bc));
