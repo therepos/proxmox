@@ -21,12 +21,12 @@ const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 /* What a full run over the four mock tasks must produce. */
 const FULL = {
-  total: 4, completed: 1, skipped: 3,
-  skippedNames: ['Team Beta: Interim Testing', 'Team Gamma 2024', 'Mystery Team'],
+  total: 5, completed: 1, skipped: 4,
+  skippedNames: ['Team Beta: Interim Testing', 'Team Gamma 2024', 'Mystery Team', 'Team Delta'],
   pages: ['owners', 'members', 'spusers', 'spgroups', 'siteadmin', 'sharing', 'bc'],
   lines: ['  Workspace Owners -> Continue', '  Membership -> Continue', '  SharePoint (users) -> Continue',
     '  SharePoint (groups) -> Continue (x3)', '  Site admin -> Continue', '  Sharing Links -> Continue', '  Filling Business Context...'],
-  submission: { task: 'Team Alpha 2024', dropdowns: ['Asia-Pacific', 'ASEAN', 'Singapore', 'Consulting', 'Risk Consulting'],
+  submission: { task: 'Team Alpha 2024', dropdowns: ['Asia-Pacific', 'Asia East', 'Singapore', 'Consulting', 'Risk Consulting'],
     purpose: 'Work Collaboration', contentTypes: ['EY Business Data/Information', 'Client Data/Information', 'Client Owned Records'],
     classification: 'EY Confidential C3' },
 };
@@ -36,7 +36,8 @@ function checkFull(st, logs, m) {
     assert.strictEqual(st.total, FULL.total); assert.strictEqual(st.completed, FULL.completed); assert.strictEqual(st.skipped, FULL.skipped);
     assert.deepStrictEqual(st.skippedNames, FULL.skippedNames);
     assert.deepStrictEqual(m.submissions, [FULL.submission], 'Business Context submitted with the configured answers');
-    assert.deepStrictEqual(m.events, ['sp-ignored', 'sp-ignored'], 'no Continue without a secondary owner, no rejected submit, no Yes to an unknown question');
+    // two tasks reach the SharePoint page that ignores two clicks each; nothing else may happen
+    assert.deepStrictEqual(m.events, ['sp-ignored', 'sp-ignored', 'sp-ignored', 'sp-ignored'], 'no Continue without a secondary owner, no rejected submit, no Yes to an unknown question');
     assert.deepStrictEqual(m.visited.slice(0, 7), FULL.pages, 'all seven wizard pages in order');
     const i0 = logs.indexOf(FULL.lines[0]);
     assert.deepStrictEqual(logs.slice(i0, i0 + FULL.lines.length), FULL.lines, 'one log line per wizard page, in order');
@@ -45,11 +46,14 @@ function checkFull(st, logs, m) {
     assert.ok(logs.some((l) => /No intake question found, skipping\. Page "Team Gamma 2024", buttons: Close/.test(l)), 'diagnostics name the page');
     assert.ok(logs.some((l) => /Unknown intake question, not answering: "Does this team store client data\?/.test(l)), 'unknown question logged');
     assert.ok(logs.some((l) => /Submitted\./.test(l)) && logs.some((l) => /=== SUMMARY ===/.test(l)));
+    assert.ok(logs.includes('    Dropdown 2: none of ASEAN | Asia East | All Regions found. Options: Europe West | Nordics'), 'dropdown miss lists the options');
+    assert.ok(logs.some((l) => /Business Context incomplete \(dropdown 2, dropdown 3( missing)?\), not submitting/.test(l)), 'incomplete form never submitted');
   } catch (e) { e.message += '\n--- log ---\n' + logs.join('\n'); throw e; }
 }
 
 async function userscript() {
   const browser = await chromium.launch({ executablePath: EXE, args: ['--no-sandbox'] });
+  try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -66,9 +70,9 @@ async function userscript() {
   const m = await page.evaluate(() => window.__mock);
   checkFull(st, st.logs.map((l) => l.msg), m);
   assert.strictEqual(await page.textContent('#mh-panel .phase'), 'Finished.');
-  assert.match(await page.textContent('#mh-panel .sum'), /Done 4\/4 \(1 done, 3 skipped\)/);
+  assert.match(await page.textContent('#mh-panel .sum'), /Done 5\/5 \(1 done, 4 skipped\)/);
   assert.deepStrictEqual(errors, [], 'no page errors');
-  await browser.close();
+  } finally { await browser.close(); }
 }
 
 function unpack(stripContentScripts) {
@@ -89,6 +93,7 @@ async function extension(inject) {
   const ctx = await chromium.launchPersistentContext(tmp('mh-udd-'), Object.assign(
     { headless: true, args: ['--no-sandbox', '--disable-extensions-except=' + ext, '--load-extension=' + ext] },
     EXE ? { executablePath: EXE } : { channel: 'chromium' }));
+  try {
   await ctx.route(MYHUB + '**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: MOCK }));
   const site = await ctx.newPage();
   await site.goto(MYHUB + (inject ? '?fast=1' : '') + '#/v2/todos');
@@ -115,7 +120,7 @@ async function extension(inject) {
     assert.ok(logs.some((l) => /No intake question found/.test(l)));
   } else {
     checkFull(st, logs, m);
-    assert.match(await popup.textContent('#summary'), /Completed 1\/4, skipped 3: Team Beta/);
+    assert.match(await popup.textContent('#summary'), /Completed 1\/5, skipped 4: Team Beta/);
   }
   assert.strictEqual(await popup.$eval('#startBtn', (b) => b.style.display), 'block');
 
@@ -125,7 +130,7 @@ async function extension(inject) {
   await popup.waitForFunction(() => /No activity for \d+s/.test(document.getElementById('progress').textContent), null, { timeout: 5000 });
   await popup.click('#resetLink');
   await popup.waitForFunction(() => document.getElementById('startBtn').style.display === 'block', null, { timeout: 5000 });
-  await ctx.close();
+  } finally { await ctx.close(); }
 }
 
 const jobs = { userscript, extension: () => extension(false), inject: () => extension(true) };
@@ -135,4 +140,4 @@ if (names.some((n) => !jobs[n])) { console.error('usage: node myhub.test.js [use
 Promise.all(names.map((n) => jobs[n]().then(
   () => console.log('PASS ' + n),
   (e) => { console.error('FAIL ' + n + ': ' + (e.stack || e)); process.exitCode = 1; },
-))).then(() => console.log(process.exitCode ? 'MYHUB TESTS FAILED' : 'MYHUB TESTS PASSED'));
+))).then(() => { console.log(process.exitCode ? 'MYHUB TESTS FAILED' : 'MYHUB TESTS PASSED'); process.exit(process.exitCode || 0); });
