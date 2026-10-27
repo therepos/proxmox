@@ -3,15 +3,19 @@
 # Purpose: Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu)
 # =============================================================================
 # Usage:
-#   1) Proxmox host  -> install / status / passwd / add user / repair / uninstall
+#   1) Proxmox host  -> install / status / passwd / add user / repair / auto-fix / uninstall
 #   2) VM            -> install / uninstall SMB client mounts
 #
 # Flags: --server-install | --server-status | --server-passwd
-#        --server-adduser [name] | --server-repair | --server-uninstall [share]
+#        --server-adduser [name] | --server-repair | --server-autofix [on|off]
+#        --server-uninstall [share]
 #        --client-install | --client-uninstall [path] | -y
 #
 # Note: Samba runs as root (force user) to match FileBrowser, so its files stay editable.
-# Config (env): HOST_IP, SMB_USER, SMB_PASS, ASSUME_YES.
+#       A cron job (auto-fix) keeps shared folders writable for VM users; see
+#       SHARE_AUTOFIX_PATHS below for why and where.
+# Config (env): HOST_IP, SMB_USER, SMB_PASS, ASSUME_YES, SHARE_ACCESS_UIDS,
+#   SHARE_AUTOFIX_PATHS, SHARE_AUTOFIX_MINUTES.
 # =============================================================================
 
 set -euo pipefail
@@ -79,6 +83,18 @@ SHARE_OWNER_GROUP="$SAMBA_GROUP"   # group-own the share so members can write
 # group membership alone does not carry across virtiofs — a named-UID ACL does.
 # Space-separated; override via env. Set to "" to disable.
 SHARE_ACCESS_UIDS="${SHARE_ACCESS_UIDS:-1000}"
+
+# The ACLs above have a catch: any root process with the usual umask 022
+# (FileBrowser, a root shell, most containers) creates folders whose ACL *mask*
+# is r-x, and the mask caps every ACL entry to read-only. The entries are still
+# there, but VM users get "Permission denied" until the mask is re-opened.
+# server_repair() fixes it once; the auto-fix cron below keeps it fixed by
+# re-opening the mask every few minutes. It is scoped to the folders people
+# share with VMs rather than the whole share on purpose: app data such as
+# Postgres directories must stay 0700/0750 or the app refuses to start.
+SHARE_AUTOFIX_PATHS="${SHARE_AUTOFIX_PATHS:-/mnt/sec/media}"
+SHARE_AUTOFIX_MINUTES="${SHARE_AUTOFIX_MINUTES:-5}"
+AUTOFIX_CRON="/etc/cron.d/smb-share-autofix"
 
 SMB_USER="${SMB_USER:-toor}"
 SMB_PASS="${SMB_PASS:-}"   # prompted at install time; never hardcoded
@@ -173,6 +189,74 @@ apply_share_access() {
     else
         warn "acl tools not found; skipping ACLs (install the 'acl' package)."
     fi
+}
+
+# The find only touches entries whose group write bit (the ACL mask, when ACLs
+# are present) is missing, so a steady-state run is a metadata walk and nothing
+# else. Prints the command; shared by the cron job and the one-off run.
+autofix_cmd() {
+    local p paths=()
+    for p in $SHARE_AUTOFIX_PATHS; do [[ -d "$p" ]] && paths+=("$p"); done
+    [[ ${#paths[@]} -gt 0 ]] || return 1
+    printf 'find %s ! -perm -g=w -exec chmod g+rwX {} +' "${paths[*]}"
+}
+
+autofix_run() {
+    local cmd
+    if ! cmd=$(autofix_cmd); then
+        warn "None of SHARE_AUTOFIX_PATHS exist (${SHARE_AUTOFIX_PATHS}); nothing to fix."
+        return 0
+    fi
+    eval "$cmd" 2>/dev/null || true
+}
+
+server_autofix_on() {
+    local cmd
+    cmd=$(autofix_cmd) || fail "None of SHARE_AUTOFIX_PATHS exist: ${SHARE_AUTOFIX_PATHS}"
+    cat >"$AUTOFIX_CRON" <<EOF
+# Managed by smb-setup.sh. Re-opens the group/ACL mask on shared folders so VM
+# users keep write access after a root process creates files with umask 022.
+*/${SHARE_AUTOFIX_MINUTES} * * * * root nice -n 19 ionice -c3 ${cmd} >/dev/null 2>&1
+EOF
+    chmod 644 "$AUTOFIX_CRON"
+    autofix_run
+    ok "Auto-fix on: every ${SHARE_AUTOFIX_MINUTES} min on ${SHARE_AUTOFIX_PATHS} (${AUTOFIX_CRON})."
+}
+
+server_autofix_off() {
+    if [[ -f "$AUTOFIX_CRON" ]]; then
+        rm -f "$AUTOFIX_CRON"
+        ok "Auto-fix off (${AUTOFIX_CRON} removed)."
+    else
+        ok "Auto-fix was not enabled."
+    fi
+}
+
+# server_autofix [on|off]; no argument shows the state and asks.
+server_autofix() {
+    case "${1:-}" in
+        on)  server_autofix_on ;;
+        off) server_autofix_off ;;
+        "")
+            if [[ -f "$AUTOFIX_CRON" ]]; then
+                echo "Auto-fix is ON: every ${SHARE_AUTOFIX_MINUTES} min on ${SHARE_AUTOFIX_PATHS}."
+                if [[ "$(askstr 'Turn it off? [y/N]: ' n)" =~ ^[yY]$ ]]; then
+                    server_autofix_off
+                else
+                    info "Left on."
+                fi
+            else
+                echo "Auto-fix is OFF. VM users lose write access whenever a root"
+                echo "process creates a folder in the share (see SHARE_AUTOFIX_PATHS)."
+                if [[ "$(askstr 'Turn it on? [Y/n]: ' y)" =~ ^[yY]$ ]]; then
+                    server_autofix_on
+                else
+                    info "Left off."
+                fi
+            fi
+            ;;
+        *) fail "Usage: --server-autofix [on|off]" ;;
+    esac
 }
 
 server_install() {
@@ -275,6 +359,9 @@ SHARE_EOF
     systemctl enable --now smbd
     systemctl restart smbd
 
+    echo ""
+    server_autofix_on
+
     local SHARE1="${SHARES[0]%%:*}"
     echo ""
     echo "=== Samba server setup complete ==="
@@ -317,6 +404,12 @@ server_status() {
     users=$(pdbedit -L 2>/dev/null | cut -d: -f1 | paste -sd', ' - || true)
     echo ""
     echo "  Samba users: ${users:-none}"
+
+    if [[ -f "$AUTOFIX_CRON" ]]; then
+        echo "  Auto-fix:    on (every ${SHARE_AUTOFIX_MINUTES} min on ${SHARE_AUTOFIX_PATHS})"
+    else
+        echo "  Auto-fix:    off (menu option f / --server-autofix on)"
+    fi
 
     # Client connection details (per share).
     if [[ ${#SHARE_NAMES[@]} -gt 0 ]]; then
@@ -409,6 +502,10 @@ server_repair() {
     echo "=== Repair complete ==="
     echo "Files stay owned by ${SHARE_OWNER}; group ${SAMBA_GROUP} + ACLs make"
     echo "them read/write for VM users, containers (uid ${SHARE_ACCESS_UIDS// /, }), and SMB."
+    echo ""
+    # A one-off repair does not stop the next umask-022 folder from clamping
+    # the mask again, so (re)enable the cron that keeps it open.
+    server_autofix_on
 }
 
 server_uninstall() {
@@ -516,6 +613,7 @@ server_uninstall() {
     if [[ "$remaining" -eq 0 ]]; then
         info "No shares remaining. Stopping Samba..."
         systemctl disable --now smbd 2>/dev/null || true
+        server_autofix_off
 
         # Remove samba users from group
         for u in "${SAMBA_USERS[@]}"; do
@@ -832,6 +930,11 @@ case "${1:-}" in
         server_repair
         exit 0
         ;;
+    --server-autofix)
+        shift
+        server_autofix "$@"
+        exit 0
+        ;;
     --server-status)
         server_status
         exit 0
@@ -878,8 +981,9 @@ case "$mode" in
             echo "  a) Add a user"
             echo "  r) Reinstall"
             echo "  p) Repair permissions (fix files you cannot edit)"
+            echo "  f) Auto-fix on/off (keeps VM write access; cron)"
             echo "  u) Uninstall"
-            read -rp "Select (s/c/a/r/p/u): " choice </dev/tty
+            read -rp "Select (s/c/a/r/p/f/u): " choice </dev/tty
             case "$choice" in
                 s|S) server_status ;;
                 c|C) server_passwd ;;
@@ -887,6 +991,7 @@ case "$mode" in
                 u|U) server_uninstall ;;
                 r|R) server_install ;;
                 p|P) server_repair ;;
+                f|F) server_autofix ;;
                 *) info "Cancelled."; exit 0 ;;
             esac
         else
