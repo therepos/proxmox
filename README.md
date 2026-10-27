@@ -2,6 +2,8 @@
 
 Execute the wget command line from the selected script.  
 Windows scripts (`apps/win`): double-click the `.bat`, or run the `irm ... | iex` line from the `.ps1` header.
+Browser extension (`apps/ext/myhub`): download `myhub-setup.zip` from the latest `myhub-v*` [release](https://github.com/therepos/proxmox/releases),
+unzip and double-click `myhub-setup.cmd`. Run it again to update; the extension popup says when a newer version exists.
 
 ## Structure
 

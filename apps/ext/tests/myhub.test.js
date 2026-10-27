@@ -1,4 +1,4 @@
-// MyHub Auto-Complete test. Drives myhub.user.js and the unpacked ext-myhub.zip against myhub-mock.html,
+// MyHub Auto-Complete test. Drives myhub.user.js and the extension in apps/ext/myhub against myhub-mock.html,
 // a page that mimics the task list and the seven-page renewal wizard as seen on the live site.
 // Usage: node apps/ext/tests/myhub.test.js [userscript|extension|inject|all]   (default all, run in parallel)
 // Needs Playwright with Chromium. CHROMIUM=/path/to/chrome overrides the browser.
@@ -8,13 +8,12 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 const assert = require('assert');
-const { execFileSync } = require('child_process');
 const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node-tools/node_modules/playwright'); } })();
 
 const DIR = __dirname;
 const MOCK = fs.readFileSync(path.join(DIR, 'myhub-mock.html'), 'utf8');
 const USERSCRIPT = path.join(DIR, '..', 'myhub.user.js');
-const ZIP = path.join(DIR, '..', 'ext-myhub.zip');
+const EXT_SRC = path.join(DIR, '..', 'myhub');
 const MYHUB = 'https://myhub.avepointonlineservices.com/';
 const EXE = process.env.CHROMIUM;
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -75,10 +74,11 @@ async function userscript() {
   } finally { await browser.close(); }
 }
 
-function unpack(stripContentScripts) {
+function extDir(stripContentScripts) {
+  if (!stripContentScripts) return fs.realpathSync(EXT_SRC);
   const dir = fs.realpathSync(tmp('mh-ext-'));
-  execFileSync('unzip', ['-q', '-o', ZIP, '-d', dir]);
-  if (stripContentScripts) {   // simulate a tab opened before the extension was loaded: the popup must inject
+  fs.cpSync(EXT_SRC, dir, { recursive: true });
+  {   // simulate a tab opened before the extension was loaded: the popup must inject
     const mf = path.join(dir, 'manifest.json');
     const m = JSON.parse(fs.readFileSync(mf, 'utf8'));
     delete m.content_scripts;
@@ -89,12 +89,14 @@ function unpack(stripContentScripts) {
 const extId = (dir) => [...crypto.createHash('sha256').update(dir).digest('hex').slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
 
 async function extension(inject) {
-  const ext = unpack(inject);
+  const ext = extDir(inject);
   const ctx = await chromium.launchPersistentContext(tmp('mh-udd-'), Object.assign(
     { headless: true, args: ['--no-sandbox', '--disable-extensions-except=' + ext, '--load-extension=' + ext] },
     EXE ? { executablePath: EXE } : { channel: 'chromium' }));
   try {
   await ctx.route(MYHUB + '**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: MOCK }));
+  const releases = inject ? [] : [{ tag_name: 'eyetc-v1.0', html_url: 'https://example.invalid/other' }, { tag_name: 'myhub-v9.9', html_url: 'https://example.invalid/rel' }];
+  await ctx.route('https://api.github.com/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(releases) }));
   const site = await ctx.newPage();
   await site.goto(MYHUB + (inject ? '?fast=1' : '') + '#/v2/todos');
   await site.waitForSelector('button:has-text("Start task")');
@@ -102,6 +104,14 @@ async function extension(inject) {
   const popup = await ctx.newPage();
   await popup.goto('chrome-extension://' + extId(ext) + '/popup.html');
   await popup.waitForFunction(() => document.getElementById('conn').textContent.trim() !== '');
+  assert.match(await popup.textContent('#version'), /^v\d+\.\d+$/, 'installed version shown');
+  if (inject) {
+    await popup.waitForTimeout(500);
+    assert.strictEqual(await popup.$eval('#update', (e) => e.style.display), 'none', 'no update bar without a newer release');
+  } else {
+    await popup.waitForFunction(() => document.getElementById('update').style.display === 'block', null, { timeout: 5000 });
+    assert.match(await popup.textContent('#updateText'), /^v9\.9 is available \(installed v\d+\.\d+\)\. Run myhub-setup\.cmd/, 'newer release announced');
+  }
   await popup.click('#startBtn');
   await popup.waitForFunction(() => /connected|injected|Could not|No MyHub/.test(document.getElementById('conn').textContent), null, { timeout: 15000 });
   assert.match(await popup.textContent('#conn'), inject ? /Page script injected/ : /Page script connected/);

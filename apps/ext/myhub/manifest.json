@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "MyHub Auto-Complete",
+  "version": "2.6",
+  "description": "Automates routine MyHub renewal and confirmation tasks",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://myhub.avepointonlineservices.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://myhub.avepointonlineservices.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

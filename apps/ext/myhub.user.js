@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyHub Auto-Complete
 // @namespace    https://github.com/therepos/proxmox
-// @version      3.3.0
+// @version      3.3.1
 // @description  Walk every MyHub renewal and confirmation task: answer Yes, Continue through the wizard, fill Business Context, Submit.
 // @author       therepos
 // @match        https://myhub.avepointonlineservices.com/*
@@ -31,7 +31,8 @@
  *   (heading and buttons) so the reason is visible.
  *   A task is skipped when it has no or an unknown intake question, no Continue or Submit, no secondary owner,
  *   or when a wizard page stays put for 90 seconds. Continue is retried while a page loads.
- *   Source: ext-myhub.zip (content.js + popup.js), popup replaced by an in-page panel.
+ *   Same logic as the Edge extension in apps/ext/myhub (installed with myhub-setup.cmd), popup replaced by
+ *   an in-page panel.
  */
 
 (() => {
@@ -478,7 +479,7 @@
     const sum = el('div', { class: 'sum' });
     const dryRow = el('div', { class: 'row' }); dryRow.append(dryLabel);
     const row = el('div', { class: 'row' }); row.append(startBtn, stopBtn);
-    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.3.0'),
+    panel.append(el('h1', {}, 'MyHub Auto-Complete'), el('div', { class: 'sub' }, 'Renewal and confirmation tasks · userscript v3.3.1'),
       dryRow, row, phaseBox, logBox, sum);
     document.documentElement.append(style, fab, panel);
     fab.onclick = () => { panel.hidden = !panel.hidden; };
