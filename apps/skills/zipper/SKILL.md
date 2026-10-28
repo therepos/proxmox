@@ -1,6 +1,6 @@
 ---
 name: zipper
-description: Extract archives the user transfers as a 7-Zip or zip file with the extension removed and password Zip@2026! (typical names look like log-YYYYMMDD-HHMM-xxx). Use this whenever an uploaded file has no extension or a wrong extension, whenever the user says "add .zip and extract", "password is Zip@2026!", "this is a zip/7z", "unpack this", or when unzip fails on an upload. Do not ask what the file is; run the extractor first. Applies to any content (workpapers, reports, data, code, images), not only audit files.
+description: Extract archives the user transfers as a 7-Zip or zip file with the extension removed and password Zip@2026! (typical names look like YYYYMMDD-HHMMSS). Use this whenever an uploaded file has no extension or a wrong extension, whenever the user says "add .zip and extract", "password is Zip@2026!", "this is a zip/7z", "unpack this", or when unzip fails on an upload. Do not ask what the file is; run the extractor first. Applies to any content (workpapers, reports, data, code, images), not only audit files.
 ---
 
 # Archive transfer extraction

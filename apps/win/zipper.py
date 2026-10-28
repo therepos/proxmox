@@ -7,7 +7,7 @@ or extract a password-protected 7z archive.
 Auto-installs 7-Zip if not present (Windows / macOS / Linux).
 
 ZIP MODE
-  Output filename : log-YYYYMMDD-HHMM   (no extension, placed next to script)
+  Output filename : YYYYMMDD-HHMMSS   (no extension, placed next to script)
   Password        : prompts (press Enter to use the default 'Zip@2026!')
 
 UNZIP MODE
@@ -39,7 +39,6 @@ from pathlib import Path
 
 
 DEFAULT_PASSWORD = "Zip@2026!"
-PREFIX           = "log"
 
 # Standard install locations 7-Zip uses on Windows
 WIN_PATHS = [
@@ -265,8 +264,8 @@ def prompt_password(action: str, *, confirm: bool = False) -> str:
 
 def make_archive(targets: list[Path], seven_z: str,
                  password: str = DEFAULT_PASSWORD) -> Path:
-    timestamp   = datetime.now().strftime("%Y%m%d-%H%M")
-    output_name = f"{PREFIX}-{timestamp}"      # no extension
+    timestamp   = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output_name = timestamp                    # no extension
     script_dir  = Path(__file__).resolve().parent
     output_path = script_dir / output_name     # sits next to the script
 
