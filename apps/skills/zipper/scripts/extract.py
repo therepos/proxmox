@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract a zip or 7z archive that may lack an extension. Default password 123.
+"""Extract a zip or 7z archive that may lack an extension. Default password Zip@2026!.
 Usage: extract.py <archive> [--password PW] [--no-copy] [--out DIR]"""
 import sys, os, shutil, subprocess, argparse, zipfile
 
@@ -69,7 +69,7 @@ def extract(src, dst, pw):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("archive"); ap.add_argument("--password", default="123")
+    ap.add_argument("archive"); ap.add_argument("--password", default="Zip@2026!")
     ap.add_argument("--no-copy", action="store_true"); ap.add_argument("--out", default=None)
     a = ap.parse_args()
     name = os.path.splitext(os.path.basename(a.archive))[0]
