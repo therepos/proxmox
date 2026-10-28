@@ -8,11 +8,11 @@ Auto-installs 7-Zip if not present (Windows / macOS / Linux).
 
 ZIP MODE
   Output filename : log-YYYYMMDD-HHMM   (no extension, placed next to script)
-  Password        : prompts (press Enter to use the default '123')
+  Password        : prompts (press Enter to use the default 'Zip@2026!')
 
 UNZIP MODE
   Input           : a 7z archive (with or without .7z extension)
-  Password        : prompts (press Enter to use the default '123';
+  Password        : prompts (press Enter to use the default 'Zip@2026!';
                     will re-prompt if wrong)
   Output          : a folder next to the archive (or a path you choose)
 
@@ -38,7 +38,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_PASSWORD = "123"
+DEFAULT_PASSWORD = "Zip@2026!"
 PREFIX           = "log"
 
 # Standard install locations 7-Zip uses on Windows
