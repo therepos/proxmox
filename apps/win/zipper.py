@@ -416,7 +416,7 @@ def interactive(seven_z: str) -> None:
         choice = ask("> ").lower()
         if choice in ("1", "z", "zip", "2", "u", "unzip"):
             break
-        print("  ! type 1 or 2")
+        print("Choose 1 or 2")
     print()
 
     try:
