@@ -17,13 +17,20 @@ UNZIP MODE
   Output          : a folder next to the archive (or a path you choose)
 
 Usage
-  python zipper.py                              (interactive — asks zip or unzip)
+  python zipper.py                              (GUI window docked right, always on top)
+  python zipper.py --cli                        (console menu — asks zip or unzip)
   python zipper.py --zip   <file_or_folder> ...
   python zipper.py --unzip <archive> [output_dir]
   python zipper.py --password <pw> --zip <file_or_folder> ...
   python zipper.py <file_or_folder> ...         (legacy: defaults to zip)
 
+GUI
+  Drag any number of files/folders from Explorer onto the window (or use
+  Add files / Add folder). The window docks to the right edge of the screen
+  and stays on top so Explorer remains usable beside it.
+
 Flags
+  --cli                   console menu instead of the GUI
   --zip / -z              compress mode
   --unzip / -u / -x       extract mode
   --password <pw> / -p    skip the password prompt and use this value
@@ -189,12 +196,26 @@ def collect_targets(raw_paths: list[str]) -> list[Path]:
     return targets
 
 
+def split_dropped(line: str) -> list[str]:
+    """
+    Dropping several files into a console pastes them on one line,
+    space separated, with quotes only around paths containing spaces.
+    A line that is itself an existing path is kept whole.
+    """
+    line = line.strip()
+    if Path(line.strip('"').strip("'")).expanduser().exists():
+        return [line]
+    import re
+    return [a or b for a, b in re.findall(r'"([^"]+)"|(\S+)', line)]
+
+
 def prompt_targets() -> list[Path]:
     """
     Interactive mode: ask the user to enter paths one by one.
+    Several paths dropped on one line are split apart.
     An empty line (or 'done') finishes input.
     """
-    print("Enter file/folder paths to archive (one per line).")
+    print("Enter or drop file/folder paths to archive (several per line is fine).")
     print("Press Enter on an empty line when done.\n")
 
     raw_paths: list[str] = []
@@ -205,7 +226,7 @@ def prompt_targets() -> list[Path]:
             break
         if line.lower() in ("", "done", "q", "quit"):
             break
-        raw_paths.append(line)
+        raw_paths.extend(split_dropped(line))
 
     if not raw_paths:
         print("[!] No paths provided. Exiting.")
@@ -262,23 +283,15 @@ def prompt_password(action: str, *, confirm: bool = False) -> str:
 # 4.  COMPRESS
 # ──────────────────────────────────────────────
 
-def make_archive(targets: list[Path], seven_z: str,
-                 password: str = DEFAULT_PASSWORD) -> Path:
-    timestamp   = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_name = timestamp                    # no extension
-    script_dir  = Path(__file__).resolve().parent
-    output_path = script_dir / output_name     # sits next to the script
+def new_output_path() -> Path:
+    """YYYYMMDD-HHMMSS next to the script, no extension."""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return Path(__file__).resolve().parent / timestamp
 
-    # Print a summary of what will be archived
-    print(f"[*] Items to archive : {len(targets)}")
-    for t in targets:
-        kind = "Folder" if t.is_dir() else "File"
-        print(f"    {kind:<8} : {t}")
-    print(f"[*] Output           : {output_path}")
-    print(f"[*] Password         : {'*' * len(password)} ({len(password)} chars)")
-    print()
 
-    cmd = [
+def zip_cmd(seven_z: str, password: str, output_path: Path,
+            targets: list[Path]) -> list[str]:
+    return [
         seven_z,
         "a",               # add / create archive
         "-t7z",            # 7z format
@@ -289,15 +302,36 @@ def make_archive(targets: list[Path], seven_z: str,
         *[str(t) for t in targets],   # ← all sources
     ]
 
+
+def strip_7z_ext(output_path: Path) -> bool:
+    """Some 7z builds silently append .7z -- strip it back off."""
+    with_ext = Path(str(output_path) + ".7z")
+    if with_ext.exists() and not output_path.exists():
+        with_ext.rename(output_path)
+        return True
+    return False
+
+
+def make_archive(targets: list[Path], seven_z: str,
+                 password: str = DEFAULT_PASSWORD) -> Path:
+    output_path = new_output_path()
+
+    # Print a summary of what will be archived
+    print(f"[*] Items to archive : {len(targets)}")
+    for t in targets:
+        kind = "Folder" if t.is_dir() else "File"
+        print(f"    {kind:<8} : {t}")
+    print(f"[*] Output           : {output_path}")
+    print(f"[*] Password         : {'*' * len(password)} ({len(password)} chars)")
+    print()
+
+    cmd = zip_cmd(seven_z, password, output_path, targets)
     result = subprocess.run(cmd, capture_output=False, text=True)
 
     if result.returncode != 0:
         raise RuntimeError(f"7z exited with code {result.returncode}")
 
-    # Some 7z builds silently append .7z -- strip it back off
-    with_ext = Path(str(output_path) + ".7z")
-    if with_ext.exists() and not output_path.exists():
-        with_ext.rename(output_path)
+    if strip_7z_ext(output_path):
         print(f"[*] Removed auto-added extension -> '{output_path.name}'")
 
     return output_path
@@ -353,6 +387,18 @@ def prompt_extract_inputs() -> tuple[Path, Path]:
     return archive, out_dir
 
 
+def unzip_cmd(seven_z: str, password: str, archive: Path,
+              out_dir: Path) -> list[str]:
+    return [
+        seven_z,
+        "x",                  # extract WITH full paths
+        f"-p{password}",
+        "-y",                 # assume Yes on prompts (overwrite, etc.)
+        f"-o{out_dir}",       # output dir (no space after -o)
+        str(archive),
+    ]
+
+
 def extract_archive(archive: Path, out_dir: Path, seven_z: str,
                     password: str = DEFAULT_PASSWORD) -> Path:
     """
@@ -367,14 +413,7 @@ def extract_archive(archive: Path, out_dir: Path, seven_z: str,
     print()
 
     def _run(pw: str) -> int:
-        cmd = [
-            seven_z,
-            "x",                  # extract WITH full paths
-            f"-p{pw}",
-            "-y",                 # assume Yes on prompts (overwrite, etc.)
-            f"-o{out_dir}",       # output dir (no space after -o)
-            str(archive),
-        ]
+        cmd = unzip_cmd(seven_z, pw, archive, out_dir)
         return subprocess.run(cmd, capture_output=False, text=True).returncode
 
     rc = _run(password)
@@ -402,6 +441,302 @@ def extract_archive(archive: Path, out_dir: Path, seven_z: str,
         raise RuntimeError(f"7z exited with code {rc}")
 
     return out_dir
+
+
+# ──────────────────────────────────────────────
+# 6b. GUI  (tkinter, stdlib only)
+# ──────────────────────────────────────────────
+
+def _enable_windows_drop(widget, on_drop) -> bool:
+    """
+    Accept files dragged from Explorer onto `widget` (Windows only).
+    Hooks WM_DROPFILES with ctypes so no third-party package is needed.
+    Dropped paths are queued and handed to `on_drop` from the Tk loop.
+    """
+    if platform.system() != "Windows":
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    user32, shell32 = ctypes.windll.user32, ctypes.windll.shell32
+    WM_DROPFILES, GWLP_WNDPROC = 0x0233, -4
+    LRESULT = ctypes.c_ssize_t
+    WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT,
+                                 wintypes.WPARAM, wintypes.LPARAM)
+
+    shell32.DragQueryFileW.argtypes = [wintypes.HANDLE, wintypes.UINT,
+                                       wintypes.LPWSTR, wintypes.UINT]
+    shell32.DragQueryFileW.restype = wintypes.UINT
+    shell32.DragFinish.argtypes = [wintypes.HANDLE]
+    shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+    user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND,
+                                       wintypes.UINT, wintypes.WPARAM,
+                                       wintypes.LPARAM]
+    user32.CallWindowProcW.restype = LRESULT
+    set_proc = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+    set_proc.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+    set_proc.restype = ctypes.c_void_p
+
+    hwnd = widget.winfo_id()
+    pending: list[str] = []
+
+    def proc(h, msg, wp, lp):
+        if msg == WM_DROPFILES:
+            count = shell32.DragQueryFileW(wp, 0xFFFFFFFF, None, 0)
+            for i in range(count):
+                size = shell32.DragQueryFileW(wp, i, None, 0) + 1
+                buf = ctypes.create_unicode_buffer(size)
+                shell32.DragQueryFileW(wp, i, buf, size)
+                pending.append(buf.value)
+            shell32.DragFinish(wp)
+            return 0
+        return user32.CallWindowProcW(old_proc, h, msg, wp, lp)
+
+    # Calling into Tcl from inside the window procedure can crash,
+    # so drops are collected here and picked up by a Tk timer.
+    def poll():
+        if pending:
+            files = pending[:]
+            pending.clear()
+            on_drop(files)
+        widget.after(150, poll)
+
+    new_proc = WNDPROC(proc)
+    widget._drop_proc = new_proc            # keep the callback alive
+    old_proc = set_proc(hwnd, GWLP_WNDPROC, ctypes.cast(new_proc, ctypes.c_void_p))
+    shell32.DragAcceptFiles(hwnd, True)
+
+    # Let a non-elevated Explorer drop onto an elevated window.
+    try:
+        for m in (WM_DROPFILES, 0x004A, 0x0049):
+            user32.ChangeWindowMessageFilterEx(hwnd, m, 1, None)
+    except (AttributeError, OSError):
+        pass
+
+    poll()
+    return True
+
+
+def _work_area(root) -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) of the screen minus the taskbar."""
+    if platform.system() == "Windows":
+        import ctypes
+        from ctypes import wintypes
+        rect = wintypes.RECT()
+        if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
+            return rect.left, rect.top, rect.right, rect.bottom
+    return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight()
+
+
+def _hide_own_console() -> None:
+    """Hide the console only if it was opened just for this script."""
+    if platform.system() != "Windows":
+        return
+    import ctypes
+    k32 = ctypes.windll.kernel32
+    hwnd = k32.GetConsoleWindow()
+    if not hwnd:
+        return
+    procs = (ctypes.c_uint * 4)()
+    if k32.GetConsoleProcessList(procs, 4) <= 1:
+        ctypes.windll.user32.ShowWindow(hwnd, 0)
+
+
+def _open_folder(path: Path) -> None:
+    system = platform.system()
+    if system == "Windows":
+        if path.is_file():
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        else:
+            os.startfile(str(path))
+    elif system == "Darwin":
+        subprocess.Popen(["open", "-R", str(path)] if path.is_file() else ["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path if path.is_dir() else path.parent)])
+
+
+def run_gui(seven_z: str) -> None:
+    import threading
+    import tkinter as tk
+    from tkinter import filedialog, ttk
+
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
+
+    root = tk.Tk()
+    root.title("Zipper")
+    root.attributes("-topmost", True)
+    root.minsize(300, 420)
+
+    # Dock to the right edge, full work-area height.
+    left, top, right, bottom = _work_area(root)
+    width = max(340, int((right - left) * 0.22))
+    root.geometry(f"{width}x{bottom - top - 40}+{right - width - 8}+{top}")
+
+    mode = tk.StringVar(value="zip")
+    on_top = tk.BooleanVar(value=True)
+    status = tk.StringVar(value="Drop files or folders here")
+    items: list[Path] = []
+    last_output: list[Path] = []
+
+    pad = {"padx": 8, "pady": 4}
+
+    # Mode
+    top_bar = ttk.Frame(root)
+    top_bar.pack(fill="x", **pad)
+    ttk.Radiobutton(top_bar, text="Zip", value="zip", variable=mode,
+                    command=lambda: refresh()).pack(side="left")
+    ttk.Radiobutton(top_bar, text="Unzip", value="unzip", variable=mode,
+                    command=lambda: refresh()).pack(side="left", padx=8)
+    ttk.Checkbutton(top_bar, text="On top", variable=on_top,
+                    command=lambda: root.attributes("-topmost", on_top.get())
+                    ).pack(side="right")
+
+    # Drop zone / list
+    ttk.Label(root, textvariable=status, foreground="#555").pack(anchor="w", **pad)
+    list_frame = ttk.Frame(root)
+    list_frame.pack(fill="both", expand=True, **pad)
+    lb = tk.Listbox(list_frame, selectmode="extended", activestyle="none",
+                    relief="groove", borderwidth=2)
+    sb = ttk.Scrollbar(list_frame, orient="vertical", command=lb.yview)
+    lb.configure(yscrollcommand=sb.set)
+    lb.pack(side="left", fill="both", expand=True)
+    sb.pack(side="right", fill="y")
+
+    def refresh():
+        lb.delete(0, "end")
+        for p in items:
+            lb.insert("end", ("📁 " if p.is_dir() else "📄 ") + p.name)
+        noun = "archive(s) to extract" if mode.get() == "unzip" else "item(s) to zip"
+        status.set(f"{len(items)} {noun}" if items else
+                   "Drop files or folders here")
+        go.configure(text="Extract" if mode.get() == "unzip" else "Zip")
+
+    def add(paths):
+        for raw in paths:
+            p = Path(raw).expanduser().resolve()
+            if p.exists() and p not in items:
+                items.append(p)
+        refresh()
+
+    def remove_selected(_=None):
+        for i in reversed(lb.curselection()):
+            del items[i]
+        refresh()
+
+    lb.bind("<Delete>", remove_selected)
+
+    btns = ttk.Frame(root)
+    btns.pack(fill="x", **pad)
+    ttk.Button(btns, text="Add files…",
+               command=lambda: add(filedialog.askopenfilenames(parent=root))
+               ).pack(side="left")
+    ttk.Button(btns, text="Add folder…",
+               command=lambda: add([d] if (d := filedialog.askdirectory(parent=root)) else [])
+               ).pack(side="left", padx=4)
+    ttk.Button(btns, text="Remove", command=remove_selected).pack(side="left")
+    ttk.Button(btns, text="Clear",
+               command=lambda: (items.clear(), refresh())).pack(side="right")
+
+    # Password
+    pw_frame = ttk.Frame(root)
+    pw_frame.pack(fill="x", **pad)
+    ttk.Label(pw_frame, text="Password (blank = default):").pack(anchor="w")
+    pw = ttk.Entry(pw_frame, show="•")
+    pw.pack(fill="x")
+
+    # Action + log
+    act = ttk.Frame(root)
+    act.pack(fill="x", **pad)
+    go = ttk.Button(act, text="Zip")
+    go.pack(side="left", fill="x", expand=True)
+    open_btn = ttk.Button(act, text="Open output", state="disabled",
+                          command=lambda: last_output and _open_folder(last_output[-1]))
+    open_btn.pack(side="left", padx=(4, 0))
+
+    log = tk.Text(root, height=8, wrap="word", state="disabled",
+                  relief="flat", background=root.cget("background"))
+    log.pack(fill="x", **pad)
+
+    def say(msg: str):
+        def _do():
+            log.configure(state="normal")
+            log.insert("end", msg + "\n")
+            log.see("end")
+            log.configure(state="disabled")
+        root.after(0, _do)
+
+    def run_7z(cmd: list[str]) -> int:
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           errors="replace", creationflags=flags)
+        if r.returncode != 0:
+            err = (r.stderr or r.stdout).strip().splitlines()
+            say("    " + (err[-1] if err else f"7z exit code {r.returncode}"))
+        return r.returncode
+
+    def work(job_mode: str, job_items: list[Path], password: str):
+        done: list[Path] = []
+        try:
+            if job_mode == "zip":
+                out = new_output_path()
+                say(f"[*] Zipping {len(job_items)} item(s) …")
+                if run_7z(zip_cmd(seven_z, password, out, job_items)) == 0:
+                    strip_7z_ext(out)
+                    say(f"[✓] {out}")
+                    done.append(out)
+                else:
+                    say("[!] Compression failed")
+            else:
+                for arc in job_items:
+                    out_dir = arc.parent / f"{arc.stem}-extracted"
+                    say(f"[*] Extracting {arc.name} …")
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    if run_7z(unzip_cmd(seven_z, password, arc, out_dir)) == 0:
+                        say(f"[✓] {out_dir}")
+                        done.append(out_dir)
+                    else:
+                        say("[!] Failed — wrong password? Fix it and press Extract again.")
+        finally:
+            def _finish():
+                go.configure(state="normal")
+                if done:
+                    last_output[:] = done
+                    open_btn.configure(state="normal")
+                    for p in job_items:
+                        if job_mode == "zip" or p.parent / f"{p.stem}-extracted" in done:
+                            if p in items:
+                                items.remove(p)
+                    refresh()
+            root.after(0, _finish)
+
+    def start():
+        if not items:
+            say("[!] Nothing to do — drop files first.")
+            return
+        job_items = list(items)
+        if mode.get() == "unzip":
+            bad = [p for p in job_items if not p.is_file()]
+            if bad:
+                say(f"[!] Not an archive: {bad[0].name}")
+                return
+        password = pw.get() or DEFAULT_PASSWORD
+        go.configure(state="disabled")
+        threading.Thread(target=work, args=(mode.get(), job_items, password),
+                         daemon=True).start()
+
+    go.configure(command=start)
+    root.bind("<Return>", lambda _: start())
+
+    if not _enable_windows_drop(lb, add):
+        say("[-] Drag and drop needs Windows; use Add files / Add folder.")
+    refresh()
+    _hide_own_console()
+    root.mainloop()
 
 
 # ──────────────────────────────────────────────
@@ -454,6 +789,11 @@ def main():
         i += 1
     args = cleaned
 
+    use_cli = False
+    if "--cli" in args:
+        use_cli = True
+        args = [a for a in args if a != "--cli"]
+
     # --- Parse mode flag if present ---
     if args and args[0] in ("--zip", "-z"):
         mode = "zip"
@@ -468,6 +808,21 @@ def main():
     # --- If no mode flag and args were given, default to zip (legacy behaviour) ---
     if mode is None and args:
         mode = "zip"
+
+    # --- No args: open the GUI unless --cli or tkinter is missing ---
+    if mode is None and not use_cli:
+        try:
+            import tkinter  # noqa: F401
+        except ImportError:
+            use_cli = True
+        else:
+            try:
+                seven_z = ensure_7z()
+            except RuntimeError as e:
+                print(f"\n[!] Could not obtain 7-Zip: {e}")
+                sys.exit(1)
+            run_gui(seven_z)
+            return
 
     # --- If still no mode, ask interactively ---
     if mode is None:
