@@ -9,7 +9,7 @@ Auto-installs 7-Zip if not present (Windows / macOS / Linux).
 ZIP    : output YYYYMMDD-HHMMSS (no extension)
 UNZIP  : output <archive>-extracted
 Password and output folder prompt with defaults (Enter = default
-password 'Zip@2026!'; folder of the first dropped item).
+password 'Zip@2026!'; Downloads).
 
 Usage
   python zipper.py                              (interactive — asks zip or unzip)
@@ -251,6 +251,11 @@ def prompt_password(*, confirm: bool = False) -> str:
         print("  ! passwords differ, try again")
 
 
+def downloads_dir() -> Path:
+    d = Path.home() / "Downloads"
+    return d if d.is_dir() else Path.home()
+
+
 def prompt_folder(default: Path) -> Path:
     raw = ask(f"Save to (Enter = {default}): ")
     return clean_path(raw) if raw else default
@@ -379,8 +384,7 @@ def _win_layout() -> None:
 
     windows = explorer_windows()
     if not windows:
-        downloads = Path.home() / "Downloads"
-        subprocess.Popen(["explorer", str(downloads if downloads.is_dir() else Path.home())])
+        subprocess.Popen(["explorer", str(downloads_dir())])
         for _ in range(30):              # wait up to ~3 s for it to appear
             time.sleep(0.1)
             windows = explorer_windows()
@@ -423,13 +427,13 @@ def interactive(seven_z: str) -> None:
         if choice in ("1", "z", "zip"):
             targets = prompt_targets()
             password = prompt_password(confirm=True)
-            out_dir = prompt_folder(targets[0].parent)
+            out_dir = prompt_folder(downloads_dir())
             print()
             out = make_archive(targets, seven_z, password, out_dir)
         else:
             archive = prompt_archive()
             password = prompt_password()
-            out_dir = prompt_folder(archive.parent)
+            out_dir = prompt_folder(downloads_dir())
             print()
             out = extract_archive(archive, seven_z, password,
                                   out_dir / f"{archive.stem}-extracted")
