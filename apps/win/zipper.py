@@ -528,18 +528,22 @@ def _work_area(root) -> tuple[int, int, int, int]:
     return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight()
 
 
-def _hide_own_console() -> None:
-    """Hide the console only if it was opened just for this script."""
-    if platform.system() != "Windows":
-        return
-    import ctypes
-    k32 = ctypes.windll.kernel32
-    hwnd = k32.GetConsoleWindow()
-    if not hwnd:
-        return
-    procs = (ctypes.c_uint * 4)()
-    if k32.GetConsoleProcessList(procs, 4) <= 1:
-        ctypes.windll.user32.ShowWindow(hwnd, 0)
+def _relaunch_without_console() -> bool:
+    """
+    On Windows, restart the GUI under pythonw.exe so no console window
+    (or Windows Terminal tab) stays open behind it. Returns True if a
+    new process was started and this one should exit.
+    """
+    if platform.system() != "Windows" or os.environ.get("ZIPPER_GUI"):
+        return False
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    if not pythonw.is_file():
+        return False
+    env = dict(os.environ, ZIPPER_GUI="1")
+    subprocess.Popen([str(pythonw), str(Path(__file__).resolve())],
+                     env=env, close_fds=True,
+                     creationflags=0x00000008)   # DETACHED_PROCESS
+    return True
 
 
 def _open_folder(path: Path) -> None:
@@ -735,7 +739,6 @@ def run_gui(seven_z: str) -> None:
     if not _enable_windows_drop(lb, add):
         say("[-] Drag and drop needs Windows; use Add files / Add folder.")
     refresh()
-    _hide_own_console()
     root.mainloop()
 
 
@@ -821,6 +824,8 @@ def main():
             except RuntimeError as e:
                 print(f"\n[!] Could not obtain 7-Zip: {e}")
                 sys.exit(1)
+            if _relaunch_without_console():
+                return
             run_gui(seven_z)
             return
 
