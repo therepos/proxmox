@@ -6,15 +6,10 @@ Compress files/folders into a password-protected 7z archive,
 or extract a password-protected 7z archive.
 Auto-installs 7-Zip if not present (Windows / macOS / Linux).
 
-ZIP MODE
-  Output filename : YYYYMMDD-HHMMSS   (no extension, placed next to script)
-  Password        : prompts (press Enter to use the default 'Zip@2026!')
-
-UNZIP MODE
-  Input           : a 7z archive (with or without .7z extension)
-  Password        : prompts (press Enter to use the default 'Zip@2026!';
-                    will re-prompt if wrong)
-  Output          : a folder next to the archive (or a path you choose)
+ZIP    : output YYYYMMDD-HHMMSS (no extension)
+UNZIP  : output <archive>-extracted
+Password and output folder prompt with defaults (Enter = default
+password 'Zip@2026!'; folder of the first dropped item).
 
 Usage
   python zipper.py                              (interactive — asks zip or unzip)
@@ -23,8 +18,9 @@ Usage
   python zipper.py --password <pw> --zip <file_or_folder> ...
   python zipper.py <file_or_folder> ...         (legacy: defaults to zip)
 
-Several files dropped onto the console at once are split into separate paths.
-Interactive mode on Windows docks the console to the right edge, on top.
+Interactive mode on Windows docks this window to the right edge (on top)
+and Explorer (open window or Downloads) to the left. Several files can be
+dropped at once. Command-line zips are saved next to the script.
 
 Flags
   --zip / -z              compress mode
@@ -159,37 +155,20 @@ def ensure_7z() -> str:
 
 
 # ──────────────────────────────────────────────
-# 3.  COLLECT & VALIDATE TARGETS  (for ZIP mode)
+# 3.  INPUT HELPERS
 # ──────────────────────────────────────────────
 
-def collect_targets(raw_paths: list[str]) -> list[Path]:
-    """
-    Resolve and validate a list of raw path strings.
-    Skips duplicates (by resolved path). Exits if any path is invalid.
-    """
-    seen:    set[Path]  = set()
-    targets: list[Path] = []
-    errors:  list[str]  = []
+def ask(prompt: str) -> str:
+    """input() that exits quietly on Ctrl+C / Ctrl+Z."""
+    try:
+        return input(prompt).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        sys.exit(0)
 
-    for raw in raw_paths:
-        p = Path(raw.strip().strip('"').strip("'")).expanduser().resolve()
-        if not p.exists():
-            errors.append(f"  [!] Not found     : {p}")
-        elif not p.is_file() and not p.is_dir():
-            errors.append(f"  [!] Not a file/dir: {p}")
-        elif p in seen:
-            print(f"  [-] Duplicate skip: {p}")
-        else:
-            seen.add(p)
-            targets.append(p)
 
-    if errors:
-        print("\n[!] Some paths could not be resolved:")
-        for e in errors:
-            print(e)
-        sys.exit(1)
-
-    return targets
+def clean_path(raw: str) -> Path:
+    return Path(raw.strip().strip('"').strip("'")).expanduser().resolve()
 
 
 def split_dropped(line: str) -> list[str]:
@@ -199,307 +178,264 @@ def split_dropped(line: str) -> list[str]:
     A line that is itself an existing path is kept whole.
     """
     line = line.strip()
-    if Path(line.strip('"').strip("'")).expanduser().exists():
+    if clean_path(line).exists():
         return [line]
     import re
     return [a or b for a, b in re.findall(r'"([^"]+)"|(\S+)', line)]
 
 
-def prompt_targets() -> list[Path]:
-    """
-    Interactive mode: ask the user to enter paths one by one.
-    Several paths dropped on one line are split apart.
-    An empty line (or 'done') finishes input.
-    """
-    print("Enter or drop file/folder paths to archive (several per line is fine).")
-    print("Press Enter on an empty line when done.\n")
+def collect_targets(raw_paths: list[str]) -> list[Path]:
+    """Resolve CLI paths, skip duplicates, exit if any is missing."""
+    targets: list[Path] = []
+    missing = []
+    for raw in raw_paths:
+        p = clean_path(raw)
+        if not p.exists():
+            missing.append(p)
+        elif p not in targets:
+            targets.append(p)
+    if missing:
+        for p in missing:
+            print(f"Not found: {p}")
+        sys.exit(1)
+    return targets
 
-    raw_paths: list[str] = []
+
+def prompt_targets() -> list[Path]:
+    """Collect dropped files/folders until Enter on an empty line."""
+    targets: list[Path] = []
+    print("Drop files/folders here")
+    while True:
+        line = ask("> ")
+        if not line:
+            if targets:
+                return targets
+            continue
+        for raw in split_dropped(line):
+            p = clean_path(raw)
+            if not p.exists():
+                print(f"  ! not found: {raw}")
+            elif p not in targets:
+                targets.append(p)
+                print(f"  + {p.name}{os.sep if p.is_dir() else ''}")
+        print("Drop more, or Enter to continue")
+
+
+def prompt_archive() -> Path:
+    """Ask for one archive; accepts the bare name or name.7z."""
+    print("Drop archive here")
+    while True:
+        line = ask("> ")
+        if not line:
+            continue
+        p = clean_path(split_dropped(line)[0])
+        for c in (p, Path(str(p) + ".7z")):
+            if c.is_file():
+                return c
+        print(f"  ! not found: {p}")
+
+
+def prompt_password(*, confirm: bool = False) -> str:
+    """Hidden input; Enter = DEFAULT_PASSWORD. Custom ones are confirmed."""
+    import getpass
     while True:
         try:
-            line = input(f"  Path {len(raw_paths) + 1}: ").strip()
-        except EOFError:
-            break
-        if line.lower() in ("", "done", "q", "quit"):
-            break
-        raw_paths.extend(split_dropped(line))
-
-    if not raw_paths:
-        print("[!] No paths provided. Exiting.")
-        sys.exit(0)
-
-    return collect_targets(raw_paths)
-
-
-# ──────────────────────────────────────────────
-# 3b. PASSWORD PROMPT
-# ──────────────────────────────────────────────
-
-def prompt_password(action: str, *, confirm: bool = False) -> str:
-    """
-    Ask the user for a password, hiding input where possible.
-    Press Enter on an empty line to accept DEFAULT_PASSWORD.
-
-    `action` is just a label used in the prompt (e.g. "encrypt", "extract").
-    `confirm` re-prompts and verifies the entry matches (used for zipping).
-    """
-    # Use getpass so the password isn't echoed to the terminal. If stdin
-    # isn't a real TTY (e.g. piped input), getpass falls back to plain input.
-    import getpass
-
-    prompt = (
-        f"  Password for {action} "
-        f"(press Enter for default '{DEFAULT_PASSWORD}'): "
-    )
-
-    try:
-        pw = getpass.getpass(prompt)
-    except (EOFError, KeyboardInterrupt):
-        print()
-        sys.exit(0)
-
-    if not pw:
-        print(f"  [-] Using default password.")
-        return DEFAULT_PASSWORD
-
-    if confirm:
-        try:
-            pw2 = getpass.getpass("  Confirm password: ")
+            pw = getpass.getpass("Password (Enter = default): ")
+            if not pw:
+                return DEFAULT_PASSWORD
+            if not confirm or getpass.getpass("Confirm: ") == pw:
+                return pw
         except (EOFError, KeyboardInterrupt):
             print()
             sys.exit(0)
-        if pw != pw2:
-            print("  [!] Passwords do not match. Try again.\n")
-            return prompt_password(action, confirm=True)
+        print("  ! passwords differ, try again")
 
-    return pw
+
+def prompt_folder(default: Path) -> Path:
+    raw = ask(f"Save to (Enter = {default}): ")
+    return clean_path(raw) if raw else default
 
 
 # ──────────────────────────────────────────────
-# 4.  COMPRESS
+# 4.  RUN 7-ZIP
 # ──────────────────────────────────────────────
 
-def new_output_path() -> Path:
-    """YYYYMMDD-HHMMSS next to the script, no extension."""
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return Path(__file__).resolve().parent / timestamp
+def run_7z(cmd: list[str]) -> tuple[int, str]:
+    """Run 7z quietly; return (exit code, its most useful error line)."""
+    r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    lines = [l.strip() for l in (r.stderr + "\n" + r.stdout).splitlines() if l.strip()]
+    err = next((l for l in lines if "password" in l.lower()), None) \
+        or next((l for l in lines if l.upper().startswith("ERROR")), None) \
+        or (lines[-1] if lines else "")
+    return r.returncode, err
 
 
-def zip_cmd(seven_z: str, password: str, output_path: Path,
-            targets: list[Path]) -> list[str]:
-    return [
-        seven_z,
-        "a",               # add / create archive
+def make_archive(targets: list[Path], seven_z: str, password: str,
+                 out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    output = out_dir / datetime.now().strftime("%Y%m%d-%H%M%S")   # no extension
+    cmd = [
+        seven_z, "a",
         "-t7z",            # 7z format
-        f"-p{password}",   # password
+        f"-p{password}",
         "-mhe=on",         # encrypt file headers too
         "-mx=5",           # compression level 0-9
-        str(output_path),  # destination (no .7z suffix -- intentional)
-        *[str(t) for t in targets],   # ← all sources
+        str(output),       # destination (no .7z suffix -- intentional)
+        *[str(t) for t in targets],
     ]
-
-
-def strip_7z_ext(output_path: Path) -> bool:
-    """Some 7z builds silently append .7z -- strip it back off."""
-    with_ext = Path(str(output_path) + ".7z")
-    if with_ext.exists() and not output_path.exists():
-        with_ext.rename(output_path)
-        return True
-    return False
-
-
-def make_archive(targets: list[Path], seven_z: str,
-                 password: str = DEFAULT_PASSWORD) -> Path:
-    output_path = new_output_path()
-
-    # Print a summary of what will be archived
-    print(f"[*] Items to archive : {len(targets)}")
-    for t in targets:
-        kind = "Folder" if t.is_dir() else "File"
-        print(f"    {kind:<8} : {t}")
-    print(f"[*] Output           : {output_path}")
-    print(f"[*] Password         : {'*' * len(password)} ({len(password)} chars)")
-    print()
-
-    cmd = zip_cmd(seven_z, password, output_path, targets)
-    result = subprocess.run(cmd, capture_output=False, text=True)
-
-    if result.returncode != 0:
-        raise RuntimeError(f"7z exited with code {result.returncode}")
-
-    if strip_7z_ext(output_path):
-        print(f"[*] Removed auto-added extension -> '{output_path.name}'")
-
-    return output_path
-
-
-# ──────────────────────────────────────────────
-# 5.  EXTRACT
-# ──────────────────────────────────────────────
-
-def resolve_archive(raw: str) -> Path:
-    """
-    Resolve the input archive path. Accepts the bare name (no extension),
-    a name with .7z, or any path. Exits if it can't be found.
-    """
-    p = Path(raw.strip().strip('"').strip("'")).expanduser().resolve()
-
-    candidates = [p, Path(str(p) + ".7z")]
-    for c in candidates:
-        if c.is_file():
-            return c
-
-    print(f"[!] Archive not found: {p}")
-    sys.exit(1)
-
-
-def prompt_extract_inputs() -> tuple[Path, Path]:
-    """
-    Interactive mode for extraction.
-    Returns (archive_path, output_dir).
-    """
-    print("Enter the path to the archive to extract.")
-    try:
-        raw = input("  Archive: ").strip()
-    except EOFError:
-        raw = ""
-    if not raw:
-        print("[!] No archive provided. Exiting.")
-        sys.exit(0)
-
-    archive = resolve_archive(raw)
-
-    print("\nEnter the output folder (press Enter to use a folder next to the archive).")
-    try:
-        raw_out = input("  Output : ").strip()
-    except EOFError:
-        raw_out = ""
-
-    if raw_out:
-        out_dir = Path(raw_out.strip('"').strip("'")).expanduser().resolve()
-    else:
-        out_dir = archive.parent / f"{archive.stem}-extracted"
-
-    return archive, out_dir
-
-
-def unzip_cmd(seven_z: str, password: str, archive: Path,
-              out_dir: Path) -> list[str]:
-    return [
-        seven_z,
-        "x",                  # extract WITH full paths
-        f"-p{password}",
-        "-y",                 # assume Yes on prompts (overwrite, etc.)
-        f"-o{out_dir}",       # output dir (no space after -o)
-        str(archive),
-    ]
-
-
-def extract_archive(archive: Path, out_dir: Path, seven_z: str,
-                    password: str = DEFAULT_PASSWORD) -> Path:
-    """
-    Extract `archive` into `out_dir`. If the password fails,
-    prompt the user for the correct one (up to 3 attempts).
-    """
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"[*] Archive          : {archive}")
-    print(f"[*] Output folder    : {out_dir}")
-    print(f"[*] Password         : {'*' * len(password)} ({len(password)} chars)")
-    print()
-
-    def _run(pw: str) -> int:
-        cmd = unzip_cmd(seven_z, pw, archive, out_dir)
-        return subprocess.run(cmd, capture_output=False, text=True).returncode
-
-    rc = _run(password)
-
-    # 7-Zip returns non-zero for fatal errors (wrong password is one of them).
-    # Allow up to 3 retry attempts.
-    import getpass
-    attempts = 0
-    while rc != 0 and attempts < 3:
-        attempts += 1
-        print(f"\n[!] Extraction failed (exit code {rc}). "
-              "The password may be wrong.")
-        try:
-            new_pw = getpass.getpass(
-                f"  Enter password (attempt {attempts}/3, blank to abort): "
-            ).strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            new_pw = ""
-        if not new_pw:
-            raise RuntimeError("Extraction aborted.")
-        rc = _run(new_pw)
-
+    print("Zipping...")
+    rc, err = run_7z(cmd)
     if rc != 0:
-        raise RuntimeError(f"7z exited with code {rc}")
+        raise RuntimeError(err or f"7z exit code {rc}")
+    # Some 7z builds silently append .7z -- strip it back off
+    with_ext = Path(str(output) + ".7z")
+    if with_ext.exists() and not output.exists():
+        with_ext.rename(output)
+    return output
 
+
+def _remove_if_empty(folder: Path) -> None:
+    try:
+        folder.rmdir()
+    except OSError:
+        pass
+
+
+def extract_archive(archive: Path, seven_z: str, password: str,
+                    out_dir: Path, *, retry: bool = True) -> Path:
+    """Extract into out_dir; on a wrong password re-prompt up to 3 times."""
+    import getpass
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print("Extracting...")
+    for attempt in range(1, 5):
+        rc, err = run_7z([seven_z, "x", f"-p{password}", "-y",
+                          f"-o{out_dir}", str(archive)])
+        if rc == 0:
+            return out_dir
+        if "password" not in err.lower() or not retry or attempt == 4:
+            _remove_if_empty(out_dir)
+            raise RuntimeError(err or f"7z exit code {rc}")
+        try:
+            password = getpass.getpass(f"Wrong password, try again ({attempt}/3): ")
+        except (EOFError, KeyboardInterrupt):
+            password = ""
+        if not password:
+            _remove_if_empty(out_dir)
+            raise RuntimeError("aborted")
     return out_dir
 
 
 # ──────────────────────────────────────────────
-# 5b. DOCK CONSOLE
+# 5.  WINDOW LAYOUT  (Windows only, fails silently)
+#     Zipper docked right and on top, Explorer on the left.
 # ──────────────────────────────────────────────
 
-def dock_console() -> None:
-    """
-    Windows only: move this console to the right edge of the screen,
-    full height, and keep it on top so Explorer stays usable beside it.
-    Works for classic conhost and Windows Terminal. Fails silently.
-    """
+def _win_layout() -> None:
+    import ctypes
+    import time
+    from ctypes import wintypes
+
+    user32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+    k32.GetConsoleWindow.restype = wintypes.HWND
+    user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetAncestor.restype = wintypes.HWND
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND,
+                                    ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+
+    area = wintypes.RECT()
+    user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(area), 0)  # work area
+    height = area.bottom - area.top
+    width = max(560, (area.right - area.left) * 30 // 100)
+    SWP_SHOWWINDOW, SW_RESTORE = 0x0040, 9
+
+    # Zipper: right edge, full height, on top. Under Windows Terminal the
+    # console is a hidden pseudo window owned by the real terminal window.
+    console = k32.GetConsoleWindow()
+    if console:
+        console = user32.GetAncestor(console, 3) or console     # GA_ROOTOWNER
+        user32.ShowWindow(console, SW_RESTORE)
+        user32.SetWindowPos(console, wintypes.HWND(-1),          # HWND_TOPMOST
+                            area.right - width, area.top, width, height,
+                            SWP_SHOWWINDOW)
+
+    # Explorer: reuse the topmost open window, else open Downloads.
+    def explorer_windows() -> list[int]:
+        found: list[int] = []
+        proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def cb(h, _):
+            buf = ctypes.create_unicode_buffer(32)
+            user32.GetClassNameW(h, buf, 32)
+            if buf.value == "CabinetWClass" and user32.IsWindowVisible(h):
+                found.append(h)
+            return True
+        user32.EnumWindows(proc(cb), 0)
+        return found                     # z-order, topmost first
+
+    windows = explorer_windows()
+    if not windows:
+        downloads = Path.home() / "Downloads"
+        subprocess.Popen(["explorer", str(downloads if downloads.is_dir() else Path.home())])
+        for _ in range(30):              # wait up to ~3 s for it to appear
+            time.sleep(0.1)
+            windows = explorer_windows()
+            if windows:
+                break
+    if windows:
+        user32.ShowWindow(windows[0], SW_RESTORE)
+        user32.SetWindowPos(windows[0], None, area.left, area.top,
+                            area.right - area.left - width, height,
+                            SWP_SHOWWINDOW)
+    if console:
+        user32.SetForegroundWindow(console)
+
+
+def arrange_windows() -> None:
     if platform.system() != "Windows":
         return
     try:
-        import ctypes
-        from ctypes import wintypes
-        user32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
-        k32.GetConsoleWindow.restype = wintypes.HWND
-        user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
-        user32.GetAncestor.restype = wintypes.HWND
-        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND,
-                                        ctypes.c_int, ctypes.c_int,
-                                        ctypes.c_int, ctypes.c_int,
-                                        wintypes.UINT]
-
-        hwnd = k32.GetConsoleWindow()
-        if not hwnd:
-            return
-        # Under Windows Terminal the console is a hidden pseudo window
-        # owned by the real terminal window.
-        hwnd = user32.GetAncestor(hwnd, 3) or hwnd      # GA_ROOTOWNER
-
-        area = wintypes.RECT()
-        user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(area), 0)  # work area
-        width = max(560, (area.right - area.left) * 30 // 100)
-        user32.SetWindowPos(hwnd, wintypes.HWND(-1),     # HWND_TOPMOST
-                            area.right - width, area.top,
-                            width, area.bottom - area.top,
-                            0x0040)                      # SWP_SHOWWINDOW
+        _win_layout()
     except Exception:
         pass
 
 
 # ──────────────────────────────────────────────
-# 6.  MODE SELECTION
+# 6.  INTERACTIVE MODE
 # ──────────────────────────────────────────────
 
-def prompt_mode() -> str:
-    """Ask the user whether to zip or unzip."""
-    print("What would you like to do?")
-    print("  1) Zip   (compress files/folders into a password-protected archive)")
-    print("  2) Unzip (extract a password-protected archive)")
+def interactive(seven_z: str) -> None:
+    print("ZIPPER")
+    print("  1) Zip")
+    print("  2) Unzip")
     while True:
-        try:
-            choice = input("Choice [1/2]: ").strip().lower()
-        except EOFError:
-            choice = ""
+        choice = ask("> ").lower()
+        if choice in ("1", "z", "zip", "2", "u", "unzip"):
+            break
+    print()
+
+    try:
         if choice in ("1", "z", "zip"):
-            return "zip"
-        if choice in ("2", "u", "unzip", "x", "extract"):
-            return "unzip"
-        print("  [!] Please enter 1 or 2.")
+            targets = prompt_targets()
+            password = prompt_password(confirm=True)
+            out_dir = prompt_folder(targets[0].parent)
+            print()
+            out = make_archive(targets, seven_z, password, out_dir)
+        else:
+            archive = prompt_archive()
+            password = prompt_password()
+            out_dir = prompt_folder(archive.parent)
+            print()
+            out = extract_archive(archive, seven_z, password,
+                                  out_dir / f"{archive.stem}-extracted")
+        print(f"Done: {out}")
+    except RuntimeError as e:
+        print(f"Failed: {e}")
+    ask("\nEnter to close")
 
 
 # ──────────────────────────────────────────────
@@ -518,7 +454,7 @@ def main():
         a = args[i]
         if a in ("--password", "-p"):
             if i + 1 >= len(args):
-                print("[!] --password requires a value.")
+                print("--password requires a value.")
                 sys.exit(1)
             cli_password = args[i + 1]
             i += 2
@@ -542,59 +478,46 @@ def main():
         print(__doc__)
         sys.exit(0)
 
-    # --- If no mode flag and args were given, default to zip (legacy behaviour) ---
+    # --- No mode flag but paths given: zip them (legacy behaviour) ---
     if mode is None and args:
         mode = "zip"
 
-    # --- If still no mode, ask interactively ---
     if mode is None:
-        dock_console()
-        mode = prompt_mode()
-        print()
+        arrange_windows()
 
-    # --- Ensure 7-Zip is available ---
     try:
         seven_z = ensure_7z()
     except RuntimeError as e:
-        print(f"\n[!] Could not obtain 7-Zip: {e}")
+        print(f"Could not obtain 7-Zip: {e}")
         sys.exit(1)
 
-    # --- Dispatch ---
-    if mode == "zip":
-        if args:
-            targets = collect_targets(args)
+    if mode is None:
+        interactive(seven_z)
+        return
+
+    # --- Command-line mode: output next to the script unless given ---
+    script_dir = Path(__file__).resolve().parent
+    try:
+        if mode == "zip":
+            targets = collect_targets(args) if args else prompt_targets()
+            password = cli_password or prompt_password(confirm=True)
+            out = make_archive(targets, seven_z, password, script_dir)
         else:
-            targets = prompt_targets()
-
-        password = cli_password if cli_password is not None else \
-            prompt_password("encrypt", confirm=True)
-
-        try:
-            out = make_archive(targets, seven_z, password=password)
-            print(f"\n[✓] Done -> {out}")
-        except RuntimeError as e:
-            print(f"\n[!] Compression failed: {e}")
-            sys.exit(1)
-
-    elif mode == "unzip":
-        if args:
-            archive = resolve_archive(args[0])
-            if len(args) >= 2:
-                out_dir = Path(args[1]).expanduser().resolve()
-            else:
-                out_dir = archive.parent / f"{archive.stem}-extracted"
-        else:
-            archive, out_dir = prompt_extract_inputs()
-
-        password = cli_password if cli_password is not None else \
-            prompt_password("extract")
-
-        try:
-            out = extract_archive(archive, out_dir, seven_z, password=password)
-            print(f"\n[✓] Done -> {out}")
-        except RuntimeError as e:
-            print(f"\n[!] Extraction failed: {e}")
-            sys.exit(1)
+            archive = clean_path(args[0]) if args else prompt_archive()
+            if not archive.is_file() and Path(str(archive) + ".7z").is_file():
+                archive = Path(str(archive) + ".7z")
+            if not archive.is_file():
+                print(f"Not found: {archive}")
+                sys.exit(1)
+            out_dir = clean_path(args[1]) if len(args) >= 2 else \
+                archive.parent / f"{archive.stem}-extracted"
+            password = cli_password or prompt_password()
+            out = extract_archive(archive, seven_z, password, out_dir,
+                                  retry=cli_password is None)
+        print(f"Done: {out}")
+    except RuntimeError as e:
+        print(f"Failed: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
