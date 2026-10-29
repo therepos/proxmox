@@ -201,38 +201,33 @@ def collect_targets(raw_paths: list[str]) -> list[Path]:
     return targets
 
 
-def prompt_targets() -> list[Path]:
-    """Collect dropped files/folders until Enter on an empty line."""
-    targets: list[Path] = []
-    print("Drop files/folders here")
+def find_archive(raw: str) -> Path | None:
+    """Accept the bare archive name or name.7z."""
+    p = clean_path(raw)
+    for c in (p, Path(str(p) + ".7z")):
+        if c.is_file():
+            return c
+    return None
+
+
+def prompt_paths(*, archives: bool = False) -> list[Path]:
+    """Collect dropped items until Enter on an empty line."""
+    items: list[Path] = []
+    print("Drop archives here" if archives else "Drop files/folders here")
     while True:
         line = ask("> ")
         if not line:
-            if targets:
-                return targets
+            if items:
+                return items
             continue
         for raw in split_dropped(line):
-            p = clean_path(raw)
-            if not p.exists():
+            p = find_archive(raw) if archives else clean_path(raw)
+            if p is None or not p.exists():
                 print(f"  ! not found: {raw}")
-            elif p not in targets:
-                targets.append(p)
+            elif p not in items:
+                items.append(p)
                 print(f"  + {p.name}{os.sep if p.is_dir() else ''}")
         print("Drop more, or Enter to continue")
-
-
-def prompt_archive() -> Path:
-    """Ask for one archive; accepts the bare name or name.7z."""
-    print("Drop archive here")
-    while True:
-        line = ask("> ")
-        if not line:
-            continue
-        p = clean_path(split_dropped(line)[0])
-        for c in (p, Path(str(p) + ".7z")):
-            if c.is_file():
-                return c
-        print(f"  ! not found: {p}")
 
 
 def prompt_password(*, confirm: bool = False) -> str:
@@ -270,6 +265,7 @@ def run_7z(cmd: list[str]) -> tuple[int, str]:
     r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
     lines = [l.strip() for l in (r.stderr + "\n" + r.stdout).splitlines() if l.strip()]
     err = next((l for l in lines if "password" in l.lower()), None) \
+        or next((l for l in lines if "cannot" in l.lower()), None) \
         or next((l for l in lines if l.upper().startswith("ERROR")), None) \
         or (lines[-1] if lines else "")
     return r.returncode, err
@@ -307,16 +303,21 @@ def _remove_if_empty(folder: Path) -> None:
 
 
 def extract_archive(archive: Path, seven_z: str, password: str,
-                    out_dir: Path, *, retry: bool = True) -> Path:
-    """Extract into out_dir; on a wrong password re-prompt up to 3 times."""
+                    out_dir: Path, *, retry: bool = True) -> str:
+    """
+    Extract into out_dir; on a wrong password re-prompt up to 3 times.
+    Returns the password that worked so the next archive can reuse it.
+    """
     import getpass
     out_dir.mkdir(parents=True, exist_ok=True)
-    print("Extracting...")
     for attempt in range(1, 5):
+        print(f"Extracting {archive.name}...", end="", flush=True)
         rc, err = run_7z([seven_z, "x", f"-p{password}", "-y",
                           f"-o{out_dir}", str(archive)])
         if rc == 0:
-            return out_dir
+            print("  done")
+            return password
+        print()
         if "password" not in err.lower() or not retry or attempt == 4:
             _remove_if_empty(out_dir)
             raise RuntimeError(err or f"7z exit code {rc}")
@@ -327,7 +328,7 @@ def extract_archive(archive: Path, seven_z: str, password: str,
         if not password:
             _remove_if_empty(out_dir)
             raise RuntimeError("aborted")
-    return out_dir
+    return password
 
 
 # ──────────────────────────────────────────────
@@ -425,19 +426,26 @@ def interactive(seven_z: str) -> None:
 
     try:
         if choice in ("1", "z", "zip"):
-            targets = prompt_targets()
+            targets = prompt_paths()
             password = prompt_password(confirm=True)
             out_dir = prompt_folder(downloads_dir())
             print()
             out = make_archive(targets, seven_z, password, out_dir)
+            print(f"Done: {out}")
         else:
-            archive = prompt_archive()
+            archives = prompt_paths(archives=True)
             password = prompt_password()
             out_dir = prompt_folder(downloads_dir())
             print()
-            out = extract_archive(archive, seven_z, password,
-                                  out_dir / f"{archive.stem}-extracted")
-        print(f"Done: {out}")
+            ok = 0
+            for arc in archives:
+                try:
+                    password = extract_archive(arc, seven_z, password,
+                                               out_dir / f"{arc.stem}-extracted")
+                    ok += 1
+                except RuntimeError as e:
+                    print(f"  ! skipped: {e}")
+            print(f"\nDone: {ok} of {len(archives)} -> {out_dir}")
     except RuntimeError as e:
         print(f"Failed: {e}")
     ask("\nEnter to close")
@@ -504,21 +512,19 @@ def main():
     script_dir = Path(__file__).resolve().parent
     try:
         if mode == "zip":
-            targets = collect_targets(args) if args else prompt_targets()
+            targets = collect_targets(args) if args else prompt_paths()
             password = cli_password or prompt_password(confirm=True)
             out = make_archive(targets, seven_z, password, script_dir)
         else:
-            archive = clean_path(args[0]) if args else prompt_archive()
-            if not archive.is_file() and Path(str(archive) + ".7z").is_file():
-                archive = Path(str(archive) + ".7z")
-            if not archive.is_file():
-                print(f"Not found: {archive}")
+            archive = find_archive(args[0]) if args else prompt_paths(archives=True)[0]
+            if archive is None:
+                print(f"Not found: {args[0]}")
                 sys.exit(1)
-            out_dir = clean_path(args[1]) if len(args) >= 2 else \
+            out = clean_path(args[1]) if len(args) >= 2 else \
                 archive.parent / f"{archive.stem}-extracted"
             password = cli_password or prompt_password()
-            out = extract_archive(archive, seven_z, password, out_dir,
-                                  retry=cli_password is None)
+            extract_archive(archive, seven_z, password, out,
+                            retry=cli_password is None)
         print(f"Done: {out}")
     except RuntimeError as e:
         print(f"Failed: {e}")
