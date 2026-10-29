@@ -24,6 +24,7 @@ Usage
   python zipper.py <file_or_folder> ...         (legacy: defaults to zip)
 
 Several files dropped onto the console at once are split into separate paths.
+Interactive mode on Windows docks the console to the right edge, on top.
 
 Flags
   --zip / -z              compress mode
@@ -439,6 +440,48 @@ def extract_archive(archive: Path, out_dir: Path, seven_z: str,
 
 
 # ──────────────────────────────────────────────
+# 5b. DOCK CONSOLE
+# ──────────────────────────────────────────────
+
+def dock_console() -> None:
+    """
+    Windows only: move this console to the right edge of the screen,
+    full height, and keep it on top so Explorer stays usable beside it.
+    Works for classic conhost and Windows Terminal. Fails silently.
+    """
+    if platform.system() != "Windows":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+        k32.GetConsoleWindow.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
+        user32.GetAncestor.restype = wintypes.HWND
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND,
+                                        ctypes.c_int, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int,
+                                        wintypes.UINT]
+
+        hwnd = k32.GetConsoleWindow()
+        if not hwnd:
+            return
+        # Under Windows Terminal the console is a hidden pseudo window
+        # owned by the real terminal window.
+        hwnd = user32.GetAncestor(hwnd, 3) or hwnd      # GA_ROOTOWNER
+
+        area = wintypes.RECT()
+        user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(area), 0)  # work area
+        width = max(560, (area.right - area.left) * 30 // 100)
+        user32.SetWindowPos(hwnd, wintypes.HWND(-1),     # HWND_TOPMOST
+                            area.right - width, area.top,
+                            width, area.bottom - area.top,
+                            0x0040)                      # SWP_SHOWWINDOW
+    except Exception:
+        pass
+
+
+# ──────────────────────────────────────────────
 # 6.  MODE SELECTION
 # ──────────────────────────────────────────────
 
@@ -505,6 +548,7 @@ def main():
 
     # --- If still no mode, ask interactively ---
     if mode is None:
+        dock_console()
         mode = prompt_mode()
         print()
 
