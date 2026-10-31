@@ -1,0 +1,55 @@
+name: Release myhub
+
+# Publishes the MyHub Auto-Complete extension as a GitHub release tagged myhub-v<version>,
+# where <version> comes from apps/ext/myhub/manifest.json. Runs on every push to main that touches
+# the extension and does nothing when that version is already released, so bump the manifest to ship.
+# Assets: ext-myhub.zip (the extension, fetched by myhub-setup.cmd) and myhub-setup.zip (the setup cmd).
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/ext/myhub/**'
+      - 'apps/ext/myhub-setup.cmd'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: ver
+        run: |
+          v=$(python3 -c "import json; print(json.load(open('apps/ext/myhub/manifest.json'))['version'])")
+          echo "tag=myhub-v$v" >> "$GITHUB_OUTPUT"
+
+      - name: Already released?
+        id: done
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.ver.outputs.tag }} exists, nothing to do"
+          fi
+
+      - name: Package
+        if: steps.done.outputs.yes != 'true'
+        run: |
+          mkdir -p rel
+          (cd apps/ext/myhub && zip -q -X -r "$GITHUB_WORKSPACE/rel/ext-myhub.zip" manifest.json content.js popup.html popup.js icon.png)
+          (cd apps/ext && zip -q -X -j "$GITHUB_WORKSPACE/rel/myhub-setup.zip" myhub-setup.cmd)
+          ls -la rel
+
+      - name: Create release
+        if: steps.done.outputs.yes != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" rel/ext-myhub.zip rel/myhub-setup.zip \
+            --repo "$GITHUB_REPOSITORY" --title "${{ steps.ver.outputs.tag }}" --generate-notes

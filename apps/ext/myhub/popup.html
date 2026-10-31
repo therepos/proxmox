@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 360px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
+    .header { background: #2e2e5e; color: #fff; padding: 14px 16px; font-size: 15px; font-weight: 600; }
+    .header small { font-weight: 400; font-size: 11px; opacity: 0.7; display: block; margin-top: 2px; }
+    .body { padding: 14px 16px; }
+    .conn { font-size: 11px; line-height: 1.4; color: #666; margin-bottom: 10px; min-height: 15px; }
+    .conn.ok { color: #16a34a; }
+    .conn.fail { color: #dc2626; }
+    .status-box { background: #f5f5f5; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px; line-height: 1.6;
+      max-height: 260px; overflow-y: auto; font-family: 'Consolas', 'Courier New', monospace; }
+    .status-box.running { background: #eef6ff; border-left: 3px solid #3b82f6; }
+    .status-box.done { background: #eefbf3; border-left: 3px solid #22c55e; }
+    .status-box.error { background: #fff0f0; border-left: 3px solid #ef4444; }
+    .progress { font-size: 12px; font-weight: 600; color: #1d4ed8; background: #eef6ff; border-radius: 6px; padding: 8px 12px;
+      margin-bottom: 8px; line-height: 1.4; }
+    .progress:empty { display: none; }
+    .progress.stale { color: #dc2626; background: #fff0f0; }
+    .log-line { margin-bottom: 1px; white-space: pre-wrap; }
+    .log-line.ok { color: #16a34a; }
+    .log-line.warn { color: #d97706; }
+    .log-line.fail { color: #dc2626; }
+    .log-line.info { color: #2563eb; }
+    .btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .btn-primary { background: #2e2e5e; color: #fff; }
+    .btn-primary:hover { background: #3d3d7a; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-danger { background: #fff; color: #dc2626; border: 1px solid #dc2626; margin-top: 8px; }
+    .btn-danger:hover { background: #fff0f0; }
+    .options { margin-bottom: 12px; }
+    .option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .option-row input[type="checkbox"] { margin: 0; }
+    .option-row label { font-size: 12px; cursor: pointer; }
+    .summary { margin-top: 10px; padding: 10px 12px; background: #f9fafb; border-radius: 6px; font-size: 12px; }
+    .note { font-size: 11px; color: #666; margin-top: 10px; line-height: 1.4; }
+    .note a { color: #2563eb; }
+    .update { background: #fff7e6; border-left: 3px solid #f59e0b; border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+    .update a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    MyHub Auto-Complete
+    <small>Automate renewal &amp; confirmation tasks · <span id="version"></span></small>
+  </div>
+  <div class="body">
+    <div id="conn" class="conn"></div>
+    <div id="update" class="update" style="display:none;"><span id="updateText"></span>
+      <a href="#" id="releaseLink">Release page</a> &middot; <a href="#" id="reloadLink">Reload extension</a></div>
+
+    <div class="options" id="optionsPanel">
+      <div class="option-row">
+        <input type="checkbox" id="dryRun">
+        <label for="dryRun">Dry run (click through but don't Submit)</label>
+      </div>
+    </div>
+
+    <div id="progress" class="progress"></div>
+    <div id="statusBox" class="status-box" style="display:none;">
+      <div id="logs"></div>
+    </div>
+
+    <button id="startBtn" class="btn btn-primary">Start Auto-Complete</button>
+    <button id="stopBtn" class="btn btn-danger" style="display:none;">Stop</button>
+
+    <div id="summary" class="summary" style="display:none;"></div>
+
+    <div class="note" id="runningNote" style="display:none;">
+      You can close this popup, the automation runs inside the MyHub tab. Keep that tab open and in the
+      foreground. Reopen the popup to see progress.
+    </div>
+    <div class="note"><a href="#" id="resetLink">Reset</a> clears a stuck run and the log.
+      <a href="#" id="reloadLink2">Reload extension</a> after running myhub-setup.cmd.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
