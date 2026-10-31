@@ -180,7 +180,10 @@ def phdr():
     if not t: fail("No Portainer API token")
     return {"X-API-Key": t}
 def api(method, path, body=None, **kw):
-    return http(method, P + "/api" + path, body, phdr(), **kw)
+    try: return http(method, P + "/api" + path, body, phdr(), **kw)
+    except urllib.error.HTTPError as e:
+        if e.code == 401: fail("Portainer API token no longer valid; run portainer-setup to log in again")
+        raise
 def endpoint_id():
     eps = api("GET", "/endpoints")
     if len(eps) == 1: return eps[0]["Id"]
@@ -386,7 +389,9 @@ def a_add(names):
                 val = E.get(name)
                 if val is None:
                     val = tty_in(f"  {lab} = ", secret=bool(re.search(r"PASS|SECRET|TOKEN|KEY", name)) and not is_random)
-                    if val is None: fail(f"No terminal to ask for {name}; pass it as a variable, e.g. {name}=...")
+                    if val is None:                       # no terminal: take the default if there is one
+                        if is_random or cdef not in (None, ""): val = ""
+                        else: fail(f"No terminal to ask for {name}; pass it as a variable, e.g. {name}=...")
                 if val == "":
                     if is_random: val = rand_secret(); generated.append((n, name, val))
                     elif cdef not in (None, ""): continue           # compose default applies
@@ -406,11 +411,25 @@ def a_add(names):
     if failed: fail(f"{len(failed)} app(s) failed: {', '.join(failed)}")
 
 # ---- backup ----
-def fingerprint():
-    keep = lambda s: {k: s.get(k) for k in ("Name", "Env", "Type")} | {"git": {k: (s.get("GitConfig") or {}).get(k) for k in ("URL", "ConfigFilePath", "ReferenceName")}}
-    st = sorted((keep(s) for s in stacks()), key=lambda x: x["Name"])
-    users = sorted((u.get("Username"), u.get("Role")) for u in api("GET", "/users"))
-    return hashlib.sha256(json.dumps([st, users], sort_keys=True).encode()).hexdigest()
+def snapshot():
+    """Hashes only (never values): one per stack, one for users, one overall."""
+    h = lambda o: hashlib.sha256(json.dumps(o, sort_keys=True).encode()).hexdigest()
+    per = {}
+    for s_ in stacks():
+        g = s_.get("GitConfig") or {}
+        per[s_["Name"]] = h([s_.get("Env"), s_.get("Type"), [g.get(k) for k in ("URL", "ConfigFilePath", "ReferenceName")]])
+    users = h(sorted((u.get("Username"), u.get("Role")) for u in api("GET", "/users")))
+    return per, users, h([per, users])
+
+def describe(prev, per, users):
+    if not prev.get("fingerprint"): return f"First backup ({len(per)} stack{'' if len(per) == 1 else 's'})"
+    old = prev.get("stacks_hash")
+    if old is None: return f"Updated ({len(per)} stack{'' if len(per) == 1 else 's'})"
+    tok = [f"+{n}" for n in sorted(set(per) - set(old))] + [f"-{n}" for n in sorted(set(old) - set(per))] + \
+          [f"~{n}" for n in sorted(set(per) & set(old)) if per[n] != old[n]]
+    d = " ".join(tok)
+    if users != prev.get("users_hash"): d = f"{d}, users changed" if d else "Users changed"
+    return d or "Settings changed"
 
 def state_path(): return os.path.join(E.get("STATE_DIR", "/var/lib/portainer-setup"), "state.json")
 def state():
@@ -421,46 +440,51 @@ def save_state(**kw):
     json.dump(s, open(state_path(), "w"))
 
 def do_backup(force):
-    fp = fingerprint()
+    """-> (action, MB, detail): ('Pushed', 1.3, '+jellyfin') or ('Skipped', 0.0, 'No changes')"""
+    per, users, fp = snapshot()
     try: meta = json.loads(gh_get(BMETA).decode())
     except urllib.error.HTTPError as e:
         if e.code in (401, 403): fail(f"GitHub PAT cannot read {REPO} ({e.code})")
         meta = {}
     if not force and meta.get("fingerprint") == fp:
-        return "unchanged", meta.get("created")
+        return "Skipped", 0.0, "No changes"
+    detail = describe(meta, per, users)
+    if detail == "Settings changed" and meta.get("fingerprint") == fp: detail = "No changes (forced)"
     data = api("POST", "/backup", {"Password": E["BACKUP_PASSWORD"]}, raw=True)
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     ver = http("GET", P + "/api/system/status", timeout=10)["Version"]
     gh_put(BFILE, data, f"Portainer backup {now}")
-    gh_put(BMETA, json.dumps({"created": now, "portainer_version": ver, "stacks": len(stacks()), "fingerprint": fp}, indent=1).encode(),
-           f"Portainer backup {now} (meta)")
-    return "pushed", now
+    gh_put(BMETA, json.dumps({"created": now, "portainer_version": ver, "stacks": len(per), "fingerprint": fp,
+                              "stacks_hash": per, "users_hash": users}, indent=1).encode(), f"Portainer backup {now} (meta)")
+    return "Pushed", len(data) / 1e6, detail
+
+def line(action, mb, detail): return f"{action:<8} {mb:.1f} MB  {detail}"
 
 def a_backup(force=False):
-    res, when = do_backup(force)
-    if res == "pushed": ok(f"Backup pushed to {REPO}/{os.path.dirname(BFILE)}")
-    else: ok(f"No changes since last backup ({when})")
-    save_state(last_run=time.time(), last_result="ok", last_change=when)
+    action, mb, detail = do_backup(force)
+    ok(f"{action} {mb:.1f} MB: {detail}")
+    save_state(last_run=time.time(), last_result="ok")
 
 def a_backup_run():
     host = os.uname().nodename
     try:
-        res, when = do_backup(False)
-        save_state(last_run=time.time(), last_result="ok", last_change=when)
-        print(f"backup {res} ({when})")
+        action, mb, detail = do_backup(False)
+        save_state(last_run=time.time(), last_result="ok")
+        print(line(action, mb, detail), flush=True)
         st = state()
         if time.time() - st.get("last_ok_mail", 0) > 7 * 86400 - 3600:
-            if send_mail(f"[{host}] Backups OK", f"Portainer backup is working.\nLast change backed up: {when}\nRepo: {REPO}/{BFILE}\n"):
+            if send_mail(f"[{host}] Backups OK", f"Portainer backup is working.\nLast run: {line(action, mb, detail)}\nRepo: {REPO}/{BFILE}\n"):
                 save_state(last_ok_mail=time.time())
     except Exception as e:
         msg = str(e) if isinstance(e, Fail) else f"{type(e).__name__}: {e}"
         save_state(last_run=time.time(), last_result="failed: " + msg)
+        print(line("Failed", 0.0, msg), flush=True)
         hint = ""
         if "PAT" in msg: hint = "\nFix: run portainer-setup → Settings → Change GitHub PAT"
         elif "token" in msg.lower() or "401" in msg: hint = "\nFix: run portainer-setup (it will ask you to log in to Portainer once)"
         try: send_mail(f"[{host}] Portainer backup FAILED", f"{msg}{hint}\n")
         except Exception as m: print(f"alert email failed too: {m}", file=sys.stderr)
-        fail(msg)
+        sys.exit(1)
 
 def a_backup_status():
     st = state()
@@ -751,7 +775,7 @@ menu_backup(){
 view_log(){ # last 20 nightly results, newest last
   local out
   out="$(journalctl -u "$TIMER.service" -n 200 --no-pager -o short-iso 2>/dev/null \
-        | grep -E 'backup (pushed|unchanged)|FAIL|alert email' | tail -n 20)" || true
+        | grep -E ': (Pushed|Skipped|Failed) |alert email' | tail -n 20)" || true
   if [[ -z "$out" ]]; then info "No nightly runs logged yet"; return; fi
   sed -E 's/^([0-9-]+)T([0-9:]{5})[^ ]* [^ ]+ [^:]+: /\1 \2  /' <<<"$out"
 }
