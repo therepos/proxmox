@@ -65,6 +65,7 @@
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs portainer docker (PVE9).  
 - [Pvenosub Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/pvenosub-setup.sh) – Apply Proxmox VE post-install homelab defaults + remove the sub nag.  
 - [Smb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/smb-setup.sh) – Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu).  
+- [Stacks Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/stacks-setup.sh) – Backs up, restores and adds Portainer stacks deployed from the private docker repo.  
 - [Tailscale Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/tailscale-setup.sh) – Install / Update / Uninstall Tailscale subnet router LXC on Proxmox.  
 - [Virtiofs Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/virtiofs-setup.sh) – VirtIO-FS share — Proxmox host setup + Ubuntu VM mount (auto-detects).  
 - [vm-create.sh](https://github.com/therepos/proxmox/blob/main/apps/installers/vm-create.sh) – Create an Ubuntu VM on the Proxmox host (q35/OVMF + GPU passthrough).  
