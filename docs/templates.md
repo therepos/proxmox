@@ -3,6 +3,7 @@
 ## Docker
 - [Actualbudget](https://github.com/therepos/proxmox/blob/main/apps/docker/actualbudget-docker-compose.yml)  
 - [Audacity](https://github.com/therepos/proxmox/blob/main/apps/docker/audacity-docker-compose.yml)  
+- [Beszel](https://github.com/therepos/proxmox/blob/main/apps/docker/beszel-docker-compose.yml)  
 - [Blender](https://github.com/therepos/proxmox/blob/main/apps/docker/blender-docker-compose.yml)  
 - [Brave](https://github.com/therepos/proxmox/blob/main/apps/docker/brave-docker-compose.yml)  
 - [Calibreweb](https://github.com/therepos/proxmox/blob/main/apps/docker/calibreweb-docker-compose.yml)  
