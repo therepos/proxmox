@@ -7,7 +7,8 @@
 #   stacks-setup list                    Show every stack and where it deploys from
 #   stacks-setup backup                  Save all stack definitions (incl. env values) to BACKUP_DIR
 #   stacks-setup restore                 Recreate missing stacks from the newest backup
-#   stacks-setup add <app>               Deploy <app>-compose.yml from the docker repo
+#                                        (fresh install, no backup: pick apps from the repo)
+#   stacks-setup add [app ...]           Deploy apps from the docker repo (no names: pick from a list)
 #
 # Credentials are asked for at run time and never written to disk:
 #   - Portainer admin username + password (or PORTAINER_TOKEN, an access token)
@@ -247,7 +248,14 @@ def do_backup():
 
 def do_restore():
     files = sorted(glob.glob(os.path.join(BDIR, "stacks-*.json")))
-    if not files: fail(f"No stacks-*.json backup found in {BDIR} (run: backup)")
+    if not files:
+        warn(f"No backup found in {BDIR}.")
+        ans = tty_in("Fresh install? Choose apps to deploy from the repo instead [Y/n]: ")
+        if ans is None:
+            fail("No terminal to choose apps. Run 'add <app> …' or put a backup in " + BDIR)
+        if ans.strip().lower() in ("n", "no"):
+            info("Cancelled."); return
+        return do_add([])
     data = json.load(open(files[-1]))
     info(f"Using backup: {files[-1]} ({len(data['stacks'])} stacks)")
     eid = login()
@@ -281,45 +289,106 @@ def do_restore():
     if failed: fail(f"{len(failed)} stack(s) failed: {', '.join(failed)}. Re-run restore after fixing; done ones are skipped.")
     ok("Restore complete.")
 
-def do_add(app):
-    app = app.strip().lower()
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", app): fail(f"Invalid app name '{app}'")
-    compose = f"{app}-compose.yml"
+TTY = None
+def tty_in(prompt):
+    """Read a line from the terminal (stdin is not usable under bash -c "$(wget …)")."""
+    global TTY
+    if TTY is None:
+        try: TTY = open("/dev/tty")
+        except OSError: return None
+    print(prompt, end="", flush=True)
+    line = TTY.readline()
+    return None if line == "" else line.rstrip("\n")   # "" means end of input
+
+def parse_pick(text, n):
+    """'1 3 5', '1,3', '2-4', 'all' -> sorted 1-based indexes; None if invalid."""
+    text = (text or "").strip().lower()
+    if text == "all": return list(range(1, n + 1))
+    out = set()
+    for tok in re.split(r"[\s,]+", text):
+        if not tok: continue
+        m = re.fullmatch(r"(\d+)(?:-(\d+))?", tok)
+        if not m: return None
+        a, b = int(m.group(1)), int(m.group(2) or m.group(1))
+        if a < 1 or b > n or a > b: return None
+        out.update(range(a, b + 1))
+    return sorted(out) or None
+
+def pick_apps(files_in_repo, deployed):
+    apps = sorted(f[:-len("-compose.yml")] for f in files_in_repo if f.endswith("-compose.yml"))
+    free = [a for a in apps if a not in deployed]
+    if not free: ok("Every app in the repo is already deployed."); return []
+    print(f"Apps in {REPO.removeprefix('https://github.com/')} not yet deployed:")
+    w = len(str(len(free)))
+    cols = 3; rows = -(-len(free) // cols)
+    for r in range(rows):
+        print("".join(f"  {i+1:>{w}}) {free[i]:<18}" for i in range(r, len(free), rows)))
+    if deployed & set(apps):
+        print(f"Already deployed (skipped): {', '.join(sorted(deployed & set(apps)))}")
+    while True:
+        ans = tty_in("Choose apps (e.g. 1 3 5, 2-4, all; 0 to cancel): ")
+        if ans is None: fail("No selection received; pass names instead, e.g. add comfyui jellyfin")
+        if ans.strip() == "0": info("Cancelled."); return []
+        idx = parse_pick(ans, len(free))
+        if idx: return [free[i - 1] for i in idx]
+        print(f"  Not a valid choice. Use numbers 1-{len(free)}, ranges like 2-4, or all.")
+
+def do_add(apps):
     eid = login()
-    if app in {s["Name"].lower() for s in api("GET", "/stacks")}:
-        fail(f"A stack named '{app}' already exists. Use Portainer's 'Pull and redeploy' to update it.")
+    deployed = {s["Name"].lower() for s in api("GET", "/stacks")}
     files_in_repo, h = repo_files()
-    if compose not in files_in_repo:
-        apps = sorted(f[:-len("-compose.yml")] for f in files_in_repo if f.endswith("-compose.yml"))
-        fail(f"{compose} not in repo. Available: {', '.join(apps)}")
-    text = repo_file_text(compose, h)
-    # ${VAR} with no default must come from the stack's environment variables.
-    needed = sorted({m.group(1) for m in re.finditer(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)})
-    env = []
-    if needed:
-        info(f"{compose} needs values for: {', '.join(needed)}")
-        tty = None
-        for var in needed:
-            val = os.environ.get(var)
-            if val is None:
-                if tty is None:
-                    try: tty = open("/dev/tty")
-                    except OSError: fail(f"No terminal to ask for {var}; pass it as a variable, e.g. {var}=... ")
-                print(f"  {var} = ", end="", flush=True); val = tty.readline().rstrip("\n")
-            if not val: warn(f"{var} left empty")
-            env.append({"name": var, "value": val or ""})
-    info(f"[{app}] creating from {compose} …")
-    try:
-        r = create_git_stack(eid, app, REPO, REF, compose, env, True)
-    except urllib.error.HTTPError as e:
-        fail(f"[{app}] FAILED {e.code}: {err_text(e)}")
-    ok(f"[{app}] created (id {r['Id']})")
+    if not apps:
+        apps = pick_apps(files_in_repo, deployed)
+        if not apps: return
+    apps = [a.strip().lower() for a in apps]
+
+    # Pre-checks for every chosen app before anything is created.
+    bad = [a for a in apps if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", a)]
+    if bad: fail(f"Invalid app name(s): {', '.join(bad)}")
+    missing = [a for a in apps if f"{a}-compose.yml" not in files_in_repo]
+    if missing:
+        avail = sorted(f[:-len("-compose.yml")] for f in files_in_repo if f.endswith("-compose.yml"))
+        fail(f"Not in repo: {', '.join(missing)}. Available: {', '.join(avail)}")
+    for a in [a for a in apps if a in deployed]:
+        info(f"[{a}] already exists, skipped (use Portainer's 'Pull and redeploy' to update it)")
+    apps = [a for a in apps if a not in deployed]
+    if not apps: ok("Nothing to add."); return
+
+    # Collect ${VAR} values (no default in the compose) for all apps first.
+    plan = []
+    for a in apps:
+        compose = f"{a}-compose.yml"
+        text = repo_file_text(compose, h)
+        needed = sorted({m.group(1) for m in re.finditer(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)})
+        env = []
+        if needed:
+            info(f"[{a}] needs values for: {', '.join(needed)}")
+            for var in needed:
+                val = os.environ.get(var)
+                if val is None:
+                    val = tty_in(f"  {var} = ")
+                    if val is None: fail(f"No terminal to ask for {var}; pass it as a variable, e.g. {var}=...")
+                if not val: warn(f"[{a}] {var} left empty")
+                env.append({"name": var, "value": val or ""})
+        plan.append((a, compose, env))
+
+    failed = []
+    for a, compose, env in plan:
+        info(f"[{a}] creating from {compose} …")
+        try:
+            r = create_git_stack(eid, a, REPO, REF, compose, env, True)
+            ok(f"[{a}] created (id {r['Id']})")
+        except urllib.error.HTTPError as e:
+            failed.append(a); warn(f"[{a}] FAILED {e.code}: {err_text(e)}")
+    if failed: fail(f"{len(failed)} app(s) failed: {', '.join(failed)}")
+    ok(f"Added {len(plan)} stack(s).")
+    warn("Run 'Backup stacks' so these are included in your next restore.")
 
 action = sys.argv[1]
 if   action == "list":    do_list()
 elif action == "backup":  do_backup()
 elif action == "restore": do_restore()
-elif action == "add":     do_add(sys.argv[2] if len(sys.argv) > 2 else fail("add needs an app name, e.g. add comfyui"))
+elif action == "add":     do_add(sys.argv[2:])
 PY
   export PORTAINER_URL REPO_URL REPO_REF GH_USER BACKUP_DIR KEEP_BACKUPS
   python3 "$py" "$@" || rc=$?
@@ -330,11 +399,7 @@ PY
 act_list(){    need_portainer;              run_engine list; }
 act_backup(){  need_portainer;              run_engine backup; }
 act_restore(){ need_portainer; need_github; run_engine restore; }
-act_add(){
-  local app="${1:-}"
-  [[ -n "$app" ]] || app="$(ask 'App name (e.g. comfyui for comfyui-compose.yml)')"
-  need_portainer; need_github; run_engine add "$app"
-}
+act_add(){ need_portainer; need_github; run_engine add "$@"; }
 
 usage(){
   cat <<'EOF'
@@ -343,7 +408,7 @@ Usage:
   stacks-setup.sh list                 # show stacks and their source
   stacks-setup.sh backup               # save stack definitions + env values
   stacks-setup.sh restore              # recreate missing stacks from newest backup
-  stacks-setup.sh add <app>            # deploy <app>-compose.yml from the docker repo
+  stacks-setup.sh add [app ...]        # deploy apps from the repo (no names: pick from a list)
   stacks-setup.sh 1|2|3|4              # also accepted (menu numbers)
 
 Piped from wget (Webmin custom command) — keep the '--' placeholder:
@@ -356,7 +421,7 @@ run_action(){
     list|1)    act_list ;;
     backup|2)  act_backup ;;
     restore|3) act_restore ;;
-    add|4)     shift; act_add "${1:-}" ;;
+    add|4)     shift; act_add "$@" ;;
     help|-h|--help) usage ;;
     *) usage >&2
        fail "Unknown action '$1' (try: list|backup|restore|add)" ;;
@@ -385,9 +450,9 @@ fi
 
 echo "Portainer stacks (${REPO_URL#https://github.com/}). What would you like to do?"
 echo "1) List stacks"
-echo "2) Backup stack definitions"
-echo "3) Restore missing stacks from latest backup"
-echo "4) Add a stack from the repo"
+echo "2) Backup stacks"
+echo "3) Restore stack(s)"
+echo "4) Add stack(s)"
 echo "0) Exit"
 choice="$(asknum 'Enter choice' 1 4 1)"
 case "$choice" in
