@@ -738,12 +738,22 @@ menu_backup(){
   if timer_on; then echo "Nightly backup: ON at ${BACKUP_TIME} (${st})"; else echo "Nightly backup: OFF"; fi
   echo "1) Back up now"
   if timer_on; then echo "2) Turn off nightly backup"; else echo "2) Turn on nightly backup"; fi
+  echo "3) View log"
   echo "0) Back"
-  case "$(asknum 'Enter choice' 1 2 "$(timer_on && echo 1 || echo 2)")" in
+  case "$(asknum 'Enter choice' 1 3 "$(timer_on && echo 1 || echo 2)")" in
     1) need_token; need_pat; need_backup_password; engine backup ;;
     2) if timer_on; then timer_disable; else turn_on_backup; fi ;;
+    3) view_log ;;
     0) return ;;
   esac
+}
+
+view_log(){ # last 20 nightly results, newest last
+  local out
+  out="$(journalctl -u "$TIMER.service" -n 200 --no-pager -o short-iso 2>/dev/null \
+        | grep -E 'backup (pushed|unchanged)|FAIL|alert email' | tail -n 20)" || true
+  if [[ -z "$out" ]]; then info "No nightly runs logged yet"; return; fi
+  sed -E 's/^([0-9-]+)T([0-9:]{5})[^ ]* [^ ]+ [^:]+: /\1 \2  /' <<<"$out"
 }
 
 do_restore_installed(){
