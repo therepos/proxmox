@@ -20,7 +20,7 @@
 # Stored on this machine (root only, mode 600):
 #   /etc/portainer-setup/github.env    GitHub PAT for the docker repo
 #   /etc/portainer-setup/portainer.env Portainer API token used by the nightly backup
-#   /etc/portainer-setup/backup.env    Backup password
+#   /etc/portainer-setup/backup.env    Backup password and nightly backup time
 #   /etc/homelab/mail.env              Alert email settings (shared with backup-setup.sh)
 # Backups: <docker repo>/backups/portainer/portainer-backup.tar.gz (encrypted; git keeps history)
 # =============================================================================
@@ -36,7 +36,7 @@ PORTAINER_URL="${PORTAINER_URL:-https://127.0.0.1:${PORT_HTTPS}}"
 GH_REPO_DEFAULT="therepos/docker"
 GH_BRANCH="main"
 BACKUP_FILE="backups/portainer/portainer-backup.tar.gz"
-BACKUP_TIME="02:15"
+BACKUP_TIME="02:15"         # default; changeable in Settings (stored in backup.env)
 CONF_DIR="${CONF_DIR:-/etc/portainer-setup}"
 MAIL_CONF="${MAIL_CONF:-/etc/homelab/mail.env}"
 STATE_DIR="${STATE_DIR:-/var/lib/portainer-setup}"
@@ -613,10 +613,12 @@ setup_mail(){
   engine mail-test || warn "Fix with Settings → Change alert email"
 }
 
+save_backup_env(){ write_env "$CONF_DIR/backup.env" "BACKUP_PASSWORD=${BACKUP_PASSWORD:-}" "BACKUP_TIME=$BACKUP_TIME"; }
+
 need_backup_password(){
   [[ -n "${BACKUP_PASSWORD:-}" ]] && return
   BACKUP_PASSWORD="$(ask_new_secret 'Backup password')"; export BACKUP_PASSWORD
-  write_env "$CONF_DIR/backup.env" "BACKUP_PASSWORD=$BACKUP_PASSWORD"
+  save_backup_env
 }
 
 # --- Nightly backup timer ------------------------------------------------------
@@ -687,7 +689,7 @@ flow_restore(){ # Portainer must be freshly started (no admin yet)
   done
   rm -f "$f"
   BACKUP_PASSWORD="$pw"; export BACKUP_PASSWORD
-  write_env "$CONF_DIR/backup.env" "BACKUP_PASSWORD=$BACKUP_PASSWORD"
+  save_backup_env
   info "Log in with your Portainer account from the backup"
   PORTAINER_TOKEN=""; need_token
   engine update-source >/dev/null || true      # stacks pull with the current PAT
@@ -733,7 +735,7 @@ do_update(){
 
 menu_backup(){
   local st; st="$(engine backup-status 2>/dev/null || echo '?')"
-  if timer_on; then echo "Nightly backup: ON (${st})"; else echo "Nightly backup: OFF"; fi
+  if timer_on; then echo "Nightly backup: ON at ${BACKUP_TIME} (${st})"; else echo "Nightly backup: OFF"; fi
   echo "1) Back up now"
   if timer_on; then echo "2) Turn off nightly backup"; else echo "2) Turn on nightly backup"; fi
   echo "0) Back"
@@ -760,10 +762,11 @@ menu_settings(){
   echo "Settings:"
   echo "1) Change GitHub PAT"
   echo "2) Change backup password"
-  echo "3) Reset Portainer admin password"
-  echo "4) Change alert email"
+  echo "3) Change backup time"
+  echo "4) Reset Portainer admin password"
+  echo "5) Change alert email"
   echo "0) Back"
-  case "$(asknum 'Enter choice' 1 4 1)" in
+  case "$(asknum 'Enter choice' 1 5 1)" in
     1) local old="${GH_PAT:-}"
        while true; do
          GH_PAT="$(ask_secret "GitHub PAT for ${GH_REPO} (Contents: Read and write)")"; export GH_PAT
@@ -774,15 +777,23 @@ menu_settings(){
        [[ -n "$old" && "$old" != "$GH_PAT" ]] && info "Delete the old PAT on GitHub"
        return 0 ;;
     2) BACKUP_PASSWORD="$(ask_new_secret 'New backup password')"; export BACKUP_PASSWORD
-       write_env "$CONF_DIR/backup.env" "BACKUP_PASSWORD=$BACKUP_PASSWORD"
+       save_backup_env
        need_token; need_pat; engine backup --force
        info "Older backups still need the old password" ;;
-    3) yesno "Reset the original admin account's password?" n || return 0
+    3) local t tz; tz="$(date +%Z)"
+       while true; do
+         t="$(ask "Backup time, 24h server time ${tz}" "$BACKUP_TIME")"
+         [[ "$t" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
+         echo "Use HH:MM, e.g. 02:15" >/dev/tty
+       done
+       BACKUP_TIME="$t"; save_backup_env
+       if timer_on; then timer_enable; else ok "Saved. Turn on nightly backup under Backup."; fi ;;
+    4) yesno "Reset the original admin account's password?" n || return 0
        docker stop "$NAME" >/dev/null
        docker run --rm -v portainer_data:/data portainer/helper-reset-password 2>&1 | sed -n 's/.*\(Password succes.*\|Use the following.*\)/\1/p'
        docker start "$NAME" >/dev/null; engine wait-up >/dev/null
        ok "Log in with the password above, then change it in Portainer (My account)" ;;
-    4) setup_mail ;;
+    5) setup_mail ;;
     0) return ;;
   esac
 }
