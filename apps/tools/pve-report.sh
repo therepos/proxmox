@@ -5,6 +5,7 @@
 # Usage:
 #   pve-report.sh [output-file]      # default: ./pve-report.txt
 #
+#   find / -name pve-report.txt 2>/dev/null
 # Environment:
 #   SECTION_TIMEOUT=90   seconds any single section may run before it is
 #                        abandoned (an unreachable NFS/CIFS storage otherwise

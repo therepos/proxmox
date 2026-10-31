@@ -117,10 +117,10 @@ choose_provider() {
     local c
     read -p "  Select [1-4]: " c </dev/tty
     case "$c" in
-        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_MODEL="claude-sonnet-5" ;;
-        2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_MODEL="gemini-3.6-flash" ;;
-        3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_MODEL="" ;;
-        4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_MODEL="" ;;
+        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-haiku-5-5" ;;
+        2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_ID="gemini";     PROVIDER_MODEL="gemini-3.6-flash" ;;
+        3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_ID="";           PROVIDER_MODEL="" ;;
+        4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_ID="openrouter"; PROVIDER_MODEL="" ;;
         *) fail "Invalid choice." ;;
     esac
 
@@ -284,7 +284,16 @@ EXISTING_CTID="$(find_ctid || true)"
 
 ct_ip() { pct exec "$1" -- ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || true; }
 
-hx() { local id="$1"; shift; pct exec "$id" -- docker exec hermes hermes "$@"; }
+# Files in the data dir belong to the Hermes user, not root. docker exec runs as
+# root by default, so commands that write there (config, tokens) must run as
+# the data dir's owner or Hermes can no longer update them.
+hermes_uid() {
+    local uid
+    uid=$(pct exec "$1" -- stat -c %u "${DATA_DIR}/data" 2>/dev/null || true)
+    [[ "$uid" =~ ^[1-9][0-9]*$ ]] || uid=10000
+    echo "$uid"
+}
+hx() { local id="$1"; shift; pct exec "$id" -- docker exec -u "$(hermes_uid "$id")" hermes hermes "$@"; }
 
 pick_template() {
     pveam update >/dev/null 2>&1 || warn "Could not refresh template list; using cached."
@@ -339,6 +348,21 @@ sed -i 's/0\.0\.0\.0:${DASH_PORT}:/127.0.0.1:${DASH_PORT}:/' ${DATA_DIR}/docker-
     ok "Dashboard settings saved."
 }
 
+# Hermes reads the active model from model.default / model.provider.
+set_model() {
+    local ctid="$1"
+    if [[ -n "$PROVIDER_ID" ]]; then
+        hx "$ctid" config set model.provider "$PROVIDER_ID" >/dev/null 2>&1 \
+            || warn "Could not set model.provider to ${PROVIDER_ID}."
+    fi
+    if [[ -n "$PROVIDER_MODEL" ]]; then
+        hx "$ctid" config set model.default "$PROVIDER_MODEL" >/dev/null 2>&1 \
+            || warn "Could not set model.default to ${PROVIDER_MODEL}."
+    else
+        info "Pick a ${PROVIDER_LABEL} model: pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
+    fi
+}
+
 enable_telegram_platform() {
     # The setup wizard stores the token but does not add a platforms: block,
     # so the gateway starts with "no messaging platforms enabled". Set it here.
@@ -355,19 +379,19 @@ enable_telegram_platform() {
 smoke_test() {
     local ctid="$1" out=""
     info "Testing the AI connection (makes one real API call)..."
-    out=$(pct exec "$ctid" -- docker exec hermes hermes chat -q "Reply with exactly: hermes-ok" 2>&1 || true)
+    out=$(hx "$ctid" chat -q "Reply with exactly: hermes-ok" 2>&1 || true)
     if grep -q "hermes-ok" <<<"$out"; then
         ok "AI provider is working."
     else
         warn "The test reply did not come back as expected:"
         echo "$out" | tail -12 | sed 's/^/    /'
         warn "Fix the provider with menu option 3, or run:"
-        warn "  pct exec ${ctid} -- docker exec -it hermes hermes setup model"
+        warn "  pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
         return 1
     fi
 
     if [[ -n "$TG_TOKEN" && -n "$TG_USERID" ]]; then
-        if pct exec "$ctid" -- docker exec hermes hermes send --to telegram \
+        if hx "$ctid" send --to telegram \
              "Hermes is online and ready." >/dev/null 2>&1; then
             ok "Test message sent to your Telegram."
         else
@@ -469,9 +493,7 @@ YAML
     write_env "$ctid"
     write_dashboard_env "$ctid"
     enable_telegram_platform "$ctid"
-    if [[ -n "$PROVIDER_MODEL" ]]; then
-        hx "$ctid" config set model.name "$PROVIDER_MODEL" >/dev/null 2>&1 || true
-    fi
+    set_model "$ctid"
 
     info "Restarting to apply settings..."
     pct exec "$ctid" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null
@@ -515,7 +537,7 @@ action_add_telegram() {
     write_env "$EXISTING_CTID"
     enable_telegram_platform "$EXISTING_CTID"
     pct exec "$EXISTING_CTID" -- docker restart hermes >/dev/null; sleep 15
-    if pct exec "$EXISTING_CTID" -- docker exec hermes hermes send --to telegram \
+    if hx "$EXISTING_CTID" send --to telegram \
          "Hermes is online and ready." >/dev/null 2>&1; then
         ok "Done. Check Telegram for a test message."
     else
@@ -528,9 +550,7 @@ action_change_provider() {
     ensure_host_deps
     choose_provider
     write_env "$EXISTING_CTID"
-    if [[ -n "$PROVIDER_MODEL" ]]; then
-        hx "$EXISTING_CTID" config set model.name "$PROVIDER_MODEL" >/dev/null 2>&1 || true
-    fi
+    set_model "$EXISTING_CTID"
     pct exec "$EXISTING_CTID" -- docker restart hermes >/dev/null; sleep 15
     smoke_test "$EXISTING_CTID" || true
 }
@@ -660,6 +680,241 @@ action_backup() {
     ok "Backup saved to: $dest ($(du -h "$dest" | awk '{print $1}'))"
 }
 
+# --- GitHub backup -----------------------------------------------------------
+# A nightly job inside the container copies skills, scripts, scheduled jobs,
+# settings and memories to a private GitHub repo, using a deploy key that can
+# only reach that one repo. The job itself is apps/tools/hermes-backup.sh.
+GHB_TOOL_URL="https://github.com/therepos/proxmox/raw/main/apps/tools/hermes-backup.sh"
+GHB_KEY="/root/.ssh/hermes_backup"
+GHB_CONF="/etc/hermes-backup.conf"
+GHB_CRON="/etc/cron.d/hermes-backup"
+GHB_LOG="/var/log/hermes-backup.log"
+
+ghb_conf_get() {  # ghb_conf_get <ctid> <VAR>
+    pct exec "$1" -- sh -c ". $GHB_CONF 2>/dev/null; printf '%s' \"\$$2\"" 2>/dev/null || true
+}
+
+action_github_backup() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" == "status: running" ]] \
+        || fail "Container $EXISTING_CTID is not running. Start it with: pct start $EXISTING_CTID"
+    local id="$EXISTING_CTID" c
+
+    if pct exec "$id" -- test -f "$GHB_CRON" 2>/dev/null; then
+        echo "  GitHub backup is on, nightly at 03:30."
+        echo "    Repo   : $(ghb_conf_get "$id" HERMES_BACKUP_REPO)"
+        echo "    Folder : $(ghb_conf_get "$id" HERMES_BACKUP_DIR)/"
+        echo "  Last run:"
+        pct exec "$id" -- tail -n 3 "$GHB_LOG" 2>/dev/null | sed 's/^/    /' \
+            || echo "    (no runs yet)"
+        echo ""
+        echo "    1) Back up now"
+        echo "    2) Change repo or folder"
+        echo "    3) Turn off"
+        echo ""
+        read -p "  Select [1-3]: " c </dev/tty
+        echo ""
+        case "$c" in
+            1) pct exec "$id" -- /usr/local/bin/hermes-backup.sh || fail "Backup failed."; return ;;
+            2) ;;
+            3) ghb_off "$id"; return ;;
+            *) fail "Invalid choice." ;;
+        esac
+    fi
+    ghb_setup "$id"
+}
+
+# True when GitHub accepts the container's key for <repo>. Output in GHB_SSH_OUT.
+# Read access is enough to pass; a key added without write access fails at push.
+GHB_SSH_OUT=""
+ghb_key_works() {  # ghb_key_works <ctid> <owner/repo>
+    GHB_SSH_OUT=$(pct exec "$1" -- ssh -i "$GHB_KEY" -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com 2>&1 || true)
+    [[ "${GHB_SSH_OUT,,}" == *"hi ${2,,}!"* ]]
+}
+
+ghb_setup() {
+    local id="$1" repo dir c code pub
+
+    hr
+    echo "  Back up Hermes to GitHub"
+    hr
+    echo ""
+    echo "  Every night Hermes copies its skills, scripts, scheduled jobs,"
+    echo "  settings and memories to a GitHub repo. API keys and the Google"
+    echo "  sign-in are never copied."
+    echo ""
+    echo "  Use a PRIVATE repo: memories and job prompts are personal."
+    echo "  No repo yet? Create one at https://github.com/new (tick Private)."
+    echo ""
+    read -p "  Repo (owner/name): " repo </dev/tty
+    repo="${repo#https://github.com/}"; repo="${repo%.git}"; repo="${repo%/}"
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "Enter it as owner/name, e.g. jane/backups."
+
+    read -p "  Folder inside the repo [backup/hermes]: " dir </dev/tty
+    dir="${dir:-backup/hermes}"; dir="${dir#/}"; dir="${dir%/}"
+    [[ "$dir" =~ ^[A-Za-z0-9_./-]+$ && "$dir" != *..* ]] || fail "Use letters, digits, - _ . and / only."
+    if [[ "$dir" =~ ^(docs|static|public|src/pages)(/|$) ]]; then
+        warn "Website builders (Docusaurus, MkDocs...) publish '${dir%%/*}/'."
+        read -p "  Use '$dir' anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+    fi
+
+    ensure_host_deps
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://github.com/$repo" || echo 000)
+    if [[ "$code" == "200" ]]; then
+        warn "github.com/$repo is PUBLIC. Anyone could read your memories and prompts."
+        read -p "  Continue anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled. Make the repo private and try again."; return; }
+    fi
+
+    info "Preparing the container..."
+    pct exec "$id" -- bash -c "apt-get install -y git rsync cron openssh-client >/dev/null 2>&1" \
+        || fail "Could not install git/rsync/cron in the container."
+    pct exec "$id" -- bash -c "mkdir -p /root/.ssh && chmod 700 /root/.ssh && \
+        { [ -f $GHB_KEY ] || ssh-keygen -t ed25519 -N '' -C hermes-backup -f $GHB_KEY >/dev/null; }" \
+        || fail "Could not create the backup key."
+    # Reuse an existing key: only ask the user to add it if GitHub refuses it.
+    if ghb_key_works "$id" "$repo"; then
+        ok "GitHub already accepts this container's key for $repo."
+    else
+        pub=$(pct exec "$id" -- cat "$GHB_KEY.pub")
+        echo ""
+        hr
+        echo "  Add this key to GitHub (it can only reach $repo):"
+        hr
+        echo ""
+        echo "  1. Open https://github.com/$repo/settings/keys/new"
+        echo "  2. Title: hermes-backup"
+        echo "  3. Key:"
+        echo ""
+        echo "     $pub"
+        echo ""
+        echo "  4. Tick 'Allow write access', then click 'Add key'."
+        echo ""
+        read -p "  Press Enter once the key is added..." _ </dev/tty
+        echo ""
+        if ! ghb_key_works "$id" "$repo"; then
+            warn "GitHub did not accept the key for $repo:"
+            echo "$GHB_SSH_OUT" | sed 's/^/    /'
+            fail "Check the key was added to $repo with write access, then run this option again."
+        fi
+        ok "GitHub accepted the key."
+    fi
+
+    pct exec "$id" -- bash -c "umask 077; printf '%s\n' \
+        'HERMES_BACKUP_REPO=git@github.com:${repo}.git' 'HERMES_BACKUP_DIR=${dir}' > $GHB_CONF" \
+        || fail "Could not save backup settings."
+
+    local tmp
+    tmp=$(mktemp)
+    curl -fsSL --max-time 30 "$GHB_TOOL_URL" -o "$tmp" || { rm -f "$tmp"; fail "Could not download the backup job."; }
+    pct push "$id" "$tmp" /usr/local/bin/hermes-backup.sh --perms 755 || { rm -f "$tmp"; fail "Could not copy the backup job."; }
+    rm -f "$tmp"
+
+    pct exec "$id" -- /usr/local/bin/hermes-backup.sh --install || fail "First backup failed."
+    echo ""
+    ok "GitHub backup is on: github.com/$repo/tree/HEAD/$dir"
+}
+
+ghb_off() {
+    local id="$1" c repo
+    repo=$(ghb_conf_get "$id" HERMES_BACKUP_REPO)
+    read -p "  Turn off the nightly GitHub backup? [y/N]: " c </dev/tty
+    [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+    pct exec "$id" -- rm -rf "$GHB_CRON" "$GHB_CONF" /root/hermes-backup-repo \
+        "$GHB_KEY" "$GHB_KEY.pub" /usr/local/bin/hermes-backup.sh
+    ok "Nightly backup turned off. Files already on GitHub were left as they are."
+    repo="${repo#git@github.com:}"; repo="${repo%.git}"
+    if [[ -n "$repo" ]]; then
+        echo "  Also delete the 'hermes-backup' key at https://github.com/$repo/settings/keys"
+    fi
+}
+
+# --- Google (Gmail, Calendar) -------------------------------------------------
+# Hermes' google-workspace skill signs in with OAuth. The browser lands on an
+# unreachable http://localhost:1/?code=... page; the user pastes that address
+# back and setup.py exchanges it for a token. Everything runs as the Hermes
+# user so the token stays writable for the hourly refresh.
+GSETUP="/opt/data/skills/productivity/google-workspace/scripts/setup.py"
+
+gsetup() {  # gsetup <ctid> <setup.py args...>
+    local id="$1"; shift
+    pct exec "$id" -- docker exec -u "$(hermes_uid "$id")" hermes python "$GSETUP" "$@"
+}
+
+google_status() {  # one line: AUTHENTICATED... / NOT_AUTHENTICATED... / unavailable
+    gsetup "$1" --check 2>&1 | head -n 1 || true
+}
+
+action_google() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" == "status: running" ]] \
+        || fail "Container $EXISTING_CTID is not running. Start it with: pct start $EXISTING_CTID"
+    local id="$EXISTING_CTID" c st path url code uid
+    uid="$(hermes_uid "$id")"
+    pct exec "$id" -- docker exec hermes test -f "$GSETUP" \
+        || fail "The google-workspace skill is missing. Update Hermes (menu option 7) and try again."
+
+    st="$(google_status "$id")"
+    echo "  Google: $st"
+    echo ""
+    if [[ "$st" == AUTHENTICATED* ]]; then
+        read -p "  Already connected. Reconnect anyway? [y/N]: " c </dev/tty
+        [[ "$c" =~ ^[Yy]$ ]] || return 0
+    fi
+
+    if ! pct exec "$id" -- test -f "${DATA_DIR}/data/google_client_secret.json"; then
+        echo "  First, Hermes needs a Google OAuth client (a JSON file):"
+        echo "    1. https://console.cloud.google.com/apis/credentials"
+        echo "    2. Create credentials -> OAuth client ID -> Desktop app"
+        echo "    3. Download the JSON and copy it to this Proxmox host"
+        echo "  Enable the Gmail and Google Calendar APIs in the same project."
+        echo ""
+        read -p "  Path to the JSON on this host: " path </dev/tty
+        [[ -f "$path" ]] || fail "File not found: $path"
+        pct push "$id" "$path" "${DATA_DIR}/data/.client_secret_upload.json" \
+            --user "$uid" --group "$uid" --perms 600 || fail "Could not copy the file."
+        gsetup "$id" --client-secret /opt/data/.client_secret_upload.json >/dev/null 2>&1 || true
+        pct exec "$id" -- rm -f "${DATA_DIR}/data/.client_secret_upload.json"
+        pct exec "$id" -- test -f "${DATA_DIR}/data/google_client_secret.json" \
+            || fail "Hermes did not accept that file. Check it is the Desktop app JSON."
+        ok "OAuth client saved."
+        rm -i "$path" </dev/tty || true
+    fi
+
+    url="$(gsetup "$id" --auth-url 2>&1 | grep -oE 'https://accounts\.google\.com/[^ "]+' | head -n 1)"
+    [[ -n "$url" ]] || fail "Could not get a sign-in link from Hermes."
+
+    echo ""
+    hr
+    echo "  1. Open this link and sign in with the Google account Hermes should use:"
+    hr
+    echo ""
+    echo "$url"
+    echo ""
+    echo "  2. If Google warns the app is unverified: Advanced -> Go to ... (unsafe)."
+    echo "  3. Tick every box and Continue."
+    echo "  4. The browser ends on a 'site can't be reached' page at http://localhost:1/..."
+    echo "     That is expected. Copy the WHOLE address from the address bar."
+    echo ""
+    read -r -p "  Paste the address here: " code </dev/tty
+    code="${code//[[:space:]]/}"
+    [[ "$code" == *code=* || ${#code} -gt 20 ]] || fail "That does not look like the address. Run this option again."
+
+    gsetup "$id" --auth-code "$code" >/dev/null 2>&1 || true
+    # Whatever ran setup before, the token must belong to Hermes and be private.
+    pct exec "$id" -- sh -c "f=${DATA_DIR}/data/google_token.json; [ -f \$f ] && chown $uid:$uid \$f && chmod 600 \$f" || true
+
+    st="$(google_status "$id")"
+    if [[ "$st" == AUTHENTICATED* ]]; then
+        ok "Google connected. Gmail and Calendar jobs will work from the next run."
+    else
+        warn "Google did not connect: $st"
+        fail "The address may have expired (it lasts a few minutes). Run this option again."
+    fi
+}
+
 action_uninstall_silent() {
     if [[ -n "$EXISTING_CTID" ]]; then
         pct stop "$EXISTING_CTID" 2>/dev/null || true
@@ -682,6 +937,10 @@ action_uninstall() {
     else
         botname=""
     fi
+
+    local ghb_repo
+    ghb_repo=$(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)
+    ghb_repo="${ghb_repo#git@github.com:}"; ghb_repo="${ghb_repo%.git}"
 
     echo "  This permanently deletes container $EXISTING_CTID and everything inside:"
     echo "  memory, skills, sessions, scheduled jobs and saved API keys."
@@ -742,6 +1001,11 @@ action_uninstall() {
     echo ""
     echo "  Also consider revoking the API key you used, at your"
     echo "  provider's website."
+    if [[ -n "$ghb_repo" ]]; then
+        echo ""
+        echo "  GitHub backup: delete the 'hermes-backup' key at"
+        echo "    https://github.com/${ghb_repo}/settings/keys"
+    fi
     echo ""
 }
 
@@ -777,12 +1041,12 @@ action_status() {
 
     echo ""
     echo "  Health check:"
-    pct exec "$EXISTING_CTID" -- docker exec hermes hermes doctor 2>/dev/null \
+    hx "$EXISTING_CTID" doctor 2>/dev/null \
         | sed 's/^/    /' || warn "    health check unavailable"
 
     echo ""
     echo "  Messaging:"
-    pct exec "$EXISTING_CTID" -- docker exec hermes hermes gateway status 2>/dev/null \
+    hx "$EXISTING_CTID" gateway status 2>/dev/null \
         | sed 's/^/    /' || warn "    gateway not responding"
 
     echo ""
@@ -792,6 +1056,21 @@ action_status() {
         echo "  Dashboard : off (menu option 9 to enable)"
     fi
     echo ""
+    echo "  Google    : $(google_status "$EXISTING_CTID")"
+    echo ""
+    echo "  Scheduled jobs (last result):"
+    hx "$EXISTING_CTID" cron list 2>/dev/null | awk '
+        /Name:/     { sub(/^.*Name: */, ""); name = $0 }
+        /Last run:/ { sub(/^.*Last run: */, ""); split($0, a, "  ")
+                      printf "    %-34s %s\n", substr(name, 1, 34), substr(a[2], 1, 40) }' \
+        || echo "    (unavailable)"
+    echo ""
+    if pct exec "$EXISTING_CTID" -- test -f "$GHB_CRON" 2>/dev/null; then
+        echo "  GitHub    : nightly backup to $(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)"
+        pct exec "$EXISTING_CTID" -- tail -n 1 "$GHB_LOG" 2>/dev/null | sed 's/^/              last: /' || true
+    else
+        echo "  GitHub    : no backup (menu option 11)"
+    fi
     echo -n "  Data size : "
     pct exec "$EXISTING_CTID" -- du -sh "${DATA_DIR}/data" 2>/dev/null | awk '{print $1}' || echo "unknown"
     echo ""
@@ -952,7 +1231,7 @@ EOSH
     echo "       Terms           https://${host}/terms.html"
     echo "       Authorised domain: the root domain of ${host}"
     echo ""
-    echo "  4. Audience -> Publish app, then re-authorise Gmail once."
+    echo "  4. Audience -> Publish app, then reconnect Google (menu option 12)."
     echo ""
     echo "  Note: the container uses DHCP, so if its IP changes you must"
     echo "  update the Cloudflare route."
@@ -985,11 +1264,13 @@ echo "  2) Connect or re-pair Telegram"
 echo "  3) Change AI provider or key"
 echo "  4) Show status"
 echo "  5) View logs"
-echo "  6) Backup"
+echo "  6) Backup to a file on this host"
 echo "  7) Update to latest version"
 echo "  8) Uninstall"
 echo "  9) Enable, disable or reset dashboard login"
 echo " 10) OAuth consent pages (needed to publish the Google app)"
+echo " 11) Back up to GitHub (nightly)"
+echo " 12) Connect or reconnect Google (Gmail, Calendar)"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -1006,6 +1287,8 @@ case "$choice" in
     8) action_uninstall ;;
     9) action_dashboard ;;
     10) action_consent_pages ;;
+    11) action_github_backup ;;
+    12) action_google ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac

@@ -3,6 +3,7 @@
 ## Docker
 - [Actualbudget](https://github.com/therepos/proxmox/blob/main/apps/docker/actualbudget-docker-compose.yml)  
 - [Audacity](https://github.com/therepos/proxmox/blob/main/apps/docker/audacity-docker-compose.yml)  
+- [Beszel](https://github.com/therepos/proxmox/blob/main/apps/docker/beszel-docker-compose.yml)  
 - [Blender](https://github.com/therepos/proxmox/blob/main/apps/docker/blender-docker-compose.yml)  
 - [Brave](https://github.com/therepos/proxmox/blob/main/apps/docker/brave-docker-compose.yml)  
 - [Calibreweb](https://github.com/therepos/proxmox/blob/main/apps/docker/calibreweb-docker-compose.yml)  
@@ -49,6 +50,7 @@
 - [Zipline](https://github.com/therepos/proxmox/blob/main/apps/docker/zipline-docker-compose.yml)  
 
 ## Installers
+- [Claudeubuntu Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/claudeubuntu-setup.sh) – Installs Claude Code with Remote Control as a boot service, plus optional Claude Desktop in the browser via KasmVNC (Ubuntu VM).  
 - [Cloudflared Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/cloudflared-setup.sh) – Install / Update / Uninstall Cloudflared tunnel LXC on Proxmox.  
 - [Disk Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/disk-setup.sh) – Check VM disk capacity and expand it end-to-end (host & VM aware).  
 - [Docker Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/docker-setup.sh) – Installs docker engine and docker compose (Ubuntu/PVE9).  
@@ -60,7 +62,7 @@
 - [Kasm Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/kasm-setup.sh) – Install Kasm Workspaces (Ubuntu).  
 - [Lmsensors Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/lmsensors-setup.sh) – Install/uninstall lm-sensors temperature monitoring on PVE9.  
 - [Mcp Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/mcp-setup.sh) – Install / Update / Uninstall MCP servers (apps/mcp) that connect Claude to this host.  
-- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs portainer docker (PVE9).  
+- [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs Portainer, deploys stacks from the docker repo, and backs Portainer up to GitHub nightly.  
 - [Pvenosub Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/pvenosub-setup.sh) – Apply Proxmox VE post-install homelab defaults + remove the sub nag.  
 - [Smb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/smb-setup.sh) – Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu).  
 - [Tailscale Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/tailscale-setup.sh) – Install / Update / Uninstall Tailscale subnet router LXC on Proxmox.  
@@ -70,6 +72,7 @@
 - [Webmin Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/webmin-setup.sh) – Install webmin on PVE9.  
 
 ## Tools
+- [hermes-backup.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/hermes-backup.sh) – Nightly backup of Hermes skills, scripts, jobs, config and memories to a private GitHub repo (run inside the Hermes LXC).  
 - [llmfit.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/llmfit.sh) – Recommend local LLMs that fit this machine's GPU/RAM via llmfit (VM/LXC, no sudo).  
 - [pve-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/pve-report.sh) – Dump a full Proxmox VE configuration/health report to a text file (PVE host).  
 - [vm-report.sh](https://github.com/therepos/proxmox/blob/main/apps/tools/vm-report.sh) – Dump a full guest (VM or LXC) configuration/health report to a text file (Debian/Ubuntu).  
