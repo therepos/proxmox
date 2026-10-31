@@ -29,13 +29,138 @@ fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< ui-block <<<
 
 # --- Config ------------------------------------------------------------------
-COMPOSE_URL="https://github.com/therepos/proxmox/raw/main/apps/docker/gitlab-docker-compose.yml"
 PLACEHOLDER_IP="192.168.1.100"
 PLACEHOLDER_DIR="/mnt/sec/apps/gitlab"
 HOST_IP=$(hostname -I | awk '{print $1}')
 GITLAB_HOST="${GITLAB_HOST:-${HOST_IP}}"
 DATA_DIR="${GITLAB_DATA_DIR:-/mnt/sec/apps/gitlab}"
 COMPOSE_DIR="${DATA_DIR}/compose"
+
+# --- Compose file --------------------------------------------------------------
+write_compose(){
+cat <<'YML'
+# https://docs.gitlab.com/install/docker/installation/
+# Post-deploy: wait 3-5 minutes for database initialisation (important)
+# Login with username (root) and password (initial_root_password):
+#   docker exec gitlab cat /etc/gitlab/initial_root_password
+# =====
+# Setup Runner:
+# 1. GitLab > Admin > CI/CD > Create Instance Runner
+# 2. Create a tag > Create Runner
+#      docker exec -it gitlab-runner bash
+#      gitlab-runner register  --url http://gitlab:80  --token glrt-<token>
+#    Use default settings:
+#      url:          http://gitlab:80
+#      description:  gitlab-runner
+#      executor:     docker
+#      image:        docker:latest
+# 3. Edit configuration at /etc/gitlab-runner/config.toml
+#    (host path: /mnt/sec/apps/gitlab/runner/config/config.toml)
+#      [runners.docker]
+#        image = "docker:latest"
+#        privileged = true
+#        volumes = ["/var/run/docker.sock:/var/run/docker.sock"]
+# 4. Restart runner
+#      docker restart gitlab-runner
+# =====
+# Update Default Email:
+# 1. Enter the Rails console
+#      docker exec -it gitlab bash
+#      gitlab-rails console
+# 2. Change username and email
+#      user = User.find_by_username('root')
+#      user.email = 'your@email.com'
+#      user.skip_reconfirmation!
+#      user.save!
+# 3. Restart GitLab
+#      docker exec -it gitlab gitlab-ctl restart
+# =====
+# Disable Auto DevOps (recommended):
+#   Settings > CI/CD > Auto DevOps : Turn Off
+# =====
+# Pull from Container Registry:
+#   docker login <HOST_IP>:5050
+#   docker pull <HOST_IP>:5050/username/project:latest
+# =====
+# Insecure registry (if not using HTTPS):
+#   nano /etc/docker/daemon.json
+#     { "insecure-registries": ["<HOST_IP>:5050"] }
+#   systemctl restart docker
+# =====
+# Edit defaults below to match your environment:
+#   HOST_IP   - your server's LAN IP or hostname
+#   Ports     - 3028 (web), 2224 (ssh), 5050 (registry), 8090 (pages)
+#   Data      - /mnt/sec/apps/gitlab (persistent storage root)
+# =====
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    restart: unless-stopped
+    hostname: gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        # External access
+        external_url 'http://192.168.1.100:3028'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+
+        # SSH
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+
+        # Container Registry
+        registry_external_url 'http://192.168.1.100:5050'
+        registry_nginx['listen_port'] = 5050
+        registry_nginx['listen_https'] = false
+
+        # GitLab Pages
+        pages_external_url 'http://192.168.1.100:8090'
+        gitlab_pages['enable'] = true
+        gitlab_pages['listen_proxy'] = '0.0.0.0:8090'
+        gitlab_pages['external_http'] = ['0.0.0.0:8090']
+        pages_nginx['enable'] = false
+
+        # Performance tuning (reduce memory for small instances)
+        puma['workers'] = 2
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+    ports:
+      - '3028:80'
+      - '2224:22'
+      - '5050:5050'
+      - '8090:8090'
+    volumes:
+      - /mnt/sec/apps/gitlab/config:/etc/gitlab
+      - /mnt/sec/apps/gitlab/logs:/var/log/gitlab
+      - /mnt/sec/apps/gitlab/data:/var/opt/gitlab
+    shm_size: '256m'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/-/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    networks:
+      - gitlab-net
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: unless-stopped
+    depends_on:
+      gitlab:
+        condition: service_healthy
+    volumes:
+      - /mnt/sec/apps/gitlab/runner/config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - gitlab-net
+
+networks:
+  gitlab-net:
+YML
+}
 
 # --- Root check --------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
@@ -90,16 +215,10 @@ do_install() {
     mkdir -p "${COMPOSE_DIR}"
     ok "Directories created."
 
-    # Fetch docker-compose.yml
-    info "Fetching docker-compose.yml from GitHub..."
-    if command -v wget &> /dev/null; then
-        wget -qO "${COMPOSE_DIR}/docker-compose.yml" "${COMPOSE_URL}?$(date +%s)"
-    elif command -v curl &> /dev/null; then
-        curl -fsSL "${COMPOSE_URL}?$(date +%s)" -o "${COMPOSE_DIR}/docker-compose.yml"
-    else
-        fail "Neither wget nor curl found. Cannot download compose file."
-    fi
-    ok "docker-compose.yml downloaded."
+    # Write docker-compose.yml (kept in this script so the installer is self-contained)
+    info "Writing docker-compose.yml..."
+    write_compose > "${COMPOSE_DIR}/docker-compose.yml"
+    ok "docker-compose.yml written."
 
     # Patch host IP
     if [[ "${GITLAB_HOST}" != "${PLACEHOLDER_IP}" ]]; then

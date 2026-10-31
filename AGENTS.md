@@ -6,7 +6,9 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 ## Layout
 
 - `apps/installers/<name>-setup.sh`  menu-driven installers, run as root on the PVE host
-- `apps/docker/<name>-docker-compose.yml`  compose files
+  (docker-related ones such as `portainer-setup.sh` run on the Docker VM)
+- Docker compose files live in the private repo `therepos/docker` as `<name>-compose.yml`;
+  deploy them with `apps/installers/portainer-setup.sh` (variables use `# hint:` comments)
 - `apps/mcp/<id>/server.py`  MCP servers, `apps/mcp/common.py` is shared plumbing
 - `apps/tools/`  one-off host scripts
 - `apps/skills/<name>/`  Claude skills (SKILL.md + scripts); `.claude/skills/<name>` symlinks here so repo sessions load them

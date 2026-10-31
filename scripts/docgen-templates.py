@@ -43,17 +43,7 @@ def generate_section(title, folder, file_filter, label_fn, url_base):
 def generate_templates():
     lines = ['# Templates\n']
 
-    # Docker
-    # GITHUB_VIEW_BASE = "https://github.com/therepos/proxmox/blob/main/apps/docker"
-    # GITHUB_RAW_BASE = "https://raw.githubusercontent.com/therepos/proxmox/main/apps/docker"
-    docker_base = "https://github.com/therepos/proxmox/blob/main/apps/docker"
-    lines += generate_section(
-        "Docker",
-        "apps/docker",
-        lambda f: f.endswith('-docker-compose.yml'),
-        lambda f: f.split('-')[0].capitalize(),
-        docker_base
-    )
+    # Docker compose files now live in the private repo therepos/docker (not listed here)
 
     # Installers — scripts are named <name>-setup.sh; anything else in the
     # folder (e.g. vm-create.sh) is listed under its own filename.
