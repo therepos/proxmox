@@ -542,15 +542,10 @@ print_connect() {
     hr
     echo "  Connect Hermes"
     hr
+    echo "  On the Proxmox host:  hermes-setup.sh  >  13) Use the local LLM on the GPU VM"
     echo ""
-    echo "  On the Proxmox host, run hermes-setup.sh and choose:"
-    echo "    13) Use the local LLM on the GPU VM"
-    echo "  It reads this server's address and key from the shared drive and sets"
-    echo "  Hermes up by itself, Claude shortcuts included. Nothing to copy."
-    echo ""
-    echo "  For any other client:"
-    echo "    Base URL  http://${ip:-<VM-IP>}:${PORT}/v1    Model  ${MODEL_ALIAS}    Context  ${CTX}"
-    echo "    API key   ${LLAMA_API_KEY}"
+    echo "  Other clients:  http://${ip:-<VM-IP>}:${PORT}/v1   model ${MODEL_ALIAS}   context ${CTX}"
+    echo "  API key:        ${LLAMA_API_KEY}"
     echo ""
 }
 
@@ -719,7 +714,7 @@ menu() {
     echo "  4) Settings"
     echo "  5) Update llama.cpp"
     echo "  6) Uninstall"
-    echo "  q) Quit"
+    echo "  0) Exit"
     echo ""
     local choice
     read -rp "Select an option: " choice </dev/tty
@@ -731,7 +726,7 @@ menu() {
         4) settings_menu ;;
         5) action_update ;;
         6) action_uninstall ;;
-        q|Q) info "Bye."; exit 0 ;;
+        0) exit 0 ;;
         *) fail "Invalid option." ;;
     esac
 }
