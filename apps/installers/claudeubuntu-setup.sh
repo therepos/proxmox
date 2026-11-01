@@ -532,12 +532,12 @@ desktop:
 # streaming by itself; a weak laptop can force plain images by opening the
 # page with ?kasmvnc_mode_preference=image instead.
 runtime_configuration:
-  allow_client_to_override_kasm_server_settings: false
+  allow_client_to_override_kasm_server_settings: false   # was: not set (defaults to true)
 encoding:
-  max_frame_rate: 30
+  max_frame_rate: 30   # was: 60
   rect_encoding_mode:
-    min_quality: 3
-    max_quality: 6
+    min_quality: 3   # was: 5
+    max_quality: 6   # unchanged
   video_encoding_mode:
     enter_video_encoding_mode:
       area_threshold: 100%
