@@ -1340,7 +1340,7 @@ echo " 10) OAuth consent pages (needed to publish the Google app)"
 echo " 11) Back up to GitHub (nightly)"
 echo " 12) Connect or reconnect Google (Gmail, Calendar)"
 echo " 13) Use the local LLM on the GPU VM (free; Claude for hard questions)"
-echo "  q) Quit"
+echo "  0) Exit"
 echo ""
 read -p "Select an option: " choice </dev/tty
 echo ""
@@ -1359,6 +1359,6 @@ case "$choice" in
     11) action_github_backup ;;
     12) action_google ;;
     13) action_local_llm ;;
-    q|Q) info "Bye."; exit 0 ;;
+    0) exit 0 ;;
     *) fail "Invalid option." ;;
 esac
