@@ -88,10 +88,13 @@ SHARE_ACCESS_UIDS="${SHARE_ACCESS_UIDS:-1000}"
 # (FileBrowser, a root shell, most containers) creates folders whose ACL *mask*
 # is r-x, and the mask caps every ACL entry to read-only. The entries are still
 # there, but VM users get "Permission denied" until the mask is re-opened.
-# server_repair() fixes it once; the auto-fix cron below keeps it fixed by
-# re-opening the mask every few minutes. It is scoped to the folders people
-# share with VMs rather than the whole share on purpose: app data such as
-# Postgres directories must stay 0700/0750 or the app refuses to start.
+# A folder can also lose its group (root instead of sambausers) or its setgid
+# bit, after which everything created inside it belongs to group root and VM
+# users cannot write there either. server_repair() fixes all of it once; the
+# auto-fix cron below keeps it fixed by re-checking group, setgid and the mask
+# every few minutes. It is scoped to the folders people share with VMs rather
+# than the whole share on purpose: app data such as Postgres directories must
+# stay 0700/0750 or the app refuses to start.
 SHARE_AUTOFIX_PATHS="${SHARE_AUTOFIX_PATHS:-/mnt/sec/media}"
 SHARE_AUTOFIX_MINUTES="${SHARE_AUTOFIX_MINUTES:-5}"
 AUTOFIX_CRON="/etc/cron.d/smb-share-autofix"
@@ -191,14 +194,17 @@ apply_share_access() {
     fi
 }
 
-# The find only touches entries whose group write bit (the ACL mask, when ACLs
-# are present) is missing, so a steady-state run is a metadata walk and nothing
-# else. Prints the command; shared by the cron job and the one-off run.
+# One walk, three checks (GNU find's ',' runs each branch independently):
+# wrong group -> chgrp; group write bit (the ACL mask, when ACLs are present)
+# missing -> chmod g+rwX; directory without setgid -> chmod g+s. Only entries
+# that fail a check are touched, so a steady-state run is a metadata walk and
+# nothing else. Prints the command; shared by the cron job and the one-off run.
 autofix_cmd() {
     local p paths=()
     for p in $SHARE_AUTOFIX_PATHS; do [[ -d "$p" ]] && paths+=("$p"); done
     [[ ${#paths[@]} -gt 0 ]] || return 1
-    printf 'find %s ! -perm -g=w -exec chmod g+rwX {} +' "${paths[*]}"
+    printf 'find %s \\( ! -group %s -exec chgrp %s {} + \\) , \\( ! -perm -g=w -exec chmod g+rwX {} + \\) , \\( -type d ! -perm -g=s -exec chmod g+s {} + \\)' \
+        "${paths[*]}" "$SAMBA_GROUP" "$SAMBA_GROUP"
 }
 
 autofix_run() {
@@ -214,8 +220,9 @@ server_autofix_on() {
     local cmd
     cmd=$(autofix_cmd) || fail "None of SHARE_AUTOFIX_PATHS exist: ${SHARE_AUTOFIX_PATHS}"
     cat >"$AUTOFIX_CRON" <<EOF
-# Managed by smb-setup.sh. Re-opens the group/ACL mask on shared folders so VM
-# users keep write access after a root process creates files with umask 022.
+# Managed by smb-setup.sh. Keeps shared folders writable for VM users: fixes
+# the group, the setgid bit and the group/ACL mask on anything a root process
+# created with umask 022 or the wrong group.
 */${SHARE_AUTOFIX_MINUTES} * * * * root nice -n 19 ionice -c3 ${cmd} >/dev/null 2>&1
 EOF
     chmod 644 "$AUTOFIX_CRON"
