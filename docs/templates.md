@@ -1,7 +1,7 @@
 # Templates
 
 ## Installers
-- [Claudeubuntu Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/claudeubuntu-setup.sh) – Installs Claude Code with Remote Control as a boot service, plus optional Claude Desktop in the browser via KasmVNC (Ubuntu VM).  
+- [Claudeubuntu Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/claudeubuntu-setup.sh) – Installs Claude Code (Remote Control boot service) and Claude Desktop in the browser via KasmVNC (Ubuntu VM).  
 - [Cloudflared Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/cloudflared-setup.sh) – Install / Update / Uninstall Cloudflared tunnel LXC on Proxmox.  
 - [Disk Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/disk-setup.sh) – Check VM disk capacity and expand it end-to-end (host & VM aware).  
 - [Docker Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/docker-setup.sh) – Installs docker engine and docker compose (Ubuntu/PVE9).  
