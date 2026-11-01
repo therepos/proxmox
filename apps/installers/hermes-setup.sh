@@ -53,6 +53,12 @@ DASH_PASS=""
 PAGES_PORT=8088
 PAGES_DIR="/opt/hermes-pages"
 
+# Local LLM on the GPU VM (installed by llama-setup.sh). The VM saves its address and
+# API key to this file on the shared drive, so this host can connect Hermes with no typing.
+LLM_ENV="${LLM_ENV:-/mnt/sec/apps/llama/env}"
+LLM_SONNET="claude-sonnet-5-5"
+LLM_OPUS="claude-opus-5-5"
+
 PROVIDER_LABEL=""
 PROVIDER_ENVVAR=""
 PROVIDER_MODEL=""
@@ -1239,6 +1245,68 @@ EOSH
 }
 
 
+# --- Local LLM ---------------------------------------------------------------
+llm_val() { { grep -s "^$1=" "$LLM_ENV" || true; } | cut -d= -f2- | tr -d "'"; }
+
+action_local_llm() {
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
+    ensure_host_deps
+    if [[ ! -f "$LLM_ENV" ]]; then
+        warn "No local LLM found (missing ${LLM_ENV})."
+        echo "  Inside the GPU VM, run llama-setup.sh and choose Install first:"
+        echo "    sudo bash -c \"\$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/llama-setup.sh)\""
+        return 1
+    fi
+    local key ip port model ctx base
+    key="$(llm_val LLAMA_API_KEY)"; ip="$(llm_val LAN_IP)"; port="$(llm_val PORT)"
+    model="$(llm_val MODEL_ALIAS)"; ctx="$(llm_val CTX)"
+    if [[ -z "$ip" && -r /dev/tty ]]; then
+        # Settings saved by an older llama-setup.sh have no address; ask once.
+        read -rp "  GPU VM IP address (shown by 'llama-setup.sh > Status'): " ip </dev/tty
+    fi
+    [[ -n "$key" && -n "$ip" && -n "$port" && -n "$model" ]] \
+        || fail "The local LLM settings file is incomplete. Re-run llama-setup.sh Install in the GPU VM."
+    base="http://${ip}:${port}/v1"
+
+    info "Checking the local model at ${base}..."
+    if ! curl -fsS --max-time 5 -H "Authorization: Bearer ${key}" "${base}/models" >/dev/null 2>&1; then
+        fail "The local model is not answering at ${base}. Is the GPU VM running? (In the VM: llama-setup.sh > Status)"
+    fi
+    ok "Local model is online (${model})."
+
+    local ctid="$EXISTING_CTID"
+    info "Pointing Hermes at it..."
+    hx "$ctid" config set LLAMA_API_KEY "$key" >/dev/null 2>&1 || fail "Could not save the API key in Hermes."
+    hx "$ctid" config set model.provider custom >/dev/null 2>&1
+    hx "$ctid" config set model.default "$model" >/dev/null 2>&1
+    hx "$ctid" config set model.base_url "$base" >/dev/null 2>&1
+    hx "$ctid" config set model.key_env LLAMA_API_KEY >/dev/null 2>&1
+    hx "$ctid" config set model.context_length "${ctx:-65536}" >/dev/null 2>&1
+    ok "Hermes now uses the local model by default."
+
+    # Claude stays one command away, and catches the turn if the VM is down.
+    if pct exec "$ctid" -- grep -q '^ANTHROPIC_API_KEY=' "${DATA_DIR}/data/.env" 2>/dev/null; then
+        hx "$ctid" config set model_aliases.sonnet.provider anthropic >/dev/null 2>&1
+        hx "$ctid" config set model_aliases.sonnet.model "$LLM_SONNET" >/dev/null 2>&1
+        hx "$ctid" config set model_aliases.opus.provider anthropic >/dev/null 2>&1
+        hx "$ctid" config set model_aliases.opus.model "$LLM_OPUS" >/dev/null 2>&1
+        pct exec "$ctid" -- bash -c "grep -q '^fallback_providers:' ${DATA_DIR}/data/config.yaml 2>/dev/null \
+            || printf '\nfallback_providers:\n  - provider: anthropic\n    model: ${LLM_SONNET}\n' >> ${DATA_DIR}/data/config.yaml"
+        ok "Claude shortcuts set: /model sonnet --once (judgement), /model opus --once (hard analysis)."
+        ok "Safety net: if the VM is down, the turn goes to Claude Sonnet instead of failing."
+    else
+        warn "No Anthropic key in Hermes, so no Claude shortcuts or safety net. Add one with menu option 3 later."
+    fi
+
+    pct exec "$ctid" -- docker restart hermes >/dev/null; sleep 15
+    smoke_test "$ctid" || return 1
+    echo ""
+    echo "  Done. Hermes works on your own GPU for free. In any chat, put"
+    echo "    /model sonnet --once   or   /model opus --once"
+    echo "  before a question that needs Claude. To go back to Claude for everything: menu option 3."
+    echo ""
+}
+
 # --- Menu --------------------------------------------------------------------
 echo ""
 echo "================================================================"
@@ -1271,6 +1339,7 @@ echo "  9) Enable, disable or reset dashboard login"
 echo " 10) OAuth consent pages (needed to publish the Google app)"
 echo " 11) Back up to GitHub (nightly)"
 echo " 12) Connect or reconnect Google (Gmail, Calendar)"
+echo " 13) Use the local LLM on the GPU VM (free; Claude for hard questions)"
 echo "  q) Quit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -1289,6 +1358,7 @@ case "$choice" in
     10) action_consent_pages ;;
     11) action_github_backup ;;
     12) action_google ;;
+    13) action_local_llm ;;
     q|Q) info "Bye."; exit 0 ;;
     *) fail "Invalid option." ;;
 esac
