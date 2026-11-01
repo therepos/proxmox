@@ -219,6 +219,14 @@ first_run() {
     echo ""
     confirm "Ready?" "Y" || fail "Cancelled."
 
+    # A running service already serves the folder and the check would refuse
+    # to start; stop it for now. write_service starts it again afterwards.
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        info "Stopping the running '${SERVICE_NAME}' service for the check..."
+        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+    fi
+    as_user "$CLAUDE_USER" tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+
     # Let Ctrl+C stop only the child, not this script.
     trap ':' INT
     (cd "$CLAUDE_WORKDIR" && as_user "$CLAUDE_USER" "$bin" remote-control --name "$CLAUDE_RC_NAME" </dev/tty) || true
