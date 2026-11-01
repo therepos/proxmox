@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/claudeubuntu-setup.sh?$(date +%s))"
-# Purpose: Installs Claude Code with Remote Control as a boot service, plus optional Claude Desktop in the browser via KasmVNC (Ubuntu VM)
+# Purpose: Installs Claude Code (Remote Control boot service) and Claude Desktop in the browser via KasmVNC (Ubuntu VM)
 # =============================================================================
 # Usage:
 #   Run inside the Ubuntu VM (not the PVE host), as root or via sudo, from a
 #   console where you can type (Proxmox console or SSH). Menu:
-#     1) Install      Claude Code + tmux + one-time login + boot service
-#     2) Status       service, version, working folder
-#     3) Update       update Claude Code and restart the service
-#     4) Static IP    pin the VM's LAN address (netplan, auto-reverts if broken)
-#     5) Desktop      Claude Desktop on XFCE, streamed to any browser by KasmVNC,
-#                     so the app's Chat can use folders on this VM from anywhere
-#     6) Uninstall    remove the service, the desktop (optionally Claude Code)
-#   Args skip the menu: install | status | update | ip | desktop | uninstall
+#     1) Install     Claude Code (login, Remote Control boot service) and
+#                    Claude Desktop on XFCE, streamed to any browser by KasmVNC,
+#                    so the app's Chat can use folders on this VM from anywhere
+#     2) Status      services, versions, working folder, streaming mode
+#     3) Update      update Claude Code and Claude Desktop
+#     4) Settings    1) Improve stream performance  2) Improve stream quality
+#                    (browser desktop: 30 fps / panel ignored, or KasmVNC defaults)
+#                    3) Fix VM IP (netplan static address, auto-reverts if broken)
+#     5) Uninstall   remove the desktop and the service (optionally Claude Code)
+#   Args skip the menu: install | status | update | settings [performance|quality|ip] | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
-#   After Desktop: open https://<host-ip>:8444, sign in to the app, then
+#   Desktop: open https://<host-ip>:8444, sign in to the app, then
 #   project -> Add folder -> the working folder. claude-rc keeps running alongside.
 #
 # Bookmark URL (JPEG/WebP, for a weak laptop):
@@ -47,6 +49,14 @@ DESKTOP_PORT="${CLAUDE_DESKTOP_PORT:-8444}"
 AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"   # older versions only
 SLEEP_TARGETS="sleep.target suspend.target hibernate.target hybrid-sleep.target"
 DESKTOP_PKGS="xfce4 xfce4-terminal dbus-x11 gnome-keyring ssl-cert"
+# Streaming modes for the browser desktop (menu: Settings):
+#   performance  for Cloudflare Tunnel, office proxies, any slow link: 30 fps,
+#                picture quality 3-6, the server ignores the browser's settings
+#                panel. Default.
+#   quality      for LAN or a fast link: KasmVNC's own values (60 fps,
+#                quality 5-6, panel allowed).
+STREAM_DEFAULT="performance"
+stream_label() { [[ "${1:-}" == "quality" ]] && echo "Quality" || echo "Performance"; }
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -147,13 +157,18 @@ pick_settings() {
     CLAUDE_RC_NAME="$(ask "Session name shown in the Claude app" "${CLAUDE_RC_NAME:-Server}")"
     [[ "$CLAUDE_RC_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || fail "Use letters, digits, dot, dash or underscore only."
 
+    save_conf
+    ok "Settings saved to ${CONF_FILE}."
+}
+
+save_conf() {
     cat > "$CONF_FILE" <<EOF
 CLAUDE_USER="${CLAUDE_USER}"
 CLAUDE_WORKDIR="${CLAUDE_WORKDIR}"
 CLAUDE_RC_NAME="${CLAUDE_RC_NAME}"
+CLAUDE_STREAM="${CLAUDE_STREAM:-$STREAM_DEFAULT}"
 EOF
     chmod 644 "$CONF_FILE"
-    ok "Settings saved to ${CONF_FILE}."
 }
 
 # --- Install -----------------------------------------------------------------
@@ -255,15 +270,20 @@ EOF
     ok "Boot service '${SERVICE_NAME}' enabled and running."
 }
 
+# Unattended steps first (packages take minutes), then the two steps that need
+# a human (Claude login, browser password), then the services.
 do_install() {
     echo ""
-    echo "Claude Code - Install"
+    echo "Claude Code + Claude Desktop - Install"
     echo "================================================="
     pick_settings
     install_packages
     install_claude
+    install_desktop
     first_run
     write_service
+    set_kasm_password
+    write_kasm_config
     print_done
 }
 
@@ -272,6 +292,7 @@ print_done() {
     echo "Install Complete"
     echo "================================================="
     echo ""
+    echo "  Claude Code"
     echo "  Use it        Claude app -> Code tab -> tap '$(hostname)' under Devices"
     echo "                or https://claude.ai/code in any browser"
     echo "  Folder        ${CLAUDE_WORKDIR}"
@@ -279,7 +300,17 @@ print_done() {
     echo "                (detach with Ctrl+B then D, never Ctrl+C)"
     echo "  Restart       sudo systemctl restart ${SERVICE_NAME}"
     echo ""
-    echo "  Starts automatically on every boot."
+    echo "  Claude Desktop (browser)"
+    echo "  Open          https://$(hostname -I 2>/dev/null | awk '{print $1}'):${DESKTOP_PORT}"
+    echo "                (self-signed certificate: accept the browser warning)"
+    echo "  Login         ${CLAUDE_USER} + the browser password you set"
+    echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
+    echo "                behind Cloudflare Access"
+    echo "  Keyring       if asked for a new keyring password, leave it BLANK"
+    echo "  Streaming     $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}") mode; change it under 4) Settings"
+    echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
+    echo ""
+    echo "  Both start automatically on every boot."
     echo ""
 }
 
@@ -330,6 +361,7 @@ do_status() {
     echo "  Service         ${svc}"
     echo "  Remote Control  ${rc_txt}"
     echo "  Desktop         $(desktop_state "$u")"
+    echo "  Streaming       $( [[ -f "$DESKTOP_SERVICE_FILE" ]] && stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}" || echo - )"
     echo "  User            ${u:--}"
     echo "  Folder          ${CLAUDE_WORKDIR:--}"
     echo "  LAN IP          $(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -515,9 +547,17 @@ set_kasm_password() {
 }
 
 write_kasm_config() {
-    local home; home="$(user_home "$CLAUDE_USER")"
+    local home preset fps qmin qmax override
+    home="$(user_home "$CLAUDE_USER")"
+    preset="${CLAUDE_STREAM:-$STREAM_DEFAULT}"
+    case "$preset" in
+        quality) fps=60; qmin=5; qmax=6; override=true ;;
+        *)       fps=30; qmin=3; qmax=6; override=false; preset="performance" ;;
+    esac
     mkdir -p "${home}/.vnc"
     cat > "${home}/.vnc/kasmvnc.yaml" <<EOF
+# Written by claudeubuntu-setup.sh (streaming mode: ${preset}).
+# Change it from the installer menu, not here: Install rewrites this file.
 network:
   protocol: http
   interface: 0.0.0.0
@@ -530,12 +570,12 @@ desktop:
     height: 1080
   allow_resize: true
 runtime_configuration:
-  allow_client_to_override_kasm_server_settings: false   # was: not set (defaults to true)
+  allow_client_to_override_kasm_server_settings: ${override}
 encoding:
-  max_frame_rate: 30   # was: 60
+  max_frame_rate: ${fps}
   rect_encoding_mode:
-    min_quality: 3   # was: 5
-    max_quality: 6   # unchanged
+    min_quality: ${qmin}
+    max_quality: ${qmax}
   video_encoding_mode:
     enter_video_encoding_mode:
       area_threshold: 100%
@@ -586,15 +626,11 @@ EOF
     ok "Boot service '${DESKTOP_SERVICE}' enabled and running."
 }
 
-do_desktop() {
-    echo ""
-    echo "Claude Desktop in the browser - Install"
-    echo "================================================="
-    load_conf
-    [[ -n "${CLAUDE_USER:-}" ]] || pick_settings
+# Packages and files for the browser desktop. Idempotent; the browser password
+# and the KasmVNC config are done afterwards by do_install.
+install_desktop() {
     local home; home="$(user_home "$CLAUDE_USER")"
-    info "XFCE + Claude Desktop run as '${CLAUDE_USER}', streamed by KasmVNC on port ${DESKTOP_PORT}."
-    confirm "Continue?" "Y" || { info "Cancelled."; return 0; }
+    info "XFCE + Claude Desktop will run as '${CLAUDE_USER}', streamed by KasmVNC on port ${DESKTOP_PORT}."
 
     export DEBIAN_FRONTEND=noninteractive
     info "Installing a minimal XFCE desktop (several minutes)..."
@@ -640,24 +676,38 @@ EOF
 
     install_kasmvnc
     usermod -aG ssl-cert "$CLAUDE_USER"
-    set_kasm_password
-    write_kasm_config
+}
 
-    echo ""
-    echo "Desktop ready"
-    echo "================================================="
-    echo ""
-    echo "  Open          https://$(hostname -I 2>/dev/null | awk '{print $1}'):${DESKTOP_PORT}"
-    echo "                (self-signed certificate: accept the browser warning)"
-    echo "  Login         ${CLAUDE_USER} + the password you just set"
-    echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
-    echo "                behind Cloudflare Access"
-    echo "  Keyring       if asked for a new keyring password, leave it BLANK"
-    echo "  Slow link     quality and frame rate are set here, in ~/.vnc/kasmvnc.yaml;"
-    echo "                the browser's settings panel is ignored. On a weak laptop add"
-    echo "                ?kasmvnc_mode_preference=image to the URL for plain images."
-    echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
-    echo ""
+# --- Settings ----------------------------------------------------------------
+set_streaming() { # set_streaming performance|quality
+    load_conf
+    [[ -n "${CLAUDE_USER:-}" && -f "$DESKTOP_SERVICE_FILE" ]] || fail "Desktop not installed. Run Install first."
+    CLAUDE_STREAM="$1"
+    save_conf
+    write_kasm_config
+    ok "Streaming set to $(stream_label "$1"). Reload the desktop page in the browser."
+}
+
+# do_settings [performance|quality|ip]; no argument shows the menu.
+do_settings() {
+    local pick="${1:-}"
+    if [[ -z "$pick" ]]; then
+        echo ""
+        echo "Settings"
+        echo "================================================="
+        echo "  1) Improve stream performance"
+        echo "  2) Improve stream quality"
+        echo "  3) Fix VM IP"
+        echo "  0) Back"
+        echo ""
+        read -rp "  Choose [0-3]: " pick </dev/tty || pick=0
+        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=ip ;; *) return 0 ;; esac
+    fi
+    case "$pick" in
+        performance|quality) set_streaming "$pick" ;;
+        ip)                  do_static_ip ;;
+        *) fail "Unknown setting '${pick}'. Use: performance | quality | ip" ;;
+    esac
 }
 
 desktop_remove() {
@@ -687,7 +737,7 @@ desktop_remove() {
 # --- Uninstall ---------------------------------------------------------------
 do_uninstall() {
     load_conf
-    if [[ -n "$(pkg_ver claude-desktop)" ]] && confirm "Remove Claude Desktop and its browser desktop?" "N"; then
+    if [[ -n "$(pkg_ver claude-desktop)" ]] && confirm "Remove Claude Desktop and its browser desktop?" "Y"; then
         desktop_remove
     fi
     confirm "Remove the '${SERVICE_NAME}' boot service?" "N" || { info "Cancelled."; return 0; }
@@ -710,34 +760,31 @@ case "${1:-}" in
     install)   do_install;    exit 0 ;;
     status)    do_status;     exit 0 ;;
     update)    do_update;     exit 0 ;;
-    ip)        do_static_ip;  exit 0 ;;
-    desktop)   do_desktop;    exit 0 ;;
+    settings)  do_settings "${2:-}"; exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | ip | desktop | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|quality|ip] | uninstall" ;;
 esac
 
 while true; do
     echo ""
     echo "================================================="
-    echo "  Claude Code on Ubuntu VM"
+    echo "  Claude Code + Claude Desktop on Ubuntu VM"
     echo "================================================="
-    echo "  1) Install"
+    echo "  1) Install      Claude Code (Remote Control) + Claude Desktop"
     echo "  2) Status"
     echo "  3) Update"
-    echo "  4) Static IP"
-    echo "  5) Desktop (browser)"
-    echo "  6) Uninstall"
+    echo "  4) Settings"
+    echo "  5) Uninstall"
     echo "  0) Exit"
     echo ""
-    read -rp "  Choose [0-6]: " choice </dev/tty || choice=0
+    read -rp "  Choose [0-5]: " choice </dev/tty || choice=0
     case "$choice" in
         1) do_install ;;
         2) do_status ;;
         3) do_update ;;
-        4) do_static_ip ;;
-        5) do_desktop ;;
-        6) do_uninstall ;;
+        4) do_settings ;;
+        5) do_uninstall ;;
         0) exit 0 ;;
         *) warn "Invalid choice." ;;
     esac
