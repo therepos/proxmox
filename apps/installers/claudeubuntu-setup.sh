@@ -8,12 +8,12 @@
 #     1) Install         Claude Code (login, Remote Control boot service) and
 #                        Claude Desktop on XFCE, streamed to any browser by KasmVNC,
 #                        so the app's Chat can use folders on this VM from anywhere
-#     2) Status          services, versions, working folder, stream quality
+#     2) Status          services, versions, working folder, streaming mode
 #     3) Update          update Claude Code and Claude Desktop
 #     4) Static IP       pin the VM's LAN address (netplan, auto-reverts if broken)
-#     5) Stream quality  Slow network (default) or Normal network, for the browser desktop
+#     5) Streaming       Performance (default) or Quality, for the browser desktop
 #     6) Uninstall       remove the desktop and the service (optionally Claude Code)
-#   Args skip the menu: install | status | update | ip | quality [slow|normal] | uninstall
+#   Args skip the menu: install | status | update | ip | streaming [performance|quality] | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
@@ -48,13 +48,14 @@ DESKTOP_PORT="${CLAUDE_DESKTOP_PORT:-8444}"
 AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"   # older versions only
 SLEEP_TARGETS="sleep.target suspend.target hibernate.target hybrid-sleep.target"
 DESKTOP_PKGS="xfce4 xfce4-terminal dbus-x11 gnome-keyring ssl-cert"
-# Stream quality presets for the browser desktop (menu: Stream quality):
-#   slow    Slow network: Cloudflare Tunnel, office proxies. 30 fps, picture
-#           quality 3-6, the server ignores the browser's settings panel. Default.
-#   normal  Normal network: LAN or a fast link. KasmVNC's own values
-#           (60 fps, quality 5-6, panel allowed).
-STREAM_DEFAULT="slow"
-stream_label() { [[ "${1:-}" == "normal" ]] && echo "Normal network" || echo "Slow network"; }
+# Streaming modes for the browser desktop (menu: Streaming):
+#   performance  for Cloudflare Tunnel, office proxies, any slow link: 30 fps,
+#                picture quality 3-6, the server ignores the browser's settings
+#                panel. Default.
+#   quality      for LAN or a fast link: KasmVNC's own values (60 fps,
+#                quality 5-6, panel allowed).
+STREAM_DEFAULT="performance"
+stream_label() { [[ "${1:-}" == "quality" ]] && echo "Quality" || echo "Performance"; }
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -305,7 +306,7 @@ print_done() {
     echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
     echo "                behind Cloudflare Access"
     echo "  Keyring       if asked for a new keyring password, leave it BLANK"
-    echo "  Quality       $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}"); change it with menu option 5) Stream quality"
+    echo "  Streaming     $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}") mode; change it with menu option 5) Streaming"
     echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
     echo ""
     echo "  Both start automatically on every boot."
@@ -359,7 +360,7 @@ do_status() {
     echo "  Service         ${svc}"
     echo "  Remote Control  ${rc_txt}"
     echo "  Desktop         $(desktop_state "$u")"
-    echo "  Stream quality  $( [[ -f "$DESKTOP_SERVICE_FILE" ]] && stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}" || echo - )"
+    echo "  Streaming       $( [[ -f "$DESKTOP_SERVICE_FILE" ]] && stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}" || echo - )"
     echo "  User            ${u:--}"
     echo "  Folder          ${CLAUDE_WORKDIR:--}"
     echo "  LAN IP          $(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -549,12 +550,12 @@ write_kasm_config() {
     home="$(user_home "$CLAUDE_USER")"
     preset="${CLAUDE_STREAM:-$STREAM_DEFAULT}"
     case "$preset" in
-        normal) fps=60; qmin=5; qmax=6; override=true ;;
-        *)      fps=30; qmin=3; qmax=6; override=false; preset="slow" ;;
+        quality) fps=60; qmin=5; qmax=6; override=true ;;
+        *)       fps=30; qmin=3; qmax=6; override=false; preset="performance" ;;
     esac
     mkdir -p "${home}/.vnc"
     cat > "${home}/.vnc/kasmvnc.yaml" <<EOF
-# Written by claudeubuntu-setup.sh (stream quality preset: ${preset}).
+# Written by claudeubuntu-setup.sh (streaming mode: ${preset}).
 # Change it from the installer menu, not here: Install rewrites this file.
 network:
   protocol: http
@@ -676,30 +677,30 @@ EOF
     usermod -aG ssl-cert "$CLAUDE_USER"
 }
 
-# --- Stream quality ----------------------------------------------------------
-# do_stream [slow|normal]; no argument shows the presets and asks.
+# --- Streaming ---------------------------------------------------------------
+# do_stream [performance|quality]; no argument shows the modes and asks.
 do_stream() {
     load_conf
     [[ -n "${CLAUDE_USER:-}" && -f "$DESKTOP_SERVICE_FILE" ]] || fail "Desktop not installed. Run Install first."
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
         echo ""
-        echo "Stream quality"
+        echo "Streaming"
         echo "================================================="
         echo "  Current: $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}")"
         echo ""
-        echo "  1) Slow network    (default)"
-        echo "  2) Normal network"
+        echo "  1) Performance   (default)"
+        echo "  2) Quality"
         echo "  0) Cancel"
         echo ""
         read -rp "  Choose [0-2]: " pick </dev/tty || pick=0
-        case "$pick" in 1) pick=slow ;; 2) pick=normal ;; *) info "Cancelled."; return 0 ;; esac
+        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; *) info "Cancelled."; return 0 ;; esac
     fi
-    [[ "$pick" == "slow" || "$pick" == "normal" ]] || fail "Unknown preset '${pick}'. Use: slow | normal"
+    [[ "$pick" == "performance" || "$pick" == "quality" ]] || fail "Unknown mode '${pick}'. Use: performance | quality"
     CLAUDE_STREAM="$pick"
     save_conf
     write_kasm_config
-    ok "Stream quality set to $(stream_label "$pick"). Reload the desktop page in the browser."
+    ok "Streaming set to $(stream_label "$pick"). Reload the desktop page in the browser."
 }
 
 desktop_remove() {
@@ -753,10 +754,10 @@ case "${1:-}" in
     status)    do_status;     exit 0 ;;
     update)    do_update;     exit 0 ;;
     ip)        do_static_ip;  exit 0 ;;
-    quality)   do_stream "${2:-}"; exit 0 ;;
+    streaming) do_stream "${2:-}"; exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | ip | quality [slow|normal] | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | ip | streaming [performance|quality] | uninstall" ;;
 esac
 
 while true; do
@@ -765,10 +766,10 @@ while true; do
     echo "  Claude Code + Claude Desktop on Ubuntu VM"
     echo "================================================="
     echo "  1) Install         Claude Code (Remote Control service) + Claude Desktop in the browser"
-    echo "  2) Status          services, versions, folder, stream quality"
+    echo "  2) Status          services, versions, folder, streaming mode"
     echo "  3) Update          update Claude Code and Claude Desktop"
     echo "  4) Static IP       pin this VM's LAN address"
-    echo "  5) Stream quality  Slow network (default) or Normal network"
+    echo "  5) Streaming       Performance (default) or Quality"
     echo "  6) Uninstall       remove the desktop and the service"
     echo "  0) Exit"
     echo ""
