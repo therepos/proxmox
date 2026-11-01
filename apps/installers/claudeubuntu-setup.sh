@@ -19,6 +19,9 @@
 #   After Desktop: open https://<host-ip>:8444, sign in to the app, then
 #   project -> Add folder -> the working folder. claude-rc keeps running alongside.
 #
+# Bookmark URL (JPEG/WebP, for a weak laptop):
+#   https://<host-ip>:8444/?kasmvnc_mode_preference=image
+#
 # Config (env): CLAUDE_USER, CLAUDE_WORKDIR, CLAUDE_RC_NAME, CLAUDE_DESKTOP_PORT
 # =============================================================================
 
@@ -526,11 +529,6 @@ desktop:
     width: 1920
     height: 1080
   allow_resize: true
-# Tuned for a slow path (Cloudflare Tunnel + a corporate proxy): capped frame
-# rate and a lower JPEG quality range, and the server enforces them, ignoring
-# whatever the browser's settings panel has stored. The browser picks H.265
-# streaming by itself; a weak laptop can force plain images by opening the
-# page with ?kasmvnc_mode_preference=image instead.
 runtime_configuration:
   allow_client_to_override_kasm_server_settings: false   # was: not set (defaults to true)
 encoding:
