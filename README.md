@@ -3,7 +3,8 @@
 Execute the wget command line from the selected script.
 
 Related repos: [docker](https://github.com/therepos/docker) (compose files, private), [backups](https://github.com/therepos/backups) (private),
-[extensions](https://github.com/therepos/extensions) (browser tools), [windows](https://github.com/therepos/windows) (Windows scripts).
+[extensions](https://github.com/therepos/extensions) (browser tools), [windows](https://github.com/therepos/windows) (Windows scripts),
+[skills](https://github.com/therepos/skills) (Claude skills).
 
 ## Structure
 
@@ -14,7 +15,6 @@ proxmox
 ├── apps
 │   ├── installers      # One-click bash installers.
 │   ├── mcp             # MCP servers connecting Claude to this host.
-│   ├── skills          # Claude skills.
 │   └── tools           # One-click bash scripts.
 ├── docs                # Documentation and notes.
 └── scripts             # Internal helpers.
