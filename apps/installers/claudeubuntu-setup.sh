@@ -692,13 +692,9 @@ set_streaming() { # set_streaming performance|quality
 do_settings() {
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
-        load_conf
         echo ""
         echo "Settings"
         echo "================================================="
-        echo "  Streaming   $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}")"
-        echo "  VM IP       $(hostname -I 2>/dev/null | awk '{print $1}')"
-        echo ""
         echo "  1) Improve stream performance"
         echo "  2) Improve stream quality"
         echo "  3) Fix VM IP"
