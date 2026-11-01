@@ -11,6 +11,7 @@
 - [Gpu Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/gpu-setup.sh) – GPU passthrough (host) + NVIDIA driver install (VM) — combined.  
 - [Hermes Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/hermes-setup.sh) – Install / Update / Uninstall Hermes Agent LXC (Docker) on Proxmox.  
 - [Kasm Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/kasm-setup.sh) – Install Kasm Workspaces (Ubuntu).  
+- [Llama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/llama-setup.sh) – Local LLM server (llama.cpp + Qwen on the GPU) inside the Ubuntu VM, as an OpenAI-compatible API for Hermes.  
 - [Lmsensors Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/lmsensors-setup.sh) – Install/uninstall lm-sensors temperature monitoring on PVE9.  
 - [Mcp Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/mcp-setup.sh) – Install / Update / Uninstall MCP servers (apps/mcp) that connect Claude to this host.  
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs Portainer, deploys stacks from the docker repo, and backs Portainer up to GitHub nightly.  
