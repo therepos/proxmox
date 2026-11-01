@@ -526,10 +526,17 @@ desktop:
     width: 1920
     height: 1080
   allow_resize: true
+# Tuned for a slow path (Cloudflare Tunnel + a corporate proxy): capped frame
+# rate and a lower JPEG quality range, and the server enforces them, ignoring
+# whatever the browser's settings panel has stored. The browser picks H.265
+# streaming by itself; a weak laptop can force plain images by opening the
+# page with ?kasmvnc_mode_preference=image instead.
+runtime_configuration:
+  allow_client_to_override_kasm_server_settings: false
 encoding:
-  max_frame_rate: 60
+  max_frame_rate: 30
   rect_encoding_mode:
-    min_quality: 5
+    min_quality: 3
     max_quality: 6
   video_encoding_mode:
     enter_video_encoding_mode:
@@ -648,6 +655,9 @@ EOF
     echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
     echo "                behind Cloudflare Access"
     echo "  Keyring       if asked for a new keyring password, leave it BLANK"
+    echo "  Slow link     quality and frame rate are set here, in ~/.vnc/kasmvnc.yaml;"
+    echo "                the browser's settings panel is ignored. On a weak laptop add"
+    echo "                ?kasmvnc_mode_preference=image to the URL for plain images."
     echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
     echo ""
 }
