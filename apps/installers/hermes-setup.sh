@@ -171,7 +171,7 @@ setup_telegram() {
     local c
     read -p "  Set up Telegram now? [Y/n]: " c </dev/tty
     if [[ "$c" =~ ^[Nn]$ ]]; then
-        warn "Skipping. You can add it later with menu option 2."
+        warn "Skipping. You can add it later with menu option 9."
         return
     fi
 
@@ -230,7 +230,7 @@ setup_dashboard() {
     echo ""
     echo "  The dashboard is a web page on your home network where you can"
     echo "  see logs, skills, memory and settings in a browser. Telegram"
-    echo "  works fine without it. You can turn it on later (menu option 9)."
+    echo "  works fine without it. You can turn it on later (menu option 12)."
     echo ""
     local c
     read -p "  Enable the web dashboard? [Y/n]: " c </dev/tty
@@ -391,7 +391,7 @@ smoke_test() {
     else
         warn "The test reply did not come back as expected:"
         echo "$out" | tail -12 | sed 's/^/    /'
-        warn "Fix the provider with menu option 3, or run:"
+        warn "Fix the provider with menu option 7, or run:"
         warn "  pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
         return 1
     fi
@@ -401,7 +401,7 @@ smoke_test() {
              "Hermes is online and ready." >/dev/null 2>&1; then
             ok "Test message sent to your Telegram."
         else
-            warn "Telegram test message failed. Check menu option 5 (logs)."
+            warn "Telegram test message failed. Check menu option 3 (logs)."
         fi
     fi
 }
@@ -411,7 +411,7 @@ action_install() {
     if [[ -n "$EXISTING_CTID" ]]; then
         warn "Hermes is already installed at CTID $EXISTING_CTID."
         echo "  Reinstalling DELETES its memory, skills, sessions and scheduled jobs."
-        echo "  To keep them, quit now and run menu option 6 (Backup) first."
+        echo "  To keep them, quit now and run menu option 5 (Backup) first."
         echo ""
         local c
         read -p "  Type 'reinstall' to continue: " c </dev/tty
@@ -493,7 +493,7 @@ YAML
     info "Waiting for first-run setup..."
     sleep 25
     pct exec "$ctid" -- docker ps --filter name=hermes --filter status=running -q | grep -q . \
-        || fail "Hermes did not start. Run menu option 5 to view logs."
+        || fail "Hermes did not start. Run menu option 3 to view logs."
     ok "Hermes is running."
 
     write_env "$ctid"
@@ -547,7 +547,7 @@ action_add_telegram() {
          "Hermes is online and ready." >/dev/null 2>&1; then
         ok "Done. Check Telegram for a test message."
     else
-        warn "Saved, but the test message failed. Check menu option 5 (logs)."
+        warn "Saved, but the test message failed. Check menu option 3 (logs)."
     fi
 }
 
@@ -628,7 +628,7 @@ action_logs() {
 hermes_restart_after_backup() {
     [[ -z "${1:-}" ]] && return 0
     pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" \
-        >/dev/null 2>&1 || warn "Hermes did not restart. Try menu option 4 (status)."
+        >/dev/null 2>&1 || warn "Hermes did not restart. Try menu option 2 (status)."
 }
 
 action_backup() {
@@ -860,7 +860,7 @@ action_google() {
     local id="$EXISTING_CTID" c st path url code uid
     uid="$(hermes_uid "$id")"
     pct exec "$id" -- docker exec hermes test -f "$GSETUP" \
-        || fail "The google-workspace skill is missing. Update Hermes (menu option 7) and try again."
+        || fail "The google-workspace skill is missing. Update Hermes (menu option 4) and try again."
 
     st="$(google_status "$id")"
     echo "  Google: $st"
@@ -1059,7 +1059,7 @@ action_status() {
     if pct exec "$EXISTING_CTID" -- grep -q '^HERMES_DASHBOARD=1' "${DATA_DIR}/dashboard.env" 2>/dev/null; then
         echo "  Dashboard : http://${ip:-<container-ip>}:${DASH_PORT}"
     else
-        echo "  Dashboard : off (menu option 9 to enable)"
+        echo "  Dashboard : off (menu option 12 to enable)"
     fi
     echo ""
     echo "  Google    : $(google_status "$EXISTING_CTID")"
@@ -1075,7 +1075,7 @@ action_status() {
         echo "  GitHub    : nightly backup to $(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)"
         pct exec "$EXISTING_CTID" -- tail -n 1 "$GHB_LOG" 2>/dev/null | sed 's/^/              last: /' || true
     else
-        echo "  GitHub    : no backup (menu option 11)"
+        echo "  GitHub    : no backup (menu option 6)"
     fi
     echo -n "  Data size : "
     pct exec "$EXISTING_CTID" -- du -sh "${DATA_DIR}/data" 2>/dev/null | awk '{print $1}' || echo "unknown"
@@ -1237,7 +1237,7 @@ EOSH
     echo "       Terms           https://${host}/terms.html"
     echo "       Authorised domain: the root domain of ${host}"
     echo ""
-    echo "  4. Audience -> Publish app, then reconnect Google (menu option 12)."
+    echo "  4. Audience -> Publish app, then reconnect Google (menu option 10)."
     echo ""
     echo "  Note: the container uses DHCP, so if its IP changes you must"
     echo "  update the Cloudflare route."
@@ -1295,7 +1295,7 @@ action_local_llm() {
         ok "Claude shortcuts set: /model sonnet --once (judgement), /model opus --once (hard analysis)."
         ok "Safety net: if the VM is down, the turn goes to Claude Sonnet instead of failing."
     else
-        warn "No Anthropic key in Hermes, so no Claude shortcuts or safety net. Add one with menu option 3 later."
+        warn "No Anthropic key in Hermes, so no Claude shortcuts or safety net. Add one with menu option 7 later."
     fi
 
     pct exec "$ctid" -- docker restart hermes >/dev/null; sleep 15
@@ -1303,7 +1303,7 @@ action_local_llm() {
     echo ""
     echo "  Done. Hermes works on your own GPU for free. In any chat, put"
     echo "    /model sonnet --once   or   /model opus --once"
-    echo "  before a question that needs Claude. To go back to Claude for everything: menu option 3."
+    echo "  before a question that needs Claude. To go back to Claude for everything: menu option 7."
     echo ""
 }
 
@@ -1328,18 +1328,18 @@ else
 fi
 echo ""
 echo "  1) Install"
-echo "  2) Connect or re-pair Telegram"
-echo "  3) Change AI provider or key"
-echo "  4) Show status"
-echo "  5) View logs"
-echo "  6) Backup to a file on this host"
-echo "  7) Update to latest version"
-echo "  8) Uninstall"
-echo "  9) Enable, disable or reset dashboard login"
-echo " 10) OAuth consent pages (needed to publish the Google app)"
-echo " 11) Back up to GitHub (nightly)"
-echo " 12) Connect or reconnect Google (Gmail, Calendar)"
-echo " 13) Use the local LLM on the GPU VM (free; Claude for hard questions)"
+echo "  2) Status"
+echo "  3) Logs"
+echo "  4) Update"
+echo "  5) Backup to file"
+echo "  6) Backup to GitHub (nightly)"
+echo "  7) AI provider or key"
+echo "  8) Use local LLM"
+echo "  9) Telegram"
+echo " 10) Google (Gmail, Calendar)"
+echo " 11) Google consent pages"
+echo " 12) Dashboard login"
+echo " 13) Uninstall"
 echo "  0) Exit"
 echo ""
 read -p "Select an option: " choice </dev/tty
@@ -1347,18 +1347,18 @@ echo ""
 
 case "$choice" in
     1) action_install ;;
-    2) action_add_telegram ;;
-    3) action_change_provider ;;
-    4) action_status ;;
-    5) action_logs ;;
-    6) action_backup || fail "Backup failed." ;;
-    7) action_update ;;
-    8) action_uninstall ;;
-    9) action_dashboard ;;
-    10) action_consent_pages ;;
-    11) action_github_backup ;;
-    12) action_google ;;
-    13) action_local_llm ;;
+    2) action_status ;;
+    3) action_logs ;;
+    4) action_update ;;
+    5) action_backup || fail "Backup failed." ;;
+    6) action_github_backup ;;
+    7) action_change_provider ;;
+    8) action_local_llm ;;
+    9) action_add_telegram ;;
+    10) action_google ;;
+    11) action_consent_pages ;;
+    12) action_dashboard ;;
+    13) action_uninstall ;;
     0) exit 0 ;;
     *) fail "Invalid option." ;;
 esac

@@ -542,10 +542,13 @@ print_connect() {
     hr
     echo "  Connect Hermes"
     hr
-    echo "  On the Proxmox host:  hermes-setup.sh  >  13) Use the local LLM on the GPU VM"
+    echo "  On the Proxmox host:"
+    echo "    - hermes-setup.sh  >  8) Use local LLM"
     echo ""
-    echo "  Other clients:  http://${ip:-<VM-IP>}:${PORT}/v1   model ${MODEL_ALIAS}   context ${CTX}"
-    echo "  API key:        ${LLAMA_API_KEY}"
+    echo "  Other clients:"
+    echo "    - URL      http://${ip:-<VM-IP>}:${PORT}/v1"
+    echo "    - Model    ${MODEL_ALIAS}   context ${CTX}"
+    echo "    - API key  ${LLAMA_API_KEY}"
     echo ""
 }
 
