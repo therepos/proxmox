@@ -13,8 +13,11 @@
 #     4) Settings    1) Improve stream performance  2) Improve stream quality
 #                    (browser desktop: 30 fps / panel ignored, or KasmVNC defaults)
 #                    3) Fix VM IP (netplan static address, auto-reverts if broken)
-#     5) Uninstall   remove the desktop and the service (optionally Claude Code)
-#   Args skip the menu: install | status | update | settings [performance|quality|ip] | uninstall
+#     5) Connectors  1) Connect GitHub (so Claude Code here can read and push your
+#                    repos, like claude.ai)  2) Disconnect GitHub
+#     6) Uninstall   remove the desktop and the service (optionally Claude Code)
+#   Args skip the menu: install | status | update | settings [performance|quality|ip]
+#                       | connectors [github|github-off] | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
@@ -332,7 +335,7 @@ do_status() {
         [[ -z "$u" || "$u" == "root" ]] && u="$(getent passwd 1000 | cut -d: -f1)"
     fi
 
-    local bin="" ver="not installed" login="-" svc rc rc_txt tmux_txt
+    local bin="" ver="not installed" login="-" svc rc rc_txt tmux_txt gh_txt="-"
     if [[ -n "$u" ]]; then
         bin="$(claude_bin "$u")"
         if [[ -x "$bin" ]]; then
@@ -341,6 +344,7 @@ do_status() {
         fi
     fi
     tmux_txt="$(command -v tmux >/dev/null && echo installed || echo 'not installed')"
+    [[ -n "$u" ]] && gh_txt="$(gh_state "$u")"
 
     if [[ -f "$SERVICE_FILE" ]]; then
         local act ena
@@ -365,6 +369,7 @@ do_status() {
     echo "================================================="
     echo "  Claude Code     ${ver}"
     echo "  Login           ${login}"
+    echo "  GitHub          ${gh_txt}"
     echo "  tmux            ${tmux_txt}"
     echo "  Service         ${svc}"
     echo "  Remote Control  ${rc_txt}"
@@ -718,6 +723,78 @@ do_settings() {
     esac
 }
 
+# --- Connectors --------------------------------------------------------------
+# External accounts Claude Code on this VM can use. The claude.ai connectors do
+# not reach a session that runs here, so each one is logged in on the VM itself.
+
+# The user Claude runs as (saved settings, else the sudo caller, else uid 1000).
+claude_user() {
+    load_conf
+    local u="${CLAUDE_USER:-}"
+    if [[ -z "$u" ]]; then
+        u="${SUDO_USER:-}"
+        [[ -z "$u" || "$u" == "root" ]] && u="$(getent passwd 1000 | cut -d: -f1)"
+    fi
+    echo "$u"
+}
+
+# "logged in as <account>" | "not connected" | "gh not installed"
+gh_state() {
+    local u="$1" acct
+    command -v gh >/dev/null || { echo "not connected (gh not installed)"; return; }
+    acct="$(as_user "$u" gh api user --jq .login 2>/dev/null || true)"
+    [[ -n "$acct" ]] && echo "logged in as ${acct}" || echo "not connected"
+}
+
+connect_github() {
+    local u; u="$(claude_user)"
+    [[ -n "$u" ]] || fail "Could not work out which user Claude runs as. Run Install first."
+    if ! command -v gh >/dev/null; then
+        info "Installing the GitHub command-line tool (gh)..."
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y -qq gh >/dev/null 2>&1 || fail "Could not install gh."
+    fi
+    echo ""
+    info "Logging '${u}' in to GitHub. A one-time code appears below; open the link"
+    info "shown on any device, sign in to GitHub, enter the code, then come back here."
+    echo ""
+    as_user "$u" gh auth login --hostname github.com --git-protocol https --web </dev/tty         || fail "GitHub login did not complete. Run Connectors again to retry."
+    as_user "$u" gh auth setup-git >/dev/null 2>&1 || warn "Could not wire git to gh; 'git push' may still ask for a password."
+    ok "GitHub: $(gh_state "$u"). Claude Code on this VM can now read and push your repos."
+}
+
+disconnect_github() {
+    local u; u="$(claude_user)"
+    command -v gh >/dev/null || { info "GitHub is not connected."; return 0; }
+    confirm "Log '${u}' out of GitHub on this VM?" "N" || { info "Cancelled."; return 0; }
+    as_user "$u" gh auth logout --hostname github.com >/dev/null 2>&1 || true
+    ok "GitHub disconnected. (The gh tool stays installed; reconnect any time.)"
+}
+
+do_connectors() {
+    local pick="${1:-}"
+    if [[ -z "$pick" ]]; then
+        local u; u="$(claude_user)"
+        echo ""
+        echo "Connectors"
+        echo "================================================="
+        echo "  GitHub: $(gh_state "$u")"
+        echo ""
+        echo "  1) Connect GitHub"
+        echo "  2) Disconnect GitHub"
+        echo "  0) Back"
+        echo ""
+        read -rp "  Choose [0-2]: " pick </dev/tty || pick=0
+        case "$pick" in 1) pick=github ;; 2) pick=github-off ;; *) return 0 ;; esac
+    fi
+    case "$pick" in
+        github)     connect_github ;;
+        github-off) disconnect_github ;;
+        *) fail "Unknown connector '${pick}'. Use: github | github-off" ;;
+    esac
+}
+
 desktop_remove() {
     systemctl disable --now "$DESKTOP_SERVICE" >/dev/null 2>&1 || true
     rm -f "$DESKTOP_SERVICE_FILE"
@@ -769,9 +846,10 @@ case "${1:-}" in
     status)    do_status;     exit 0 ;;
     update)    do_update;     exit 0 ;;
     settings)  do_settings "${2:-}"; exit 0 ;;
+    connectors) do_connectors "${2:-}"; exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|quality|ip] | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|quality|ip] | connectors [github|github-off] | uninstall" ;;
 esac
 
 while true; do
@@ -783,16 +861,18 @@ while true; do
     echo "  2) Status"
     echo "  3) Update"
     echo "  4) Settings"
-    echo "  5) Uninstall"
+    echo "  5) Connectors   GitHub login for Claude Code on this VM"
+    echo "  6) Uninstall"
     echo "  0) Exit"
     echo ""
-    read -rp "  Choose [0-5]: " choice </dev/tty || choice=0
+    read -rp "  Choose [0-6]: " choice </dev/tty || choice=0
     case "$choice" in
         1) do_install ;;
         2) do_status ;;
         3) do_update ;;
         4) do_settings ;;
-        5) do_uninstall ;;
+        5) do_connectors ;;
+        6) do_uninstall ;;
         0) exit 0 ;;
         *) warn "Invalid choice." ;;
     esac
