@@ -469,6 +469,7 @@ write_service() {
     set_env CTX "$CTX"
     set_env PORT "$PORT"
     set_env THINKING "$THINKING"
+    set_env LAN_IP "$(lan_ip)"
     apply_thinking_env
     load_env
     cat > "$UNIT_FILE" <<EOF
@@ -539,32 +540,17 @@ print_connect() {
     local ip; ip="$(lan_ip)"
     echo ""
     hr
-    echo "  Connect Hermes (copy-paste on the Proxmox host shell)"
+    echo "  Connect Hermes"
     hr
     echo ""
-    echo "  Base URL : http://${ip:-<VM-IP>}:${PORT}/v1"
-    echo "  Model    : ${MODEL_ALIAS}"
-    echo "  Context  : ${CTX}"
-    echo "  API key  : ${LLAMA_API_KEY}"
+    echo "  On the Proxmox host, run hermes-setup.sh and choose:"
+    echo "    13) Use the local LLM on the GPU VM"
+    echo "  It reads this server's address and key from the shared drive and sets"
+    echo "  Hermes up by itself, Claude shortcuts included. Nothing to copy."
     echo ""
-    echo "  This makes the local model Hermes' default. Claude stays available in a chat"
-    echo "  with /model anthropic:<model>. Change CT if your Hermes container is not ${HERMES_CT}."
-    echo ""
-    cat <<EOF
-  CT=${HERMES_CT}; HU=\$(pct exec \$CT -- stat -c %u /opt/hermes/data)
-  H="pct exec \$CT -- docker exec -u \$HU hermes hermes"
-  \$H config set LLAMA_API_KEY ${LLAMA_API_KEY}
-  \$H config set model.provider custom
-  \$H config set model.default ${MODEL_ALIAS}
-  \$H config set model.base_url http://${ip:-<VM-IP>}:${PORT}/v1
-  \$H config set model.key_env LLAMA_API_KEY
-  \$H config set model.context_length ${CTX}
-  pct exec \$CT -- docker restart hermes
-  \$H chat -q "Reply with exactly: hermes-ok"
-EOF
-    echo ""
-    echo "  Quick check from any machine on the LAN:"
-    echo "    curl -H \"Authorization: Bearer ${LLAMA_API_KEY}\" http://${ip:-<VM-IP>}:${PORT}/v1/models"
+    echo "  For any other client:"
+    echo "    Base URL  http://${ip:-<VM-IP>}:${PORT}/v1    Model  ${MODEL_ALIAS}    Context  ${CTX}"
+    echo "    API key   ${LLAMA_API_KEY}"
     echo ""
 }
 
