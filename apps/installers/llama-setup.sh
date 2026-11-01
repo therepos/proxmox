@@ -178,6 +178,7 @@ restore_env() {
     mkdir -p "$CONF_DIR"; cp -f "$STATE_DIR/env" "$ENV_FILE"; chmod 600 "$ENV_FILE"
     ok "Restored saved settings and API key from ${STATE_DIR} (Hermes keeps working)."
 }
+unset_env() { [[ -f "$ENV_FILE" ]] && sed -i "/^$1=/d" "$ENV_FILE"; backup_env; }
 get_env() { { grep -s "^$1=" "$ENV_FILE" || true; } | cut -d= -f2- | tr -d "'"; }
 
 is_installed() { [[ -f "$UNIT_FILE" && -f "$ENV_FILE" ]]; }
@@ -193,6 +194,13 @@ server_args() {
          --host "$host" --port "$port"
 }
 thinking_args() { [[ "${THINKING}" == "off" ]] && echo '--chat-template-kwargs {"enable_thinking":false}' || true; }
+# The service gets the same setting through llama-server's own environment variable,
+# because systemd strips quotes from expanded $VARS in ExecStart (JSON would break).
+apply_thinking_env() {
+    unset_env THINK_ARGS
+    if [[ "${THINKING}" == "off" ]]; then set_env LLAMA_ARG_CHAT_TEMPLATE_KWARGS '{"enable_thinking":false}'
+    else unset_env LLAMA_ARG_CHAT_TEMPLATE_KWARGS; fi
+}
 
 # --- Step 1: NVIDIA driver ---------------------------------------------------
 step_driver() {
@@ -461,7 +469,7 @@ write_service() {
     set_env CTX "$CTX"
     set_env PORT "$PORT"
     set_env THINKING "$THINKING"
-    set_env THINK_ARGS "$(thinking_args)"
+    apply_thinking_env
     load_env
     cat > "$UNIT_FILE" <<EOF
 [Unit]
@@ -474,7 +482,7 @@ RequiresMountsFor=$(dirname "$MODEL_PATH")
 User=${SVC_USER}
 EnvironmentFile=${ENV_FILE}
 Environment=LD_LIBRARY_PATH=${APP_DIR}/current
-ExecStart=${APP_DIR}/current/llama-server $(server_args '${N_CPU_MOE}' 0.0.0.0 '${PORT}') \$THINK_ARGS
+ExecStart=${APP_DIR}/current/llama-server $(server_args '${N_CPU_MOE}' 0.0.0.0 '${PORT}')
 Restart=on-failure
 RestartSec=5
 # llama-server reads the key from LLAMA_API_KEY in the env file.
@@ -625,7 +633,7 @@ action_thinking() {
         *) fail "Use: thinking on   (smarter, slower)   or   thinking off   (faster)" ;;
     esac
     set_env THINKING "$THINKING"
-    set_env THINK_ARGS "$(thinking_args)"
+    apply_thinking_env
     systemctl restart "$SERVICE"
     ok "Thinking ${THINKING}. Server restarting (about a minute)."
 }
