@@ -5,15 +5,16 @@
 # Usage:
 #   Run inside the Ubuntu VM (not the PVE host), as root or via sudo, from a
 #   console where you can type (Proxmox console or SSH). Menu:
-#     1) Install         Claude Code (login, Remote Control boot service) and
-#                        Claude Desktop on XFCE, streamed to any browser by KasmVNC,
-#                        so the app's Chat can use folders on this VM from anywhere
-#     2) Status          services, versions, working folder, streaming mode
-#     3) Update          update Claude Code and Claude Desktop
-#     4) Static IP       pin the VM's LAN address (netplan, auto-reverts if broken)
-#     5) Streaming       Performance (default) or Quality, for the browser desktop
-#     6) Uninstall       remove the desktop and the service (optionally Claude Code)
-#   Args skip the menu: install | status | update | ip | streaming [performance|quality] | uninstall
+#     1) Install     Claude Code (login, Remote Control boot service) and
+#                    Claude Desktop on XFCE, streamed to any browser by KasmVNC,
+#                    so the app's Chat can use folders on this VM from anywhere
+#     2) Status      services, versions, working folder, streaming mode
+#     3) Update      update Claude Code and Claude Desktop
+#     4) Static IP   fix the VM's LAN address so it never changes (netplan,
+#                    auto-reverts if broken)
+#     5) Settings    streaming mode for the browser desktop: Performance or Quality
+#     6) Uninstall   remove the desktop and the service (optionally Claude Code)
+#   Args skip the menu: install | status | update | ip | settings [performance|quality] | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
@@ -48,7 +49,7 @@ DESKTOP_PORT="${CLAUDE_DESKTOP_PORT:-8444}"
 AUTOLOGIN_FILE="/etc/lightdm/lightdm.conf.d/50-autologin.conf"   # older versions only
 SLEEP_TARGETS="sleep.target suspend.target hibernate.target hybrid-sleep.target"
 DESKTOP_PKGS="xfce4 xfce4-terminal dbus-x11 gnome-keyring ssl-cert"
-# Streaming modes for the browser desktop (menu: Streaming):
+# Streaming modes for the browser desktop (menu: Settings):
 #   performance  for Cloudflare Tunnel, office proxies, any slow link: 30 fps,
 #                picture quality 3-6, the server ignores the browser's settings
 #                panel. Default.
@@ -306,7 +307,7 @@ print_done() {
     echo "  Remote        Cloudflare tunnel -> https://<host-ip>:${DESKTOP_PORT} with No TLS Verify,"
     echo "                behind Cloudflare Access"
     echo "  Keyring       if asked for a new keyring password, leave it BLANK"
-    echo "  Streaming     $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}") mode; change it with menu option 5) Streaming"
+    echo "  Streaming     $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}") mode; change it under 5) Settings"
     echo "  Restart       sudo systemctl restart ${DESKTOP_SERVICE}"
     echo ""
     echo "  Both start automatically on every boot."
@@ -677,21 +678,21 @@ EOF
     usermod -aG ssl-cert "$CLAUDE_USER"
 }
 
-# --- Streaming ---------------------------------------------------------------
-# do_stream [performance|quality]; no argument shows the modes and asks.
-do_stream() {
+# --- Settings ----------------------------------------------------------------
+# do_settings [performance|quality]; no argument shows the settings and asks.
+do_settings() {
     load_conf
     [[ -n "${CLAUDE_USER:-}" && -f "$DESKTOP_SERVICE_FILE" ]] || fail "Desktop not installed. Run Install first."
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
         echo ""
-        echo "Streaming"
+        echo "Settings"
         echo "================================================="
-        echo "  Current: $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}")"
+        echo "  Streaming: $(stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}")"
         echo ""
         echo "  1) Performance   (default)"
         echo "  2) Quality"
-        echo "  0) Cancel"
+        echo "  0) Back"
         echo ""
         read -rp "  Choose [0-2]: " pick </dev/tty || pick=0
         case "$pick" in 1) pick=performance ;; 2) pick=quality ;; *) info "Cancelled."; return 0 ;; esac
@@ -754,10 +755,10 @@ case "${1:-}" in
     status)    do_status;     exit 0 ;;
     update)    do_update;     exit 0 ;;
     ip)        do_static_ip;  exit 0 ;;
-    streaming) do_stream "${2:-}"; exit 0 ;;
+    settings)  do_settings "${2:-}"; exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | ip | streaming [performance|quality] | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | ip | settings [performance|quality] | uninstall" ;;
 esac
 
 while true; do
@@ -765,12 +766,12 @@ while true; do
     echo "================================================="
     echo "  Claude Code + Claude Desktop on Ubuntu VM"
     echo "================================================="
-    echo "  1) Install         Claude Code (Remote Control service) + Claude Desktop in the browser"
-    echo "  2) Status          services, versions, folder, streaming mode"
-    echo "  3) Update          update Claude Code and Claude Desktop"
-    echo "  4) Static IP       pin this VM's LAN address"
-    echo "  5) Streaming       Performance (default) or Quality"
-    echo "  6) Uninstall       remove the desktop and the service"
+    echo "  1) Install      Claude Code (Remote Control) + Claude Desktop"
+    echo "  2) Status"
+    echo "  3) Update"
+    echo "  4) Static IP    fix this VM's LAN address so it never changes"
+    echo "  5) Settings"
+    echo "  6) Uninstall"
     echo "  0) Exit"
     echo ""
     read -rp "  Choose [0-6]: " choice </dev/tty || choice=0
@@ -779,7 +780,7 @@ while true; do
         2) do_status ;;
         3) do_update ;;
         4) do_static_ip ;;
-        5) do_stream ;;
+        5) do_settings ;;
         6) do_uninstall ;;
         0) exit 0 ;;
         *) warn "Invalid choice." ;;
