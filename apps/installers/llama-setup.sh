@@ -239,9 +239,20 @@ step_storage() {
 }
 
 # --- Step 3: llama.cpp -------------------------------------------------------
+# llama.cpp publishes binaries on numbered builds (b12032). The "latest" release may be
+# a version tag (v0.8.0) holding only nightly-tag.txt, which names the recommended build.
 latest_tag() {
-    curl -fsSL --max-time 20 https://api.github.com/repos/ggml-org/llama.cpp/releases/latest \
-        | jq -r '.tag_name // empty'
+    local tag
+    tag="$(curl -fsSL --max-time 20 https://api.github.com/repos/ggml-org/llama.cpp/releases/latest \
+        | jq -r '.tag_name // empty')"
+    if [[ -n "$tag" && ! "$tag" =~ ^b[0-9]+$ ]]; then
+        tag="$(curl -fsSL --max-time 20 "${LLAMA_RELEASES}/download/${tag}/nightly-tag.txt" | tr -dc 'b0-9')"
+    fi
+    if [[ ! "$tag" =~ ^b[0-9]+$ ]]; then
+        tag="$(curl -fsSL --max-time 20 "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10" \
+            | jq -r '[.[] | select(.tag_name | test("^b[0-9]+$")) | select(.assets | length > 1)][0].tag_name // empty')"
+    fi
+    [[ "$tag" =~ ^b[0-9]+$ ]] && echo "$tag"
 }
 
 # Pick the prebuilt CUDA build the installed driver can run (CUDA 13 needs driver >= 580, CUDA 12.8 >= 570).
