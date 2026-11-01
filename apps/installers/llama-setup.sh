@@ -469,6 +469,7 @@ write_service() {
     set_env CTX "$CTX"
     set_env PORT "$PORT"
     set_env THINKING "$THINKING"
+    set_env LAN_IP "$(lan_ip)"
     apply_thinking_env
     load_env
     cat > "$UNIT_FILE" <<EOF
@@ -539,32 +540,15 @@ print_connect() {
     local ip; ip="$(lan_ip)"
     echo ""
     hr
-    echo "  Connect Hermes (copy-paste on the Proxmox host shell)"
+    echo "  Connect Hermes"
     hr
+    echo "  On the Proxmox host:"
+    echo "    - hermes-setup.sh  >  8) Use local LLM"
     echo ""
-    echo "  Base URL : http://${ip:-<VM-IP>}:${PORT}/v1"
-    echo "  Model    : ${MODEL_ALIAS}"
-    echo "  Context  : ${CTX}"
-    echo "  API key  : ${LLAMA_API_KEY}"
-    echo ""
-    echo "  This makes the local model Hermes' default. Claude stays available in a chat"
-    echo "  with /model anthropic:<model>. Change CT if your Hermes container is not ${HERMES_CT}."
-    echo ""
-    cat <<EOF
-  CT=${HERMES_CT}; HU=\$(pct exec \$CT -- stat -c %u /opt/hermes/data)
-  H="pct exec \$CT -- docker exec -u \$HU hermes hermes"
-  \$H config set LLAMA_API_KEY ${LLAMA_API_KEY}
-  \$H config set model.provider custom
-  \$H config set model.default ${MODEL_ALIAS}
-  \$H config set model.base_url http://${ip:-<VM-IP>}:${PORT}/v1
-  \$H config set model.key_env LLAMA_API_KEY
-  \$H config set model.context_length ${CTX}
-  pct exec \$CT -- docker restart hermes
-  \$H chat -q "Reply with exactly: hermes-ok"
-EOF
-    echo ""
-    echo "  Quick check from any machine on the LAN:"
-    echo "    curl -H \"Authorization: Bearer ${LLAMA_API_KEY}\" http://${ip:-<VM-IP>}:${PORT}/v1/models"
+    echo "  Other clients:"
+    echo "    - URL      http://${ip:-<VM-IP>}:${PORT}/v1"
+    echo "    - Model    ${MODEL_ALIAS}   context ${CTX}"
+    echo "    - API key  ${LLAMA_API_KEY}"
     echo ""
 }
 
@@ -733,7 +717,7 @@ menu() {
     echo "  4) Settings"
     echo "  5) Update llama.cpp"
     echo "  6) Uninstall"
-    echo "  q) Quit"
+    echo "  0) Exit"
     echo ""
     local choice
     read -rp "Select an option: " choice </dev/tty
@@ -745,7 +729,7 @@ menu() {
         4) settings_menu ;;
         5) action_update ;;
         6) action_uninstall ;;
-        q|Q) info "Bye."; exit 0 ;;
+        0) exit 0 ;;
         *) fail "Invalid option." ;;
     esac
 }
