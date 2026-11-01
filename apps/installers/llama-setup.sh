@@ -46,6 +46,9 @@ fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 
 hr() { echo "================================================================"; }
 
+# Strict mode stops on any unexpected error; say so plainly instead of going quiet.
+trap 'printf "%s[FAIL]%s Stopped unexpectedly (line %s). Re-run the same command; finished steps are skipped. If it happens again, send this screen.\n" "$_CE" "$_C0" "$LINENO" >&2' ERR
+
 # Yes/no prompt that works under: bash -c "$(wget ...)". -y answers yes to all.
 YES=0
 ask_yn() { # ask_yn "question" default(y|n)
@@ -175,11 +178,11 @@ restore_env() {
     mkdir -p "$CONF_DIR"; cp -f "$STATE_DIR/env" "$ENV_FILE"; chmod 600 "$ENV_FILE"
     ok "Restored saved settings and API key from ${STATE_DIR} (Hermes keeps working)."
 }
-get_env() { grep -s "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d "'"; }
+get_env() { { grep -s "^$1=" "$ENV_FILE" || true; } | cut -d= -f2- | tr -d "'"; }
 
 is_installed() { [[ -f "$UNIT_FILE" && -f "$ENV_FILE" ]]; }
 svc_state()    { [[ -f "$UNIT_FILE" ]] || { echo "not installed"; return; }; systemctl is-active "$SERVICE" 2>/dev/null || true; }
-lan_ip()       { ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}'; }
+lan_ip()       { ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}' || true; }
 
 # Arguments shared by the tuner and the service. $1 = n-cpu-moe, $2 = host, $3 = port.
 server_args() {
@@ -253,6 +256,7 @@ latest_tag() {
             | jq -r '[.[] | select(.tag_name | test("^b[0-9]+$")) | select(.assets | length > 1)][0].tag_name // empty')"
     fi
     [[ "$tag" =~ ^b[0-9]+$ ]] && echo "$tag"
+    return 0
 }
 
 # Pick the prebuilt CUDA build the installed driver can run (CUDA 13 needs driver >= 580, CUDA 12.8 >= 570).
@@ -391,7 +395,7 @@ measure_tps() { # measure_tps port [api-key] -> integer tokens/sec (0 if unknown
     local t
     t=$(curl -s --max-time 120 "${hdr[@]}" "http://127.0.0.1:$1/completion" \
         -d '{"prompt":"Write a short paragraph about Singapore.","n_predict":128,"temperature":0.6}' \
-        | jq -r '.timings.predicted_per_second // 0' 2>/dev/null | cut -d. -f1)
+        | jq -r '.timings.predicted_per_second // 0' 2>/dev/null | cut -d. -f1 || true)
     echo "${t:-0}"
 }
 
@@ -449,7 +453,7 @@ step_tune() {
 write_service() {
     local key
     if ! grep -q '^LLAMA_API_KEY=' "$ENV_FILE" 2>/dev/null; then
-        key="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)"
+        key="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-40)"
         set_env LLAMA_API_KEY "$key"
     fi
     set_env MODEL_PATH "$MODEL_PATH"
@@ -500,8 +504,8 @@ run_test() {
     local base="http://127.0.0.1:${PORT}" props nctx resp tool tps
     curl -sf --max-time 3 "$base/health" >/dev/null || fail "Server not responding. Run: llama-setup status"
 
-    props="$(curl -s --max-time 5 "$base/props" -H "Authorization: Bearer ${LLAMA_API_KEY}")"
-    nctx="$(echo "$props" | jq -r '.default_generation_settings.n_ctx // 0')"
+    props="$(curl -s --max-time 5 "$base/props" -H "Authorization: Bearer ${LLAMA_API_KEY}" || true)"
+    nctx="$(echo "$props" | jq -r '.default_generation_settings.n_ctx // 0' 2>/dev/null || echo 0)"
     if (( nctx >= 64000 )); then ok "Context: ${nctx} tokens (Hermes needs 64,000+)."
     else warn "Context is ${nctx}; Hermes needs 64,000+. Re-run install."; fi
 
@@ -511,8 +515,8 @@ run_test() {
         -d '{"model":"'"${MODEL_ALIAS}"'",
              "messages":[{"role":"user","content":"What is the weather in Singapore right now? Use the tool."}],
              "tools":[{"type":"function","function":{"name":"get_weather","description":"Get current weather for a city",
-               "parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}]}')
-    tool="$(echo "$resp" | jq -c '.choices[0].message.tool_calls[0].function // empty' 2>/dev/null)"
+               "parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}]}' || true)
+    tool="$(echo "$resp" | jq -c '.choices[0].message.tool_calls[0].function // empty' 2>/dev/null || true)"
     if [[ -n "$tool" ]]; then ok "Tool call works: ${tool}"
     else warn "No tool call came back. Raw reply:"; echo "$resp" | jq . 2>/dev/null | head -30 | sed 's/^/    /' || echo "$resp"; fi
 
@@ -660,7 +664,7 @@ action_new_key() {
     echo "  The old key stops working immediately. Hermes will be offline until you"
     echo "  run the two commands printed below on the Proxmox host."
     ask_yn "Generate a new API key?" n || { info "Cancelled."; return; }
-    local key; key="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 40)"
+    local key; key="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-40)"
     set_env LLAMA_API_KEY "$key"
     systemctl restart "$SERVICE"
     ok "New API key set. Server restarting (about a minute)."
