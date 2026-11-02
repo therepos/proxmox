@@ -1,7 +1,8 @@
 # Agent instructions
 
-Personal Proxmox homelab repo: one-click installers, host tools and MCP servers.
-Browser tools live in `therepos/extensions`, Windows scripts in `therepos/windows`.
+Personal Proxmox homelab repo: one-click installers and host tools.
+Browser tools live in `therepos/extensions`, Windows scripts in `therepos/windows`,
+MCP servers in `therepos/mcp` (Docker images, deployed via `therepos/docker`).
 Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` must always work.
 
 ## Layout
@@ -10,7 +11,6 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
   (docker-related ones such as `portainer-setup.sh` run on the Docker VM)
 - Docker compose files live in the private repo `therepos/docker` as `<name>-compose.yml`;
   deploy them with `apps/installers/portainer-setup.sh` (variables use `# hint:` comments)
-- `apps/mcp/<id>/server.py`  MCP servers, `apps/mcp/common.py` is shared plumbing
 - `apps/tools/`  one-off host scripts
 - `.claude/skills/<name>/`  copies of Claude skills from `therepos/skills` (edit there, then re-copy); no symlinks in this repo
 - `scripts/`  repo helpers (docs generator, ui-block sync)
@@ -26,27 +26,9 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 - Offer install, status, update, uninstall in a numbered menu. Confirm destructive actions.
 - Secrets go to files with mode 600 under `/root` or `/etc/<app>`; never echo them to logs.
 
-## MCP servers (apps/mcp)
-
-- Server id is one lowercase word (letters and digits only) and is the single name used
-  everywhere: `apps/mcp/<id>/`, `/opt/mcp/<id>/`, `/etc/mcp/<id>.env`, `<id>.service`,
-  `configure_<id>()`, the Cloudflare subdomain and the connector name in Claude.
-  Prefix with `mcp` so it is recognisable outside the repo, e.g. `mcpshared`.
-- New server: create `apps/mcp/<id>/server.py` that imports `env` and `serve` from `common`,
-  add a `"<id>|<port>|<description>"` line to `SERVERS` in `apps/installers/mcp-setup.sh`,
-  and a `configure_<id>()` only if it needs prompts or writable paths.
-- All servers share the endpoint contract in `common.py`: `/healthz`, `/<TOKEN>/mcp`,
-  Bearer on `/mcp`, 404 otherwise. Do not add OAuth or change this without discussion.
-- Python deps: `mcp>=2,<3` and `uvicorn`. Stdlib for everything else, except per-server extras
-  declared in `PIP_<id>` in the installer (e.g. mcpshared: openpyxl, pdfplumber, python-docx, python-pptx, reportlab, pypdf),
-  which must be imported lazily so the server still boots without them. Host programs
-  (tesseract, LibreOffice) are optional `APT_<id>` entries the installer asks about; a tool
-  that needs one must say so when it is missing.
-
 ## Before pushing
 
 - Bash: `bash -n` on the script, `scripts/sync-ui.sh --check` clean for files you touched.
-- Python: `python3 -m py_compile`, then run the server locally against a temp folder and
-  exercise the tools with an MCP client. Path-escape attempts must be rejected.
+- Python: `python3 -m py_compile`.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
