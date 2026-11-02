@@ -16,7 +16,7 @@ Password lookup: --password, then $ZIPPER_PASSWORD, then the saved config
 saves: a --password for someone else's archive (e.g. a client's) is used once.
 Exit codes: 0 ok, 1 failed, 3 password needed -> ask the user, then `password set`.
 Uses a 7z binary when present, otherwise py7zr (installed on demand). Stdlib otherwise.
-Also imported as a module by the mcpshared server (apps/mcp/mcpshared/zip_tools.py).
+Also imported as a module by the mcpshared server (therepos/mcp, mcpshared/zip_tools.py).
 """
 import argparse
 import bisect
