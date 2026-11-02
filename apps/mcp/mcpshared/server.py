@@ -6,8 +6,9 @@
 # Document extraction (xlsx / pdf / docx -> text) lives in extraction_tools.py,
 # file transfer (signed download / upload links, fetch_url) in transfer.py and
 # office file creation (xlsx / docx / pptx / pdf from text) in build_tools.py,
-# archives, OCR and office-to-PDF conversion in host_tools.py, and in-place
-# editing of docx / pptx / xlsx / pdf in edit_tools.py.
+# archives, OCR and office-to-PDF conversion in host_tools.py, in-place
+# editing of docx / pptx / xlsx / pdf in edit_tools.py, and the user's
+# password-protected 7z transfer archives (zip / unzip / split sets) in zip_tools.py.
 #
 # Every path argument is relative to MCP_ROOT and is jailed there: symlinks
 # that resolve outside the share are rejected, as are ".." escapes.
@@ -45,6 +46,7 @@ from transfer import register as register_transfer  # noqa: E402
 from build_tools import register as register_build  # noqa: E402
 from host_tools import register as register_host  # noqa: E402
 from edit_tools import register as register_edit  # noqa: E402
+from zip_tools import register as register_zip  # noqa: E402
 
 # --- Config ------------------------------------------------------------------
 READ_ONLY = env_bool("MCP_READ_ONLY", False)
@@ -137,7 +139,9 @@ mcp = MCPServer(
         "build_pdf create the real file and return its download link; convert_to_pdf turns an "
         "existing office file into a PDF. To change an existing file in place use edit_docx, "
         "edit_pptx, write_cells, pdf_pages or merge_pdfs. ocr_text reads scanned pages and "
-        "screenshots. list_archive / extract_archive handle zip and tar files."
+        "screenshots. list_archive / extract_archive handle zip and tar files. The user's transfer "
+        "archives (no extension, e.g. 20261102-143015, or split .001/.002 parts) go through "
+        "unzip_transfer / zip_transfer; their password is saved with zip_password."
     ),
 )
 
@@ -470,6 +474,10 @@ if not READ_ONLY:
 
 # --- Archives, OCR, office -> PDF ------------------------------------------------
 register_host(mcp, _resolve, rel=_rel, guard=tool, read_only=READ_ONLY, link=download_link_for)
+
+# --- Transfer archives: password-protected 7z, split sets (write mode only) ------
+if not READ_ONLY:
+    register_zip(mcp, _resolve, rel=_rel, guard=tool, link=download_link_for)
 
 
 # --- Run ---------------------------------------------------------------------

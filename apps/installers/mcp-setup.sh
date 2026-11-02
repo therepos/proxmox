@@ -49,11 +49,12 @@ SERVERS=(
     "mcpshared|8765|Browse, search, read, write and extract text from files in one folder on this host"
 )
 # Per-server extras (optional): additional files next to server.py, extra pip packages.
-FILES_mcpshared="extraction_tools.py transfer.py build_tools.py host_tools.py edit_tools.py"
-PIP_mcpshared="openpyxl pdfplumber python-docx python-pptx reportlab pypdf"
+FILES_mcpshared="extraction_tools.py transfer.py build_tools.py host_tools.py edit_tools.py zip_tools.py zipper.py"
+PIP_mcpshared="openpyxl pdfplumber python-docx python-pptx reportlab pypdf py7zr"
 APT_mcpshared=(
     "tesseract-ocr|OCR for scanned PDFs and screenshots (ocr_text), about 60 MB"
     "libreoffice-writer libreoffice-calc libreoffice-impress|Convert docx/xlsx/pptx to PDF (convert_to_pdf), about 500 MB"
+    "p7zip-full|Faster zip/unzip of large transfer archives (zip_transfer, unzip_transfer), about 5 MB"
 )
 
 # --- Paths -------------------------------------------------------------------
@@ -153,7 +154,8 @@ configure_mcpshared() {
     case "${c:-1}" in 1) ro=0 ;; 2) ro=1 ;; *) fail "Invalid choice." ;; esac
 
     EXTRA_ENV="MCP_ROOT=${share}
-MCP_READ_ONLY=${ro}"
+MCP_READ_ONLY=${ro}
+ZIPPER_CONFIG=/var/lib/mcp/${ID}/zipper.json"
     if [[ "$ro" == "1" ]]; then RO_PATHS="$share"; else RW_PATHS="$share"; fi
     SUMMARY="  Folder  : ${share}
   Access  : $( [[ "$ro" == "1" ]] && echo read-only || echo read/write )"
@@ -263,6 +265,8 @@ ExecStart=${INSTALL_DIR}/venv/bin/python ${INSTALL_DIR}/server.py
 Restart=on-failure
 RestartSec=5
 UMask=0002
+StateDirectory=mcp/${ID}
+StateDirectoryMode=0700
 
 # Sandbox: the whole host is read-only to this process except paths listed below.
 NoNewPrivileges=yes
@@ -484,13 +488,13 @@ action_uninstall() {
     require_root
     is_installed || fail "'${ID}' is not installed."
     load_env
-    echo "  Removes the '${ID}' service, its Python environment and saved token."
+    echo "  Removes the '${ID}' service, its Python environment, saved token and settings."
     echo "  Data it served is NOT touched."
     local c; read -p "  Type 'yes' to confirm: " c </dev/tty
     [[ "$c" == "yes" ]] || { info "Cancelled."; exit 0; }
     systemctl disable --now "$SERVICE" 2>/dev/null || true
     rm -f "$UNIT_FILE" "$ENV_FILE"
-    rm -rf "$INSTALL_DIR"
+    rm -rf "$INSTALL_DIR" "/var/lib/mcp/${ID}"
     systemctl daemon-reload
     rmdir "$BASE_DIR" "$CONF_DIR" 2>/dev/null || true
     ok "Removed. Delete the connector in claude.ai (Settings -> Connectors) and the"
