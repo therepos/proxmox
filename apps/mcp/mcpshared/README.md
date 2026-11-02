@@ -15,6 +15,7 @@ root and jailed there (symlinks and `..` that leave the share are rejected).
 | Build (`build_tools.py`, unless read-only) | `build_xlsx`, `build_docx`, `build_pptx`, `build_pdf` |
 | Host (`host_tools.py`) | `list_archive`, `extract_archive`, `ocr_text`, `convert_to_pdf` |
 | Edit in place (`edit_tools.py`, unless read-only) | `edit_docx`, `edit_pptx`, `write_cells`, `add_chart`, `pdf_pages`, `merge_pdfs` |
+| Transfer archives (`zip_tools.py`, unless read-only) | `unzip_transfer`, `zip_transfer`, `zip_password` |
 
 ## Extraction
 
@@ -94,6 +95,20 @@ link. Writes are atomic (temp file, then rename).
 | `ocr_text(path, pages, lang)` | Tesseract OCR on scanned PDFs (20 pages per call) and images. Needs the optional `tesseract-ocr` package; other languages need `tesseract-ocr-<lang>`. |
 | `convert_to_pdf(path, destination)` | LibreOffice headless conversion of docx, xlsx, pptx, odt, ods, odp, rtf, csv, txt, html to PDF, with a download link. Needs the optional LibreOffice packages (about 500 MB). |
 
+## Transfer archives
+
+The user's password-protected 7z format: no extension (`20261102-143015`), split into
+`.001`, `.002`, ... parts over 500 MB. `zipper.py` is a copy of the engine in
+`therepos/skills` (`zipper/scripts/zipper.py`); edit it there and re-copy.
+
+| Tool | What it does |
+|---|---|
+| `unzip_transfer(path, destination, password)` | 7z or zip, with or without extension, any part of a split set (missing parts are reported). Default destination `<name>-extracted` next to it. Answers `need_password` when it has no working password. |
+| `zip_transfer(paths, destination, split_mb)` | Encrypted 7z with file names hidden, split over `split_mb` (default 500, 0 = never), with download links. |
+| `zip_password(action, password)` | `set` / `forget` / `status`. Saved in `/var/lib/mcp/mcpshared/zipper.json` (mode 600); never returned. |
+
+Uses the optional `p7zip-full` package when installed, otherwise `py7zr`.
+
 The installer asks once whether to install each optional package (install and update). Without
 it the matching tool explains what is missing; everything else keeps working.
 
@@ -109,3 +124,5 @@ it the matching tool explains what is missing; everything else keeps working.
 | `MCP_LINK_MINUTES` | default link lifetime (60) |
 | `MCP_UPLOAD_MAX_BYTES`, `MCP_FETCH_MAX_BYTES`, `MCP_EXTRACT_MAX_BYTES` | per-call caps (4 GiB) |
 | `MCP_OCR_LANG` | default tesseract language (`eng`) |
+| `ZIPPER_CONFIG` | transfer-archive settings file (installer: `/var/lib/mcp/mcpshared/zipper.json`) |
+| `ZIPPER_PASSWORD` | optional fixed transfer-archive password (normally saved via `zip_password`) |
