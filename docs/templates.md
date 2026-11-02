@@ -13,7 +13,6 @@
 - [Kasm Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/kasm-setup.sh) – Install Kasm Workspaces (Ubuntu).  
 - [Llama Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/llama-setup.sh) – Local LLM server (llama.cpp + Qwen on the GPU) inside the Ubuntu VM, as an OpenAI-compatible API for Hermes.  
 - [Lmsensors Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/lmsensors-setup.sh) – Install/uninstall lm-sensors temperature monitoring on PVE9.  
-- [Mcp Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/mcp-setup.sh) – Install / Update / Uninstall MCP servers (apps/mcp) that connect Claude to this host.  
 - [Portainer Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/portainer-setup.sh) – Installs Portainer, deploys stacks from the docker repo, and backs Portainer up to GitHub nightly.  
 - [Pvenosub Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/pvenosub-setup.sh) – Apply Proxmox VE post-install homelab defaults + remove the sub nag.  
 - [Smb Installer](https://github.com/therepos/proxmox/blob/main/apps/installers/smb-setup.sh) – Samba server on Proxmox host / SMB client mounts in VM (Debian/Ubuntu).  
