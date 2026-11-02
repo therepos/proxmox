@@ -10,9 +10,10 @@ removed. Archives over 500 MB are split into numbered parts (`.001`, `.002`, ...
 The password only hides the content from email and upload scanners. The user is
 not technical: never ask them to edit files, set variables or run commands.
 
-The script knows the password once it has been told it. It is never written in
-this skill. The script reads `--password`, then `$ZIPPER_PASSWORD`, then its saved
-settings.
+The password is never written in this skill. The script reads `--password`, then
+`$ZIPPER_PASSWORD`, then its saved settings. If the user's preferences, custom
+instructions or memory give their zip password, pass it with `--password` on every
+`unzip` / `zip` call instead of asking.
 
 ## Unzip
 
@@ -24,8 +25,8 @@ python3 <skill-folder>/scripts/zipper.py unzip <file> [<file> ...]
 
 - Pass every uploaded file or part. Any one part of a split set is enough; the
   script finds the others in the same folder and checks none are missing.
-- Output goes to `/tmp/extracted/<name>/` (claude.ai: `/home/claude/extracted/`, then
-  copied to `/mnt/user-data/outputs/<name>/`). Override with `--out DIR`.
+- Output goes to `<folder>/<name>/`: `/mnt/user-data/outputs` on claude.ai, otherwise
+  `/tmp/extracted`. Override with `--out DIR`.
 - One level of nested archives is extracted too.
 - The last line `PRESENT: ...` lists the extracted files.
 
@@ -56,8 +57,9 @@ result files to the user and remind them to keep all parts together.
    printf '%s' 'THE-PASSWORD' | python3 <skill-folder>/scripts/zipper.py password set
    ```
 3. In a chat app where the sandbox resets between conversations (claude.ai,
-   ChatGPT), also offer to remember it with the platform's memory, so you can
-   run `password set` at the start of later chats without asking again.
+   ChatGPT), tell the user they can add one line to their personal preferences /
+   custom instructions, e.g. "My zip transfer password is ...", so future chats
+   never ask. Offer to save it to memory instead if the platform has memory.
 
 If a password the user gives still fails, say the archive's password differs and
 ask for that archive's password. Do not guess.
