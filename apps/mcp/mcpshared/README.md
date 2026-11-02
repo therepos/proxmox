@@ -103,7 +103,7 @@ The user's password-protected 7z format: no extension (`20261102-143015`), split
 
 | Tool | What it does |
 |---|---|
-| `unzip_transfer(path, destination, password)` | 7z or zip, with or without extension, any part of a split set (missing parts are reported). Default destination `<name>-extracted` next to it. Answers `need_password` when it has no working password. |
+| `unzip_transfer(path, destination, password)` | `password` is one-off (e.g. a client archive), never saved. 7z or zip, with or without extension, any part of a split set (missing parts are reported). Default destination `<name>-extracted` next to it. Answers `need_password` when it has no working password. |
 | `zip_transfer(paths, destination, split_mb)` | Encrypted 7z with file names hidden, split over `split_mb` (default 500, 0 = never), with download links. |
 | `zip_password(action, password)` | `set` / `forget` / `status`. Saved in `/var/lib/mcp/mcpshared/zipper.json` (mode 600); never returned. |
 

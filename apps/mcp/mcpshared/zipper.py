@@ -12,7 +12,8 @@ Commands
   config [--out DIR] [--split-mb N]   show or change saved defaults (--out "" resets)
 
 Password lookup: --password, then $ZIPPER_PASSWORD, then the saved config
-(~/.config/zipper/config.json, mode 600, or $ZIPPER_CONFIG).
+(~/.config/zipper/config.json, mode 600, or $ZIPPER_CONFIG). Only `password set`
+saves: a --password for someone else's archive (e.g. a client's) is used once.
 Exit codes: 0 ok, 1 failed, 3 password needed -> ask the user, then `password set`.
 Uses a 7z binary when present, otherwise py7zr (installed on demand). Stdlib otherwise.
 Also imported as a module by the mcpshared server (apps/mcp/mcpshared/zip_tools.py).
@@ -86,14 +87,6 @@ def set_password(pw: str | None) -> None:
     else:
         cfg.pop("password", None)
     save_config(cfg)
-
-
-def remember_password(pw: str) -> bool:
-    """Save a password that just worked, unless one is already saved."""
-    if pw and not load_config().get("password"):
-        set_password(pw)
-        return True
-    return False
 
 
 def saved_split_mb() -> int:
@@ -404,7 +397,7 @@ def cmd_unzip(a) -> int:
         dst = root / name
         print(f"{name}: {kind(parts[0])}" + (f", split set of {len(parts)} parts" if len(parts) > 1 else ""))
         try:
-            used, warnings = extract_all(parts, dst, pw)
+            _, warnings = extract_all(parts, dst, pw)
         except NeedPassword:
             print(f"NEED_PASSWORD: {name} needs a password zipper does not know.")
             need_pw, failed = True, failed + 1
@@ -413,8 +406,6 @@ def cmd_unzip(a) -> int:
             print(f"FAILED: {name}: {e}")
             failed += 1
             continue
-        if a.password and remember_password(used):
-            print("password saved for next time")
         for w in warnings:
             print(f"  {w}")
         files = sorted(f for f in dst.rglob("*") if f.is_file())
