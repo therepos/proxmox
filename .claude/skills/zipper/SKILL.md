@@ -10,10 +10,14 @@ removed. Archives over 500 MB are split into numbered parts (`.001`, `.002`, ...
 The password only hides the content from email and upload scanners. The user is
 not technical: never ask them to edit files, set variables or run commands.
 
-The password is never written in this skill. The script reads `--password`, then
-`$ZIPPER_PASSWORD`, then its saved settings. If the user's preferences, custom
-instructions or memory give their zip password, pass it with `--password` on every
-`unzip` / `zip` call instead of asking.
+The password is never written in this skill. The user's own password is their
+**zipper password**; preferences, custom instructions or memory may say "my zipper
+password is ...". Pass it with `--password` on every `unzip` / `zip` call instead of
+asking. The script otherwise reads `$ZIPPER_PASSWORD`, then its saved settings.
+
+Archives from other people (e.g. clients) have their own passwords. The script tries
+the zipper password, then no password, then prints NEED_PASSWORD. Then ask for that
+archive's password, pass it with `--password` for that call only, and never save it.
 
 ## Unzip
 
@@ -51,15 +55,17 @@ result files to the user and remind them to keep all parts together.
 
 ## When the script prints NEED_PASSWORD (exit code 3)
 
-1. Ask the user once, in plain words: "What's your zip password?"
-2. Save it, then rerun the same command:
+1. If the file looks like the user's own transfer (no extension, YYYYMMDD-HHMMSS, or
+   .001 parts) and no zipper password is known, ask: "What's your zipper password?"
+   Otherwise ask for that archive's password and rerun with `--password` (not saved).
+2. Save the zipper password only, then rerun the same command:
    ```bash
    printf '%s' 'THE-PASSWORD' | python3 <skill-folder>/scripts/zipper.py password set
    ```
 3. In a chat app where the sandbox resets between conversations (claude.ai,
    ChatGPT), tell the user they can add one line to their personal preferences /
-   custom instructions, e.g. "My zip transfer password is ...", so future chats
-   never ask. Offer to save it to memory instead if the platform has memory.
+   custom instructions, "My zipper password is ...", so future chats never ask.
+   Offer to save it to memory instead if the platform has memory.
 
 If a password the user gives still fails, say the archive's password differs and
 ask for that archive's password. Do not guess.
@@ -68,7 +74,7 @@ ask for that archive's password. Do not guess.
 
 | User says | Run |
 |---|---|
-| "change / reset my zip password" | ask for the new one, then `password set` as above |
+| "change / reset my zipper password" | ask for the new one, then `password set` as above |
 | "forget my password" | `zipper.py password forget` |
 | "save zips to X" / "unzip into X" | `zipper.py config --out X` (`--out ""` resets) |
 | "split at 200 MB" / "don't split" | `zipper.py config --split-mb 200` / `--split-mb 0` |
