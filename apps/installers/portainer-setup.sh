@@ -23,6 +23,7 @@
 #   /etc/portainer-setup/backup.env    Backup password and nightly backup time
 #   /etc/homelab/mail.env              Alert email settings (shared with backup-setup.sh)
 # Backups: <backups repo>/portainer/portainer-backup.tar.gz (encrypted; git keeps history)
+#          backups over 20 MB are stored as portainer-backup.tar.gz.part01, .part02, ... (see .json "parts")
 # =============================================================================
 
 set -euo pipefail
@@ -155,6 +156,8 @@ BKREPO = E.get("BK_REPO", REPO)   # encrypted backups
 BRANCH = E.get("GH_BRANCH", "main")
 BFILE = E.get("BACKUP_FILE", "portainer/portainer-backup.tar.gz")
 BMETA = BFILE.rsplit(".tar.gz", 1)[0] + ".json"
+PART = 20_000_000   # GitHub contents API rejects large bodies (413); split bigger backups into parts
+def part_name(i): return f"{BFILE}.part{i:02d}"
 COLOR = bool(E.get("FORCE_COLOR") or sys.stdout.isatty())
 def c(code, tag, m, err=False):
     s = f"\033[1;{code}m{tag}\033[0m" if COLOR else tag
@@ -228,7 +231,16 @@ def gh_put(path, content_bytes, message, repo=None):
     except urllib.error.HTTPError as e:
         if e.code in (401, 403, 404):
             fail(f"GitHub PAT cannot write to {repo} ({e.code}). Needs Repository access: {repo}, Contents: Read and write")
+        if e.code == 413: fail(f"GitHub rejected {path} as too large ({len(content_bytes)/1e6:.1f} MB)")
         raise
+def gh_delete(path, message, repo=None):
+    repo = repo or REPO
+    try: sha = gh_get(path, raw=False, repo=repo)["sha"]
+    except urllib.error.HTTPError as e:
+        if e.code == 404: return
+        raise
+    http("DELETE", f"{GHAPI}/repos/{repo}/contents/{path}", {"message": message, "sha": sha, "branch": BRANCH},
+         ghdr(), timeout=60, ctx=None)
 
 # ---- Mail ----
 def send_mail(subject, body):
@@ -460,9 +472,20 @@ def do_backup(force):
     data = api("POST", "/backup", {"Password": E["BACKUP_PASSWORD"]}, raw=True)
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     ver = http("GET", P + "/api/system/status", timeout=10)["Version"]
-    gh_put(BFILE, data, f"Portainer backup {now}", repo=BKREPO)
+    chunks = [data[i:i + PART] for i in range(0, len(data), PART)] or [b""]
+    if len(chunks) == 1:
+        gh_put(BFILE, data, f"Portainer backup {now}", repo=BKREPO)
+        keep = {BFILE}
+    else:
+        for i, c in enumerate(chunks, 1):
+            gh_put(part_name(i), c, f"Portainer backup {now} (part {i}/{len(chunks)})", repo=BKREPO)
+        keep = {part_name(i) for i in range(1, len(chunks) + 1)}
     gh_put(BMETA, json.dumps({"created": now, "portainer_version": ver, "stacks": len(per), "fingerprint": fp,
+                              "parts": len(chunks), "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                               "stacks_hash": per, "users_hash": users}, indent=1).encode(), f"Portainer backup {now} (meta)", repo=BKREPO)
+    for f in sorted(gh_tree(BKREPO)):   # drop leftovers from an earlier single-file / multi-part layout
+        if (f == BFILE or f.startswith(BFILE + ".part")) and f not in keep:
+            gh_delete(f, f"Portainer backup {now} (remove stale {os.path.basename(f)})", repo=BKREPO)
     return "Pushed", len(data) / 1e6, detail
 
 def line(action, mb, detail): return f"{action:<8} {mb:.1f} MB  {detail}"
@@ -506,7 +529,10 @@ def a_restore_fetch(path):
     except urllib.error.HTTPError as e:
         if e.code in (404, 409): fail(f"No backup found in {BKREPO}/{os.path.dirname(BFILE)}")
         raise
-    data = gh_get(BFILE, repo=BKREPO)
+    n = int(meta.get("parts") or 1)
+    data = gh_get(BFILE, repo=BKREPO) if n == 1 else b"".join(gh_get(part_name(i), repo=BKREPO) for i in range(1, n + 1))
+    if meta.get("sha256") and hashlib.sha256(data).hexdigest() != meta["sha256"]:
+        fail("Downloaded backup is incomplete or corrupt (checksum mismatch)")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as f: f.write(data)
     cur = wait_up()
