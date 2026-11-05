@@ -136,6 +136,13 @@ load_env "$CONF_DIR/backup.env"
 load_env "$MAIL_CONF"
 GH_REPO="${GH_REPO:-$GH_REPO_DEFAULT}"
 BK_REPO="${BK_REPO:-$BK_REPO_DEFAULT}"
+if [[ "${BK_REPO,,}" == "${GH_REPO,,}" ]]; then   # stacks clone GH_REPO, so backups there snowball in size
+  warn "Backups were set to go to ${GH_REPO} (the compose repo); switching to ${BK_REPO_DEFAULT}"
+  BK_REPO="$BK_REPO_DEFAULT"
+  if [[ -f "$CONF_DIR/github.env" ]]; then
+    sed -i '/^BK_REPO=/d' "$CONF_DIR/github.env" && echo "BK_REPO=$BK_REPO" >>"$CONF_DIR/github.env"
+  fi
+fi
 
 exists_container(){ docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; }
 timer_on(){ systemctl is-enabled "$TIMER.timer" >/dev/null 2>&1; }
@@ -156,6 +163,7 @@ BKREPO = E.get("BK_REPO", REPO)   # encrypted backups
 BRANCH = E.get("GH_BRANCH", "main")
 BFILE = E.get("BACKUP_FILE", "portainer/portainer-backup.tar.gz")
 BMETA = BFILE.rsplit(".tar.gz", 1)[0] + ".json"
+MAX_MB = float(E.get("BACKUP_MAX_MB") or 25)   # a healthy backup is ~2 MB; bigger means junk got into /data
 PART = 20_000_000   # GitHub contents API rejects large bodies (413); split bigger backups into parts
 def part_name(i): return f"{BFILE}.part{i:02d}"
 COLOR = bool(E.get("FORCE_COLOR") or sys.stdout.isatty())
@@ -469,7 +477,13 @@ def do_backup(force):
         return "Skipped", 0.0, "No changes"
     detail = describe(meta, per, users)
     if detail == "Settings changed" and meta.get("fingerprint") == fp: detail = "No changes (forced)"
+    if BKREPO.lower() == REPO.lower():
+        fail(f"Backups must not go to {REPO}: every stack clones it, so each backup would contain the last one")
     data = api("POST", "/backup", {"Password": E["BACKUP_PASSWORD"]}, raw=True)
+    if len(data) > MAX_MB * 1e6:
+        fail(f"Backup is {len(data)/1e6:.0f} MB (limit {MAX_MB:.0f} MB; normally ~2 MB), not uploaded. "
+             f"Usually a large file in {REPO} (each stack keeps a copy). Check: "
+             "docker run --rm -v portainer_data:/d alpine du -sh /d/compose")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     ver = http("GET", P + "/api/system/status", timeout=10)["Version"]
     chunks = [data[i:i + PART] for i in range(0, len(data), PART)] or [b""]
