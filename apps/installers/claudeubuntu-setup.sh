@@ -11,12 +11,13 @@
 #     2) Status      services, versions, working folder, streaming mode
 #     3) Update      update Claude Code and Claude Desktop
 #     4) Settings    1) Improve stream performance  2) Improve stream quality
+#                    3) Balance stream (work networks: sharper scrolling)
 #                    (browser desktop: 30 fps / panel ignored, or KasmVNC defaults)
-#                    3) Fix VM IP (netplan static address, auto-reverts if broken)
+#                    4) Fix VM IP (netplan static address, auto-reverts if broken)
 #     5) Connectors  1) Connect GitHub (so Claude Code here can read and push your
 #                    repos, like claude.ai)  2) Disconnect GitHub
 #     6) Uninstall   remove the desktop and the service (optionally Claude Code)
-#   Args skip the menu: install | status | update | settings [performance|quality|ip]
+#   Args skip the menu: install | status | update | settings [performance|balanced|quality|ip]
 #                       | connectors [github|github-off] | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
@@ -58,8 +59,17 @@ DESKTOP_PKGS="xfce4 xfce4-terminal dbus-x11 gnome-keyring ssl-cert"
 #                panel. Default.
 #   quality      for LAN or a fast link: KasmVNC's own values (60 fps,
 #                quality 5-6, panel allowed).
+#   balanced     for a workplace browser where Performance looks blocky: 30 fps,
+#                quality 5-7, panel ignored, scroll detection off (smooth
+#                scrolling in the Claude app rarely matches whole-line moves).
 STREAM_DEFAULT="performance"
-stream_label() { [[ "${1:-}" == "quality" ]] && echo "Quality" || echo "Performance"; }
+stream_label() {
+    case "${1:-}" in
+        quality)  echo "Quality" ;;
+        balanced) echo "Balanced" ;;
+        *)        echo "Performance" ;;
+    esac
+}
 
 # --- Helpers -----------------------------------------------------------------
 # >>> ui-block (managed by scripts/sync-ui.sh — do not edit here) >>>
@@ -560,12 +570,13 @@ set_kasm_password() {
 }
 
 write_kasm_config() {
-    local home preset fps qmin qmax override
+    local home preset fps qmin qmax override scroll=true
     home="$(user_home "$CLAUDE_USER")"
     preset="${CLAUDE_STREAM:-$STREAM_DEFAULT}"
     case "$preset" in
-        quality) fps=60; qmin=5; qmax=6; override=true ;;
-        *)       fps=30; qmin=3; qmax=6; override=false; preset="performance" ;;
+        quality)  fps=60; qmin=5; qmax=6; override=true ;;
+        balanced) fps=30; qmin=5; qmax=7; override=false; scroll=false ;;
+        *)        fps=30; qmin=3; qmax=6; override=false; preset="performance" ;;
     esac
     mkdir -p "${home}/.vnc"
     cat > "${home}/.vnc/kasmvnc.yaml" <<EOF
@@ -593,7 +604,7 @@ encoding:
     enter_video_encoding_mode:
       area_threshold: 100%
   scrolling:
-    detect_vertical_scrolling: true
+    detect_vertical_scrolling: ${scroll}
 EOF
     cat > "${home}/.vnc/xstartup" <<'EOF'
 #!/bin/sh
@@ -692,7 +703,7 @@ EOF
 }
 
 # --- Settings ----------------------------------------------------------------
-set_streaming() { # set_streaming performance|quality
+set_streaming() { # set_streaming performance|balanced|quality
     load_conf
     [[ -n "${CLAUDE_USER:-}" && -f "$DESKTOP_SERVICE_FILE" ]] || fail "Desktop not installed. Run Install first."
     CLAUDE_STREAM="$1"
@@ -701,7 +712,7 @@ set_streaming() { # set_streaming performance|quality
     ok "Streaming set to $(stream_label "$1"). Reload the desktop page in the browser."
 }
 
-# do_settings [performance|quality|ip]; no argument shows the menu.
+# do_settings [performance|balanced|quality|ip]; no argument shows the menu.
 do_settings() {
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
@@ -710,16 +721,17 @@ do_settings() {
         echo "================================================="
         echo "  1) Improve stream performance"
         echo "  2) Improve stream quality"
-        echo "  3) Fix VM IP"
+        echo "  3) Balance stream    work networks: sharper scrolling"
+        echo "  4) Fix VM IP"
         echo "  0) Back"
         echo ""
-        read -rp "  Choose [0-3]: " pick </dev/tty || pick=0
-        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=ip ;; *) return 0 ;; esac
+        read -rp "  Choose [0-4]: " pick </dev/tty || pick=0
+        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=balanced ;; 4) pick=ip ;; *) return 0 ;; esac
     fi
     case "$pick" in
-        performance|quality) set_streaming "$pick" ;;
-        ip)                  do_static_ip ;;
-        *) fail "Unknown setting '${pick}'. Use: performance | quality | ip" ;;
+        performance|balanced|quality) set_streaming "$pick" ;;
+        ip)                           do_static_ip ;;
+        *) fail "Unknown setting '${pick}'. Use: performance | balanced | quality | ip" ;;
     esac
 }
 
@@ -849,7 +861,7 @@ case "${1:-}" in
     connectors) do_connectors "${2:-}"; exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|quality|ip] | connectors [github|github-off] | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|balanced|quality|ip] | connectors [github|github-off] | uninstall" ;;
 esac
 
 while true; do
