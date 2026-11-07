@@ -6,17 +6,17 @@ Visit [therepos.github.io/proxmox](https://therepos.github.io/proxmox/) for scri
 
 ```
 proxmox
-├── AGENTS.md                   # rules for AI agents
-├── CLAUDE.md                   # @AGENTS.md
+├── AGENTS.md               # rules for AI agents
+├── CLAUDE.md               # @AGENTS.md
 ├── .github
 │   └── workflows        
 ├── apps
-│   ├── installers              # bash installers
-│   └── tools                   # host and guest scripts
+│   ├── installers          # bash installers
+│   └── tools               # host and guest scripts
 └── scripts
-    ├── sync-blocks.sh          # standardise scripts (admonition, menu)
-    ├── lint.sh                 # diagnose and repair scripts
-    └── docgen-templates.py     # builds the script page (deployed by CI, not committed)
+    ├── sync-blocks.sh      # standardise scripts (admonition, menu)
+    ├── lint.sh             # diagnose and repair scripts
+    └── docgen-pages.py     # build github pages
 ```
 
 ## Notes
