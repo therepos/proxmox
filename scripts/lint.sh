@@ -2,7 +2,7 @@
 # Lint every script against the rules in AGENTS.md.
 #   scripts/lint.sh         report problems, change nothing
 #   scripts/lint.sh --fix   first fix what can be fixed safely (line 2 one-liner,
-#                           admonition block), then report what is left
+#                           admonition block, q) Quit menus), then report what is left
 # CI runs --fix on every PR and push to main and commits the fixes.
 # =============================================================================
 set -uo pipefail
@@ -36,6 +36,12 @@ if (( FIX )); then
             echo "[FIX ] $f: line 2 one-liner"
         fi
     done
+    for f in apps/installers/*.sh; do
+        if grep -qE '^\s*echo "\s*q\) Quit' "$f"; then
+            sed -i -E 's/^(\s*echo "\s*)q\) Quit/\10) Exit/; s/^(\s*)q\|Q\)/\10|q|Q)/' "$f"
+            echo "[FIX ] $f: q) Quit -> 0) Exit"
+        fi
+    done
     scripts/sync-admonition.sh | sed -n 's/^updated: /[FIX ] admonition block: /p'
 fi
 
@@ -64,7 +70,7 @@ done
 for f in apps/installers/*.sh; do
     [[ "$(sed -n 2p "$f")" == '# bash -c "$(wget'* ]] || bad "$f" "line 2 must be the wget one-liner (scripts/lint.sh --fix)"
     grep -q 'EUID' "$f"                     || bad "$f" "missing root check"
-    grep -qE '^\s*echo "\s*q\) Quit' "$f"   && bad "$f" "menu uses 'q) Quit'; use '0) Exit'"
+    grep -qE '^\s*echo "\s*q\) Quit' "$f"   && bad "$f" "menu uses 'q) Quit'; use '0) Exit' (scripts/lint.sh --fix)"
 done
 
 # --- Admonition copies match the source --------------------------------------
