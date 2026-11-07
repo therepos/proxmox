@@ -2,10 +2,6 @@
 
 Pick a script from [docs/templates.md](docs/templates.md) and run the wget one-liner on line 2 of the script, as root.
 
-Related repos: [docker](https://github.com/therepos/docker) (compose files, private), [backups](https://github.com/therepos/backups) (private),
-[mcp](https://github.com/therepos/mcp) (MCP servers), [extensions](https://github.com/therepos/extensions) (browser tools),
-[windows](https://github.com/therepos/windows) (Windows scripts), [skills](https://github.com/therepos/skills) (Claude skills).
-
 ## Structure
 
 ```
