@@ -68,7 +68,7 @@ print_subnet_instructions() {
     echo "  3. Tick $subnet and Save"
     echo ""
     echo "  Reach any LAN device from your tailnet at its normal IP,"
-    echo "  e.g. 192.168.0.90:8080"
+    echo "  e.g. <device-ip>:8080"
     echo ""
 }
 
@@ -80,7 +80,7 @@ fi
 # Find existing CTID (if installed)
 find_ctid() {
     for id in $(pct list | awk 'NR>1 {print $1}'); do
-        if pct config "$id" 2>/dev/null | grep -q "hostname: ${HOSTNAME}"; then
+        if pct config "$id" 2>/dev/null | grep -qx "hostname: ${HOSTNAME}"; then
             echo "$id"
             return
         fi
@@ -103,16 +103,16 @@ action_install() {
     fi
 
     # Pick free CTID
-    local ctid=$CTID_DEFAULT
-    while pct status "$ctid" &>/dev/null; do
-        ctid=$((ctid + 1))
-    done
+    # nextid checks VMs and containers cluster-wide (pct status only sees containers)
+    local ctid
+    ctid=$(pvesh get /cluster/nextid --vmid "$CTID_DEFAULT" 2>/dev/null) \
+        || ctid=$(pvesh get /cluster/nextid)
     status_message "info" "Using CTID $ctid"
 
     # Detect subnet
     local lan_subnet
-    lan_subnet=$(ip -4 -o addr show "$BRIDGE" 2>/dev/null | awk '{print $4}' | head -1 | \
-        awk -F/ 'NF==2 {split($1,a,"."); print a[1]"."a[2]"."a[3]".0/"$2}')
+    lan_subnet=$(ip -4 route show dev "$BRIDGE" proto kernel scope link 2>/dev/null \
+        | awk '{print $1}' | head -1)
     if [[ -z "$lan_subnet" || ! "$lan_subnet" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
         status_message "error" "Could not detect subnet from $BRIDGE."
     fi
@@ -142,8 +142,7 @@ action_install() {
         --unprivileged 1 --features nesting=1 --onboot 1 \
         --password "$lxc_password" >/dev/null
 
-    echo "$lxc_password" > "/root/.tailscale-lxc-${ctid}.pw"
-    chmod 600 "/root/.tailscale-lxc-${ctid}.pw"
+    (umask 077; printf '%s\n' "$lxc_password" > "/root/.tailscale-lxc-${ctid}.pw")
 
     # TUN device
     cat >> "/etc/pve/lxc/${ctid}.conf" <<EOF
@@ -152,10 +151,17 @@ lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
 EOF
 
     pct start "$ctid"
-    sleep 5
+    info "Waiting for the container network..."
+    for _ in $(seq 1 30); do
+        pct exec "$ctid" -- getent hosts tailscale.com &>/dev/null && break
+        sleep 2
+    done
+    pct exec "$ctid" -- getent hosts tailscale.com &>/dev/null \
+        || fail "Container has no network/DNS after 60s (CTID $ctid)."
 
     status_message "info" "Installing Tailscale..."
     pct exec "$ctid" -- bash -c "
+        set -e
         export LC_ALL=C
         export LANG=C
         echo 'LC_ALL=C' > /etc/default/locale
@@ -166,7 +172,7 @@ EOF
         echo 'net.ipv6.conf.all.forwarding = 1' >> /etc/sysctl.conf
         sysctl -p >/dev/null
         tailscale set --auto-update >/dev/null 2>&1 || true
-    "
+    " || fail "Tailscale install failed inside CTID $ctid. Check: pct enter $ctid"
     status_message "success" "Tailscale installed."
 
     # Auth
@@ -311,7 +317,7 @@ echo "  1) Install / Reinstall"
 echo "  2) Update Tailscale"
 echo "  3) Uninstall"
 echo "  4) Show status"
-echo "  q) Quit"
+echo "  0) Exit"
 echo ""
 read -p "Select an option: " choice </dev/tty
 echo ""
@@ -321,6 +327,6 @@ case "$choice" in
     2) action_update ;;
     3) action_uninstall ;;
     4) action_status ;;
-    q|Q) status_message "info" "Bye."; exit 0 ;;
+    0|q|Q) status_message "info" "Bye."; exit 0 ;;
     *) status_message "error" "Invalid option." ;;
 esac
