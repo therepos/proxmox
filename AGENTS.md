@@ -28,7 +28,8 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   block inside `scripts/sync-admonition.sh`. Never edit it in place; edit it there and run the script.
   Per-script helpers go outside the markers.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
-- Menu: numbered actions (install, status, update, uninstall as relevant) and `0) Exit`.
+- Menu: numbered actions (install, status, update, uninstall as relevant). `0` always leaves:
+  `0) Exit` in the main menu, `0) Back` in submenus.
   Confirm destructive actions.
 - Read input with `</dev/tty`; with no tty, take the safe default.
 - Idempotent: detect existing state and skip; "nothing to do" exits 0.
@@ -47,7 +48,7 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
 ## Before pushing
 
-- `scripts/lint.sh --fix` must pass. It fixes line 2 and the admonition block itself; fix the rest by hand.
+- `scripts/lint.sh --fix` must pass. It fixes line 2, the admonition block and `q) Quit` menus itself; fix the rest by hand.
   CI runs the same on every PR and pushes the safe fixes back to the branch.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
