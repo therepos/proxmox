@@ -1,6 +1,6 @@
 # purpose: auto-generate listing of scripts in specified folders
 # note: writes <out>/index.html (the GitHub Pages copy-button page) and <out>/templates.md
-#       usage: python scripts/docgen-templates.py [out_dir]   (default: _site)
+#       usage: python scripts/docgen-pages.py [out_dir]   (default: _site)
 
 import html
 import os

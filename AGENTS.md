@@ -14,7 +14,7 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 - `apps/tools/`  one-off host scripts
 - `scripts/`  repo helpers (docs generator, shared-block sync, lint)
 - The script page (therepos.github.io/proxmox) is built by CI from each script's lines 2-3 with
-  `scripts/docgen-templates.py` and deployed to GitHub Pages; nothing is committed.
+  `scripts/docgen-pages.py` and deployed to GitHub Pages; nothing is committed.
 
 ## Installers
 

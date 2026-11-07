@@ -30,7 +30,7 @@ jobs:
           python-version: '3.x'
 
       - name: Build the page
-        run: python scripts/docgen-templates.py _site
+        run: python scripts/docgen-pages.py _site
 
       - uses: actions/upload-pages-artifact@v3
         with:
