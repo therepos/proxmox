@@ -47,6 +47,7 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
 ## Before pushing
 
-- `scripts/lint.sh` must pass (CI runs it on every PR; a red check blocks the merge).
+- `scripts/lint.sh --fix` must pass. It fixes line 2 and the admonition block itself; fix the rest by hand.
+  CI runs the same on every PR and pushes the safe fixes back to the branch.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
