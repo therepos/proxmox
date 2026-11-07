@@ -13,7 +13,7 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
   deploy them with `apps/installers/portainer-setup.sh` (variables use `# hint:` comments)
 - `apps/tools/`  one-off host scripts
 - `scripts/`  repo helpers (docs generator, shared-block sync, lint). Header like the installers but
-  without the one-liner: line 2 `# Purpose:`, a `# ===` fence, a terse `# Usage:` block, a closing fence.
+  without the bootstrap: line 2 `# Purpose:`, a `# ===` fence, a terse `# Usage:` block, a closing fence.
 - The script page (therepos.github.io/proxmox) is built by CI from each script's lines 2-3 with
   `scripts/docgen-pages.py` and deployed to GitHub Pages; nothing is committed.
 
@@ -22,7 +22,7 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothing.
 
 - Name: `<name>-setup.sh`, lowercase, hyphenated. `vm-setup.sh` calls steps by that name.
-- Header: line 2 the wget one-liner (ending `?$(date +%s)`), line 3 `# Purpose: <one line>`
+- Header: line 2 the bootstrap, `# bash -c "$(wget -qLO- <raw URL of this file>?$(date +%s))"`, line 3 `# Purpose: <one line>`
   (the docs generator reads it), then a `# ===` fence. Optional terse `# Usage:` / `# Note:` lines below.
 - Then `set -euo pipefail`, the shared blocks, and `[[ $EUID -eq 0 ]] || fail "Run as root."`.
 - Shared blocks: regions between `# >>> <name>` and `# <<< <name>` are copies of the blocks in
