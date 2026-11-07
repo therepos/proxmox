@@ -1,11 +1,14 @@
 # purpose: auto-generate listing of scripts in specified folders
-# note: writes docs/templates.md and docs/index.html (the GitHub Pages copy-button page)
+# note: writes <out>/index.html (the GitHub Pages copy-button page) and <out>/templates.md
+#       usage: python scripts/docgen-templates.py [out_dir]   (default: _site)
 
 import html
 import os
+import sys
 
-OUTPUT_MD = 'docs/templates.md'
-OUTPUT_HTML = 'docs/index.html'
+OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else '_site'
+OUTPUT_MD = os.path.join(OUT_DIR, 'templates.md')
+OUTPUT_HTML = os.path.join(OUT_DIR, 'index.html')
 
 def extract_purpose(filepath):
     try:
@@ -172,6 +175,7 @@ def generate_html():
         out.write(page)
 
 if __name__ == "__main__":
+    os.makedirs(OUT_DIR, exist_ok=True)
     generate_templates()
     generate_html()
 

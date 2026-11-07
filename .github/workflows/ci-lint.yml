@@ -20,12 +20,14 @@ jobs:
           # on a PR, check out the branch itself so fixes can be pushed to it
           ref: ${{ github.head_ref || github.ref_name }}
 
+      # Fixes are only applied to PR branches (never pushed to main, which the
+      # ruleset protects); on main and on re-runs this job only reports.
       - name: Fix what can be fixed safely
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: bash scripts/lint.sh --fix || true
 
       - name: Commit fixes
-        # forks cannot be pushed to; their PRs just get the report below
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
@@ -39,7 +41,7 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BRANCH: ${{ github.head_ref }}
 
       - name: Lint
         run: bash scripts/lint.sh
