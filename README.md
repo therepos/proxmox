@@ -14,8 +14,8 @@ proxmox
 │   ├── installers              # bash installers
 │   └── tools                   # host and guest scripts
 └── scripts
-    ├── sync-blocks.sh          # sync scripts (admonition, menu)
-    ├── lint.sh                 # checks every script against AGENTS.md (--fix repairs what it can)
+    ├── sync-blocks.sh          # standardise scripts (admonition, menu)
+    ├── lint.sh                 # checks and repairs scripts
     └── docgen-templates.py     # builds the script page (deployed by CI, not committed)
 ```
 
