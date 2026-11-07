@@ -15,7 +15,7 @@ proxmox
 │   └── tools               # host and guest scripts
 └── scripts
     ├── sync-blocks.sh      # standardise scripts (admonition, menu)
-    ├── lint.sh             # diagnose and repair scripts
+    ├── lint.sh             # diagnose and repair bash scripts
     └── docgen-pages.py     # build github pages
 ```
 
