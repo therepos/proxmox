@@ -12,7 +12,8 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
 - Docker compose files live in the private repo `therepos/docker` as `<name>-compose.yml`;
   deploy them with `apps/installers/portainer-setup.sh` (variables use `# hint:` comments)
 - `apps/tools/`  one-off host scripts
-- `scripts/`  repo helpers (docs generator, shared-block sync, lint)
+- `scripts/`  repo helpers (docs generator, shared-block sync, lint). Header like the installers but
+  without the one-liner: line 2 `# Purpose:`, a `# ===` fence, a terse `# Usage:` block, a closing fence.
 - The script page (therepos.github.io/proxmox) is built by CI from each script's lines 2-3 with
   `scripts/docgen-pages.py` and deployed to GitHub Pages; nothing is committed.
 

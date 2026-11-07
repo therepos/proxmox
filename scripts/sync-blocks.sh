@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
-# Sync the shared blocks into every script's marked regions.
+# Purpose: Copy the shared blocks (admonition, menu) into every installer and tool
 # =============================================================================
-# Each script is standalone (it runs via wget and sources nothing), so shared code
-# lives physically inside each script between markers:
-#       # >>> <name> (managed by scripts/sync-blocks.sh — do not edit here) >>>
-#       ...managed content...
-#       # <<< <name> <<<
-# This file holds the one true copy of every block. To change a block:
-#   1. Edit it below
-#   2. Run this script (or scripts/lint.sh --fix)
-# Only regions whose markers exist in a file are touched; everything else in the
-# script is left alone. --check reports drift without changing anything.
+# Usage:
+#   scripts/sync-blocks.sh           update every script's copy of each block
+#   scripts/sync-blocks.sh --check   report scripts that differ, change nothing
+#
+#   Edit a block below, then run this (or scripts/lint.sh --fix).
+#   A script receives a block only between its markers:
+#     # >>> <name> (managed by scripts/sync-blocks.sh — do not edit here) >>>
+#     # <<< <name> <<<
 # =============================================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # --- Blocks ------------------------------------------------------------------
-# Order matters only for readability; each block is synced independently.
 BLOCK_NAMES=(admonition menu)
 
 # admonition: ok/info/warn/fail output (every script)
