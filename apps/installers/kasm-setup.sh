@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/kasm-setup.sh)"
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/kasm-setup.sh?$(date +%s))"
 # Purpose: Install Kasm Workspaces (Ubuntu)
 # =============================================================================
 # Usage:
