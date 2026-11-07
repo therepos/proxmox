@@ -2,9 +2,9 @@
 # Purpose: Check scripts against AGENTS.md and fix what is safe to fix
 # =============================================================================
 # Usage:
-#   scripts/lint.sh                    check every script, change nothing
-#   scripts/lint.sh --fix              fix line 2, shared blocks and q) Quit menus, then report the rest
-#   scripts/lint.sh --changed <base>   only scripts changed since <base>, plus uncommitted ones (every script if a file in FULL_CHECK_TRIGGERS changed)
+#   scripts/lint.sh                    check all scripts, change nothing
+#   scripts/lint.sh --fix              fix bootstrap, shared blocks, q) Quit; report the rest
+#   scripts/lint.sh --changed <base>   only scripts changed since <base> (all if a FULL_CHECK_TRIGGERS file changed)
 #
 #   Options combine. CI runs --fix --changed origin/main on PRs.
 # =============================================================================
@@ -68,7 +68,7 @@ if (( FIX )); then
         [[ -f "$f" ]] || continue
         l2="$(sed -n 2p "$f")"
         want="$(oneliner "$f")"
-        # installers always carry the one-liner; tools only if they already had one
+        # installers always carry the bootstrap; tools only if they already had one
         if [[ "$l2" != "$want" ]] && { [[ "$f" == apps/installers/* ]] || [[ "$l2" == '# bash -c "$(wget'* ]]; }; then
             if [[ "$l2" == '# bash -c "$(wget'* ]]; then
                 awk -v w="$want" 'NR==2{print w; next} {print}' "$f" > "$f.tmp"
@@ -76,7 +76,7 @@ if (( FIX )); then
                 awk -v w="$want" 'NR==2{print w} {print}' "$f" > "$f.tmp"
             fi
             cat "$f.tmp" > "$f" && rm -f "$f.tmp"
-            echo "[FIX ] $f: line 2 one-liner"
+            echo "[FIX ] $f: bootstrap"
         fi
     done
     for f in "${APPS[@]}"; do
@@ -113,14 +113,14 @@ for f in "${APPS[@]}"; do
     [[ "$(sed -n 3p "$f")" == "# Purpose: "* ]] || bad "$f" "line 3 must be '# Purpose: ...'"
     l2="$(sed -n 2p "$f")"
     if [[ "$l2" == '# bash -c "$(wget'* && "$l2" != "$(oneliner "$f")" ]]; then
-        bad "$f" "line 2 one-liner is wrong (scripts/lint.sh --fix)"
+        bad "$f" "bootstrap (line 2) is wrong (scripts/lint.sh --fix)"
     fi
 done
 
 # --- Installers only ---------------------------------------------------------
 for f in "${APPS[@]}"; do
     [[ "$f" == apps/installers/* ]] || continue
-    [[ "$(sed -n 2p "$f")" == '# bash -c "$(wget'* ]] || bad "$f" "line 2 must be the wget one-liner (scripts/lint.sh --fix)"
+    [[ "$(sed -n 2p "$f")" == '# bash -c "$(wget'* ]] || bad "$f" "line 2 must be the bootstrap (scripts/lint.sh --fix)"
     grep -q 'EUID' "$f"                     || bad "$f" "missing root check"
     grep -qE '^\s*echo "\s*q\) Quit' "$f"   && bad "$f" "menu uses 'q) Quit'; use '0) Exit' (scripts/lint.sh --fix)"
     grep -nE '^\s*echo "\s*0\) ' "$f" | grep -vE '0\) Exit' | while IFS= read -r m; do

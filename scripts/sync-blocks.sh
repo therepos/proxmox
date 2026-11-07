@@ -2,13 +2,11 @@
 # Purpose: Copy the shared blocks (admonition, menu) into every installer and tool
 # =============================================================================
 # Usage:
-#   scripts/sync-blocks.sh           update every script's copy of each block
-#   scripts/sync-blocks.sh --check   report scripts that differ, change nothing
+#   scripts/sync-blocks.sh           copy each block into every script that has its markers
+#   scripts/sync-blocks.sh --check   report scripts out of sync, change nothing
 #
-#   Edit a block below, then run this (or scripts/lint.sh --fix).
-#   A script receives a block only between its markers:
-#     # >>> <name> (managed by scripts/sync-blocks.sh — do not edit here) >>>
-#     # <<< <name> <<<
+#   Edit a block below, then run this or scripts/lint.sh --fix.
+#   Markers: # >>> <name> (managed by scripts/sync-blocks.sh — do not edit here) >>>  …  # <<< <name> <<<
 # =============================================================================
 set -euo pipefail
 
