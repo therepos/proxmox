@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# Lint scripts against the rules in AGENTS.md.
+# Purpose: Check scripts against AGENTS.md and fix what is safe to fix
+# =============================================================================
+# Usage:
 #   scripts/lint.sh                    check every script, change nothing
-#   scripts/lint.sh --fix              first fix what is safe (line 2 one-liner, shared
-#                                      blocks, q) Quit menus), then report what is left
-#   scripts/lint.sh --changed <base>   only scripts changed since <base> (a branch or
-#                                      commit), plus uncommitted ones. Falls back to every
-#                                      script when a file in FULL_CHECK_TRIGGERS changed.
-# Options combine: CI runs --fix --changed origin/main on PRs.
+#   scripts/lint.sh --fix              fix line 2, shared blocks and q) Quit menus,
+#                                      then report the rest
+#   scripts/lint.sh --changed <base>   only scripts changed since <base>, plus
+#                                      uncommitted ones (every script if a file in
+#                                      FULL_CHECK_TRIGGERS changed)
+#
+#   Options combine. CI runs --fix --changed origin/main on PRs.
 # =============================================================================
 set -uo pipefail
 
@@ -157,6 +160,12 @@ for i, line in enumerate(lines):
             print(f"line {i+1}: menu option '{n}' has no case branch")
 PY
 )
+done
+
+# --- Helpers: line 2 is the Purpose -------------------------------------------
+for f in "${HELPERS[@]}" "${PY[@]}"; do
+    [[ -f "$f" ]] || continue
+    [[ "$(sed -n 2p "$f")" == "# Purpose: "* ]] || bad "$f" "line 2 must be '# Purpose: ...'"
 done
 
 # --- Python ------------------------------------------------------------------

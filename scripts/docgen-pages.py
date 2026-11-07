@@ -1,6 +1,12 @@
-# purpose: auto-generate listing of scripts in specified folders
-# note: writes <out>/index.html (the GitHub Pages copy-button page) and <out>/templates.md
-#       usage: python scripts/docgen-pages.py [out_dir]   (default: _site)
+#!/usr/bin/env python3
+# Purpose: Build the GitHub Pages script page from each script's lines 2-3
+# =============================================================================
+# Usage:
+#   python3 scripts/docgen-pages.py [out_dir]   write index.html and templates.md
+#                                               (default out_dir: _site)
+#
+#   CI (ci-docs.yml) runs this and deploys out_dir; nothing is committed.
+# =============================================================================
 
 import html
 import os
