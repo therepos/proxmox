@@ -18,6 +18,8 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< admonition <<<
 
+[[ $EUID -eq 0 ]] || fail "Run as root."
+
 CYAN="\e[36m"
 RESET="\e[0m"
 

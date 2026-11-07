@@ -181,6 +181,7 @@ MODPROBE_BL_NVIDIA="/etc/modprobe.d/gpu-setup-blacklist-nvidia.conf"
 # --- State helpers -----------------------------------------------------------
 load_state() {
   # Reset all state vars to empty before sourcing to prevent stale data
+  # shellcheck disable=SC2034  # written to the state file for future migrations
   STATE_VERSION=""
   STATE_CREATED_AT=""
   BOOT_METHOD=""
@@ -1906,8 +1907,7 @@ except:
   fi
 
   # Remove PPA if added
-  if [[ -f /etc/apt/sources.list.d/graphics-drivers-ubuntu-ppa-*.list ]] || \
-     ls /etc/apt/sources.list.d/graphics-drivers-* &>/dev/null 2>&1; then
+  if compgen -G "/etc/apt/sources.list.d/graphics-drivers-*" >/dev/null; then
     info "Removing graphics-drivers PPA..."
     add-apt-repository -y --remove ppa:graphics-drivers/ppa > /dev/null 2>&1 || true
     say "PPA removed."
