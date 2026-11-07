@@ -9,7 +9,29 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: github.actor != 'github-actions[bot]'
     steps:
       - uses: actions/checkout@v4
-      - name: Run scripts/lint.sh
+        with:
+          # on a PR, check out the branch itself so fixes can be pushed to it
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Fix what can be fixed safely
+        run: bash scripts/lint.sh --fix || true
+
+      - name: Commit fixes
+        # forks cannot be pushed to; their PRs just get the report below
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "lint: auto-fix one-liners and admonition blocks"
+            git pull --rebase
+            git push
+          fi
+
+      - name: Lint
         run: bash scripts/lint.sh
