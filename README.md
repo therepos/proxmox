@@ -1,6 +1,6 @@
 ## Usage
 
-Pick a script from [docs/templates.md](docs/templates.md) and run the wget one-liner on line 2 of the script, as root.
+Open [therepos.github.io/proxmox](https://therepos.github.io/proxmox/), click Copy command, paste into the Proxmox shell and press Enter.
 
 ## Structure
 
@@ -14,11 +14,12 @@ proxmox
 │   ├── installers              # bash installers
 │   └── tools                   # host and guest scripts
 ├── docs
-│   └── templates.md            # site index (auto-generated)
+│   ├── index.html              # script page, therepos.github.io/proxmox (auto-generated)
+│   └── templates.md            # script list (auto-generated)
 └── scripts
     ├── sync-admonition.sh      # ok/info/warn/fail, synced into every script
     ├── lint.sh                 # checks every script against AGENTS.md
-    └── docgen-templates.py     # builds docs/templates.md
+    └── docgen-templates.py     # builds docs/index.html and docs/templates.md
 ```
 
 ## Notes
