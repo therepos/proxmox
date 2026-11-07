@@ -70,13 +70,13 @@ fi
 echo "What do you want to do?"
 echo "  1) Mount a drive"
 echo "  2) Unmount a drive"
-echo "  q) Quit"
+echo "  0) Exit"
 echo ""
 read -p "Select: " action </dev/tty
 echo ""
 
 case "$action" in
-    q|Q) exit 0 ;;
+    0|q|Q) exit 0 ;;
     2)
         # --- UNMOUNT FLOW ---
         if [[ ${#EXISTING_MAP[@]} -eq 0 ]]; then
@@ -92,11 +92,11 @@ case "$action" in
             ((e++))
         done
         echo ""
-        echo "  q) Quit"
+        echo "  0) Exit"
         echo ""
         read -p "Select: " uchoice </dev/tty
         case "$uchoice" in
-            q|Q) exit 0 ;;
+            0|q|Q) exit 0 ;;
             ''|*[!0-9]*) status_message "error" "Invalid choice." ;;
         esac
         idx=$((uchoice - 1))
@@ -148,12 +148,12 @@ if [[ $FOUND -eq 0 ]]; then
 fi
 
 echo ""
-echo "  q) Quit"
+echo "  0) Exit"
 echo ""
 read -p "Select: " choice </dev/tty
 
 case "$choice" in
-    q|Q) exit 0 ;;
+    0|q|Q) exit 0 ;;
     ''|*[!0-9]*) status_message "error" "Invalid choice." ;;
 esac
 

@@ -17,6 +17,8 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< admonition <<<
 
+[[ $EUID -eq 0 ]] || fail "Run as root."
+
 # Back-compat wrapper used within this script:
 status_message() {
     case "$1" in
@@ -238,7 +240,7 @@ echo "  1) Install / Reinstall"
 echo "  2) Update Cloudflared"
 echo "  3) Uninstall"
 echo "  4) Show status"
-echo "  q) Quit"
+echo "  0) Exit"
 echo ""
 read -p "Select an option: " choice </dev/tty
 echo ""
@@ -248,6 +250,6 @@ case "$choice" in
     2) action_update ;;
     3) action_uninstall ;;
     4) action_status ;;
-    q|Q) status_message "info" "Bye."; exit 0 ;;
+    0|q|Q) status_message "info" "Bye."; exit 0 ;;
     *) status_message "error" "Invalid option." ;;
 esac

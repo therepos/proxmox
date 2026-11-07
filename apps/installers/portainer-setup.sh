@@ -121,6 +121,7 @@ write_env(){ # write_env file KEY=VALUE ...  (mode 600, values single-quoted)
     for kv in "$@"; do printf "%s='%s'\n" "${kv%%=*}" "$(printf '%s' "${kv#*=}" | sed "s/'/'\\\\''/g")" >>"$f.tmp"; done )
   mv "$f.tmp" "$f"; chmod 600 "$f"
 }
+# shellcheck disable=SC1090  # env file path is a runtime argument
 load_env(){ [[ -f "$1" ]] && { set -a; . "$1"; set +a; }; return 0; }
 
 # --- Prechecks ---------------------------------------------------------------
@@ -616,6 +617,8 @@ start_portainer(){
   local sock_gid; sock_gid="$(stat -c '%g' /var/run/docker.sock)"
   docker volume inspect portainer_data >/dev/null 2>&1 || docker volume create portainer_data >/dev/null
   docker rm -f "${NAME}" >/dev/null 2>&1 || true
+  local -a bind=()
+  [[ -n "${HOST_BIND}" ]] && bind=(-v "${HOST_BIND}:/mnt/sec/apps")
   docker run -d --name "${NAME}" \
     --pull=always --restart=always \
     --security-opt apparmor=unconfined \
@@ -623,7 +626,7 @@ start_portainer(){
     -p ${PORT_HTTPS}:${PORT_HTTPS} \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v portainer_data:/data \
-    $( [[ -n "${HOST_BIND}" ]] && echo "-v ${HOST_BIND}:/mnt/sec/apps" ) \
+    "${bind[@]}" \
     --group-add "${sock_gid}" \
     "${IMAGE}" \
     -H unix:///var/run/docker.sock >/dev/null

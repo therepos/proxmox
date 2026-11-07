@@ -580,12 +580,12 @@ report_offline_container() {
 # Offers a container reboot, which renews the DHCP lease, then waits for
 # the network to come back. Returns 1 if the user declines or it stays down.
 recover_container_network() {
-    local ctid="$1" c i
+    local ctid="$1" c
     read -p "  Reboot CTID $ctid now to renew its network lease? [Y/n]: " c </dev/tty
     [[ "${c:-Y}" =~ ^[Yy]$ ]] || return 1
     info "Rebooting CTID $ctid..."
     pct reboot "$ctid" >/dev/null 2>&1 || { warn "pct reboot failed."; return 1; }
-    for i in $(seq 1 12); do
+    for _ in $(seq 1 12); do
         sleep 5
         container_online "$ctid" && { ok "Network is back."; return 0; }
     done

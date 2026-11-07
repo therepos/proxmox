@@ -150,8 +150,10 @@ run_remote() {
 
 load_env() {
     [[ -f "$ENV_FILE" ]] || return 1
+    set -a
     # shellcheck disable=SC1090
-    set -a; . "$ENV_FILE"; set +a
+    . "$ENV_FILE"
+    set +a
 }
 
 # Write or replace one KEY='value' line in the env file (mode 600, root). Values are

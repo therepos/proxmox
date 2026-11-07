@@ -118,6 +118,10 @@ host_setup() {
         qm set "$VMID" -virtiofs0 "dirid=${VIRTIOFS_TAG}" \
             || fail "Failed to attach virtiofs device."
         ok "VirtIO-FS device attached to VM ${VMID}."
+        if [[ "$VM_WAS_RUNNING" == "1" ]]; then
+            info "Starting VM ${VMID} again..."
+            qm start "$VMID" && ok "VM ${VMID} started." || warn "Could not start VM ${VMID}; start it manually."
+        fi
     fi
 
     # Optionally chown the share (BIG, irreversible on whole drive — confirm)

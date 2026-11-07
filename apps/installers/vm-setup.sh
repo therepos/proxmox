@@ -62,7 +62,8 @@ GITHUB_BASE="https://github.com/therepos/proxmox/raw/main/apps/installers"
 # code so callers can act on it (notably exit 10 = "reboot required").
 run_remote() {
     local script="$1"; shift
-    local url="${GITHUB_BASE}/${script}?$(date +%s)"
+    local url
+    url="${GITHUB_BASE}/${script}?$(date +%s)"
     local body
     body="$(wget -qLO- "$url")" || fail "Failed to download ${script} from ${GITHUB_BASE}."
     [[ -n "$body" ]] || fail "Downloaded ${script} but it was empty (bad URL / missing script?)."
