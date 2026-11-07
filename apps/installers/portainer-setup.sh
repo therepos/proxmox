@@ -791,7 +791,7 @@ do_install(){
   echo "Setup options:"
   echo "1) Restore from backup"
   echo "2) Start fresh"
-  echo "0) Skip"
+  echo "0) Exit (finish setup in the browser)"
   case "$(asknum 'Enter choice' 1 2 1)" in
     1) flow_restore ;;
     2) flow_fresh ;;
@@ -813,12 +813,14 @@ menu_backup(){
   echo "1) Back up now"
   if timer_on; then echo "2) Turn off nightly backup"; else echo "2) Turn on nightly backup"; fi
   echo "3) View log"
-  echo "0) Back"
-  case "$(asknum 'Enter choice' 1 3 "$(timer_on && echo 1 || echo 2)")" in
+  echo "4) Back"
+  echo "0) Exit"
+  case "$(asknum 'Enter choice' 1 4 "$(timer_on && echo 1 || echo 2)")" in
     1) need_token; need_pat; need_backup_password; engine backup ;;
     2) if timer_on; then timer_disable; else turn_on_backup; fi ;;
     3) view_log ;;
-    0) return ;;
+    4) main_menu ;;
+    0) exit 0 ;;
   esac
 }
 
@@ -849,8 +851,9 @@ menu_settings(){
   echo "3) Change backup time"
   echo "4) Reset Portainer admin password"
   echo "5) Change alert email"
-  echo "0) Back"
-  case "$(asknum 'Enter choice' 1 5 1)" in
+  echo "6) Back"
+  echo "0) Exit"
+  case "$(asknum 'Enter choice' 1 6 1)" in
     1) local old="${GH_PAT:-}"
        while true; do
          GH_PAT="$(ask_secret "GitHub PAT for ${GH_REPO} + ${BK_REPO} (Contents: Read and write)")"; export GH_PAT
@@ -878,7 +881,8 @@ menu_settings(){
        docker start "$NAME" >/dev/null; engine wait-up >/dev/null
        ok "Log in with the password above, then change it in Portainer (My account)" ;;
     5) setup_mail ;;
-    0) return ;;
+    6) main_menu ;;
+    0) exit 0 ;;
   esac
 }
 
@@ -938,6 +942,7 @@ if ! have_tty; then
   fail "No terminal for the interactive menu — pass an action (e.g. update)."
 fi
 
+main_menu(){
 if exists_container; then
   echo "Portainer installed:"
   echo "1) Update"
@@ -965,3 +970,6 @@ else
     1) do_install ;;
   esac
 fi
+}
+
+main_menu

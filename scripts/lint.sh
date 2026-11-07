@@ -71,6 +71,8 @@ for f in apps/installers/*.sh; do
     [[ "$(sed -n 2p "$f")" == '# bash -c "$(wget'* ]] || bad "$f" "line 2 must be the wget one-liner (scripts/lint.sh --fix)"
     grep -q 'EUID' "$f"                     || bad "$f" "missing root check"
     grep -qE '^\s*echo "\s*q\) Quit' "$f"   && bad "$f" "menu uses 'q) Quit'; use '0) Exit' (scripts/lint.sh --fix)"
+    grep -nE '^\s*echo "\s*0\) ' "$f" | grep -vE '0\) Exit' | while IFS= read -r m; do
+        echo "$f:${m%%:*}"; done | grep -q . && bad "$f" "'0)' must be Exit; use the next number for Back"
 done
 
 # --- Admonition copies match the source --------------------------------------

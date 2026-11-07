@@ -627,7 +627,7 @@ prompt_vmid_menu() {
     status="${rest#*|}"
     echo "Only one VM detected: $vmid ($name) [$status]" >&2
     echo >&2
-    echo "0) Do nothing (exit)" >&2
+    echo "0) Exit" >&2
     echo "F) Free/Unbind GPU from any VM" >&2
     echo "1) Assign GPU to VM $vmid ($name)" >&2
     while true; do
@@ -643,7 +643,7 @@ prompt_vmid_menu() {
   fi
 
   echo "Select an option:" >&2
-  echo "  0) Do nothing (exit)" >&2
+  echo "  0) Exit" >&2
   echo "  F) Free/Unbind GPU from any VM" >&2
   echo >&2
   echo "Or select a VM:" >&2
