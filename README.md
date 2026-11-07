@@ -13,13 +13,10 @@ proxmox
 ├── apps
 │   ├── installers              # bash installers
 │   └── tools                   # host and guest scripts
-├── docs
-│   ├── index.html              # script page, therepos.github.io/proxmox (auto-generated)
-│   └── templates.md            # script list (auto-generated)
 └── scripts
     ├── sync-blocks.sh          # shared blocks (ok/info/warn/fail, menu), synced into every script
     ├── lint.sh                 # checks every script against AGENTS.md (--fix repairs what it can)
-    └── docgen-templates.py     # builds docs/index.html and docs/templates.md
+    └── docgen-templates.py     # builds the script page (deployed by CI, not committed)
 ```
 
 ## Notes
