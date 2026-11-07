@@ -25,9 +25,9 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
 - Header: line 2 the bootstrap, `# bash -c "$(wget -qLO- <raw URL of this file>?$(date +%s))"`, line 3 `# Purpose: <one line>`
   (the docs generator reads it), then a `# ===` fence. Optional terse `# Usage:` / `# Note:` lines below.
 - Then `set -euo pipefail`, the shared blocks, and `[[ $EUID -eq 0 ]] || fail "Run as root."`.
-- Shared blocks: regions between `# >>> <name>` and `# <<< <name>` are copies of the blocks in
-  `scripts/sync-blocks.sh` (`admonition` = ok/info/warn/fail, `menu` = the menu helper). Never edit them
-  in place; edit them there and run `scripts/lint.sh --fix`. Per-script code goes outside the markers.
+- Shared blocks: the regions between `# >>> <name>` and `# <<< <name>` are copies of the blocks in
+  `scripts/sync-blocks.sh` (`admonition` = ok/info/warn/fail, `menu` = the menu helper). Never edit inside the
+  markers; edit the block in `sync-blocks.sh`, then run it or `scripts/lint.sh --fix`. Per-script code goes outside.
   Shared look and behaviour belongs in a block, so changing it never touches a script's features.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
 - Menus use the helper: `menu "Install" "Status|what it shows" "Back"`, then
@@ -51,10 +51,11 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
 ## Before pushing
 
-- `scripts/lint.sh --fix --changed origin/main` must pass. It fixes line 2, the shared blocks and `q) Quit`
-  menus itself; fix the rest by hand. Without `--changed` it checks every script.
-  CI checks changed scripts on every PR and push (every script when `sync-blocks.sh`, `lint.sh` or the
-  workflow changes, weekly, or on a manual run) and pushes safe fixes back to the PR branch (never to `main`).
+- `scripts/lint.sh --fix --changed origin/main` must pass. `--fix` repairs the bootstrap, the shared blocks and
+  old `q) Quit` menus; fix the rest by hand. Options combine. `--changed` checks every script when
+  `sync-blocks.sh`, `lint.sh` or `ci-lint.yml` changed.
+- CI checks changed scripts on every PR and push (every script weekly, on a manual run, or when those files
+  change) and pushes safe fixes to the PR branch, never to `main`.
 - Work on a branch and open a PR; merge only when lint is green.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.

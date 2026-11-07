@@ -2,9 +2,7 @@
 # Purpose: Build the GitHub Pages script page from each script's lines 2-3
 # =============================================================================
 # Usage:
-#   python3 scripts/docgen-pages.py [out_dir]   write index.html (default out_dir: _site)
-#
-#   CI (ci-docs.yml) runs this and deploys out_dir; nothing is committed.
+#   python3 scripts/docgen-pages.py [out_dir]   write index.html (default: _site)
 # =============================================================================
 
 import html

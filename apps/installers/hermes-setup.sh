@@ -12,7 +12,7 @@ mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"
 exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
 
 # --- Helpers -----------------------------------------------------------------
-# >>> admonition (managed by scripts/sync-blocks.sh — do not edit here) >>>
+# >>> admonition
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
 else
@@ -22,7 +22,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
-# <<< admonition <<<
+# <<< admonition
 
 CYAN="\e[36m"
 RESET="\e[0m"
