@@ -2,7 +2,7 @@
 # Purpose: Build the GitHub Pages script page from each script's lines 2-3
 # =============================================================================
 # Usage:
-#   python3 scripts/docgen-pages.py [out_dir]   write index.html and templates.md (default out_dir: _site)
+#   python3 scripts/docgen-pages.py [out_dir]   write index.html (default out_dir: _site)
 #
 #   CI (ci-docs.yml) runs this and deploys out_dir; nothing is committed.
 # =============================================================================
@@ -12,7 +12,6 @@ import os
 import sys
 
 OUT_DIR = sys.argv[1] if len(sys.argv) > 1 else '_site'
-OUTPUT_MD = os.path.join(OUT_DIR, 'templates.md')
 OUTPUT_HTML = os.path.join(OUT_DIR, 'index.html')
 
 def extract_purpose(filepath):
@@ -32,55 +31,7 @@ def extract_purpose(filepath):
         pass
     return None
 
-def format_entry(label, url, purpose=None):
-    entry = f"- [{label}]({url})"
-    if purpose:
-        entry += f" – {purpose}"
-    return entry + "  \n"
-
-def generate_section(title, folder, file_filter, label_fn, url_base):
-    lines = [f"\n## {title}\n"]
-    for filename in sorted(os.listdir(folder)):
-        if not file_filter(filename):
-            continue
-        filepath = os.path.join(folder, filename)
-        purpose = extract_purpose(filepath)
-        label = label_fn(filename)
-        url = f"{url_base}/{filename}"
-        lines.append(format_entry(label, url, purpose))
-    return lines
-
-def generate_templates():
-    lines = ['# Templates\n']
-
-    # Docker compose files now live in the private repo therepos/docker (not listed here)
-
-    # Installers — scripts are named <name>-setup.sh; anything else in the
-    # folder (e.g. vm-create.sh) is listed under its own filename.
-    apps_base = "https://github.com/therepos/proxmox/blob/main/apps/installers"
-    lines += generate_section(
-        "Installers",
-        "apps/installers",
-        lambda f: f.endswith('.sh') and not f.startswith('.'),
-        lambda f: (f[:-len('-setup.sh')].capitalize() + " Installer"
-                   if f.endswith('-setup.sh') else f),
-        apps_base
-    )
-
-    # Tools
-    tools_base = "https://github.com/therepos/proxmox/blob/main/apps/tools"
-    lines += generate_section(
-        "Tools",
-        "apps/tools",
-        lambda f: f.endswith('.sh') and not f.startswith('.'),
-        lambda f: f,
-        tools_base
-    )
-
-    with open(OUTPUT_MD, 'w') as out:
-        out.write(''.join(lines))
-
-def extract_oneliner(filepath):
+def extract_bootstrap(filepath):
     with open(filepath, 'r') as f:
         f.readline()
         line = f.readline().strip()
@@ -99,7 +50,7 @@ def html_cards(folder):
         if not filename.endswith('.sh') or filename.startswith('.'):
             continue
         filepath = os.path.join(folder, filename)
-        cmd = extract_oneliner(filepath)
+        cmd = extract_bootstrap(filepath)
         if not cmd:
             continue  # installed by another script, nothing to copy
         purpose = extract_purpose(filepath) or ''
@@ -181,7 +132,6 @@ def generate_html():
 
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
-    generate_templates()
     generate_html()
 
 
