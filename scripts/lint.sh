@@ -3,11 +3,8 @@
 # =============================================================================
 # Usage:
 #   scripts/lint.sh                    check every script, change nothing
-#   scripts/lint.sh --fix              fix line 2, shared blocks and q) Quit menus,
-#                                      then report the rest
-#   scripts/lint.sh --changed <base>   only scripts changed since <base>, plus
-#                                      uncommitted ones (every script if a file in
-#                                      FULL_CHECK_TRIGGERS changed)
+#   scripts/lint.sh --fix              fix line 2, shared blocks and q) Quit menus, then report the rest
+#   scripts/lint.sh --changed <base>   only scripts changed since <base>, plus uncommitted ones (every script if a file in FULL_CHECK_TRIGGERS changed)
 #
 #   Options combine. CI runs --fix --changed origin/main on PRs.
 # =============================================================================
