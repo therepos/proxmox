@@ -723,10 +723,11 @@ do_settings() {
         echo "  2) Improve stream quality"
         echo "  3) Balance stream    work networks: sharper scrolling"
         echo "  4) Fix VM IP"
-        echo "  0) Back"
+        echo "  5) Back"
+        echo "  0) Exit"
         echo ""
-        read -rp "  Choose [0-4]: " pick </dev/tty || pick=0
-        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=balanced ;; 4) pick=ip ;; *) return 0 ;; esac
+        read -rp "  Choose [0-5]: " pick </dev/tty || pick=5
+        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=balanced ;; 4) pick=ip ;; 0) exit 0 ;; *) return 0 ;; esac
     fi
     case "$pick" in
         performance|balanced|quality) set_streaming "$pick" ;;
@@ -795,10 +796,11 @@ do_connectors() {
         echo ""
         echo "  1) Connect GitHub"
         echo "  2) Disconnect GitHub"
-        echo "  0) Back"
+        echo "  3) Back"
+        echo "  0) Exit"
         echo ""
-        read -rp "  Choose [0-2]: " pick </dev/tty || pick=0
-        case "$pick" in 1) pick=github ;; 2) pick=github-off ;; *) return 0 ;; esac
+        read -rp "  Choose [0-3]: " pick </dev/tty || pick=3
+        case "$pick" in 1) pick=github ;; 2) pick=github-off ;; 0) exit 0 ;; *) return 0 ;; esac
     fi
     case "$pick" in
         github)     connect_github ;;

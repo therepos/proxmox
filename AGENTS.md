@@ -28,8 +28,8 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   block inside `scripts/sync-admonition.sh`. Never edit it in place; edit it there and run the script.
   Per-script helpers go outside the markers.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
-- Menu: numbered actions (install, status, update, uninstall as relevant). `0` always leaves:
-  `0) Exit` in the main menu, `0) Back` in submenus.
+- Menu: numbered actions (install, status, update, uninstall as relevant), then `0) Exit`.
+  `0` is only ever Exit and quits the script. Submenus add `N) Back` as the next number after the last option.
   Confirm destructive actions.
 - Read input with `</dev/tty`; with no tty, take the safe default.
 - Idempotent: detect existing state and skip; "nothing to do" exits 0.
