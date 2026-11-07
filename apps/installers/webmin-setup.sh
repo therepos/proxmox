@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/installers/webmin-setup.sh?$(date +%s))"
-# Purpose: Install webmin on PVE9
+# Purp: Install webmin on PVE9
 # =============================================================================
 # Usage:
 #   Enable Trusted Referrers:
