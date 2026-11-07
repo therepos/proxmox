@@ -49,6 +49,17 @@ Scripts that act differently on host vs VM detect with
 Orchestrators that log their run: `[[ -t 1 ]] && export FORCE_COLOR=1`, then tee to the log
 through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
+## Documentation
+
+- Script header: shebang; bootstrap (installers and tools); `# Purpose:` in one line; a fence. Optional
+  sections follow (`# Usage:`, `# Markers:`, `# Note:`), closed by a fence.
+- `# Usage:` lists commands only: one per line, descriptions aligned in one column, never wrapped.
+- Explanations (how, why, what CI does) live in AGENTS.md, not in script headers.
+- Concise, standard terms (bootstrap, shared block, lint, fence); no filler words.
+- Code comments only where the reason is not obvious, one line each.
+- Refinement: when the owner corrects a name, wording or format, apply it everywhere it occurs in the same
+  PR, record the rule here, and add a lint check when it can be checked mechanically.
+
 ## Before pushing
 
 - `scripts/lint.sh --fix --changed origin/main` must pass. `--fix` repairs the bootstrap, the shared blocks and

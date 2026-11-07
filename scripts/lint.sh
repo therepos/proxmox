@@ -157,10 +157,27 @@ PY
 )
 done
 
-# --- Helpers: line 2 is the Purpose -------------------------------------------
+# --- Headers (AGENTS.md "Documentation") -------------------------------------
+FENCE='# ============================================================================='
+# header_ok <file> <first-fence-line>: fence on that line; any comment block right
+# after it must end with a closing fence
+header_ok() {
+    local f="$1" n="$2" last=""
+    [[ "$(sed -n "${n}p" "$f")" == "$FENCE" ]] || { bad "$f" "line $n must be the header fence"; return; }
+    last="$(awk -v s=$((n + 1)) 'NR>=s { if ($0 ~ /^#/) l=$0; else exit } END { print l }' "$f")"
+    [[ -z "$last" || "$last" == "$FENCE" ]] || bad "$f" "header comment block must end with a fence"
+}
+for f in "${APPS[@]}"; do
+    [[ -f "$f" ]] && header_ok "$f" 4
+done
 for f in "${HELPERS[@]}" "${PY[@]}"; do
     [[ -f "$f" ]] || continue
     [[ "$(sed -n 2p "$f")" == "# Purpose: "* ]] || bad "$f" "line 2 must be '# Purpose: ...'"
+    header_ok "$f" 3
+    [[ "$(sed -n 4p "$f")" == "# Usage:" ]] || bad "$f" "line 4 must be '# Usage:'"
+    # Usage entries are one line each: a continuation line (deep indent, no command) means wrapping
+    awk 'NR>4 && /^# =/ {exit} NR>4 && /^#           *[^ ]/ {found=1} END {exit !found}' "$f" \
+        && bad "$f" "Usage entries must be one line each (no wrapping)"
 done
 
 # --- Python ------------------------------------------------------------------
