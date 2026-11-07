@@ -24,8 +24,8 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
 - Header: line 2 the wget one-liner (ending `?$(date +%s)`), line 3 `# Purpose: <one line>`
   (the docs generator reads it), then a `# ===` fence. Optional terse `# Usage:` / `# Note:` lines below.
 - Then `set -euo pipefail`, the admonition block, and `[[ $EUID -eq 0 ]] || fail "Run as root."`.
-- Admonition block: the region between `# >>> admonition` and `# <<< admonition` is a copy of
-  `scripts/admonition.sh`. Never edit it in place; edit the source and run `scripts/sync-admonition.sh`.
+- Admonition block: the region between `# >>> admonition` and `# <<< admonition` is a copy of the
+  block inside `scripts/sync-admonition.sh`. Never edit it in place; edit it there and run the script.
   Per-script helpers go outside the markers.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
 - Menu: numbered actions (install, status, update, uninstall as relevant) and `0) Exit`.

@@ -22,8 +22,7 @@ proxmox
 ├── docs
 │   └── templates.md            # site index (auto-generated)
 └── scripts
-    ├── admonition.sh           # ok/info/warn/fail
-    ├── sync-admonition.sh      # copies it into every script (--check to verify).
+    ├── sync-admonition.sh      # holds ok/info/warn/fail; copies them into every script (--check to verify).
     └── docgen-templates.py     # builds docs/templates.md.
 ```
 
