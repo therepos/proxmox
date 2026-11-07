@@ -8,18 +8,16 @@ Pick a script from [docs/templates.md](docs/templates.md) and run the wget one-l
 proxmox
 ├── AGENTS.md                   # rules for AI agents
 ├── CLAUDE.md                   # @AGENTS.md
-├── .claude
-│   └── skills                  # copies of Claude skills from therepos/skills.
 ├── .github
 │   └── workflows        
 ├── apps
 │   ├── installers              # bash installers
-│   └── tools                   # host and guest scripts.
+│   └── tools                   # host and guest scripts
 ├── docs
 │   └── templates.md            # site index (auto-generated)
 └── scripts
-    ├── sync-admonition.sh      # holds ok/info/warn/fail; copies them into every script (--check to verify).
-    └── docgen-templates.py     # builds docs/templates.md.
+    ├── sync-admonition.sh      # ok/info/warn/fail, synced into every script
+    └── docgen-templates.py     # builds docs/templates.md
 ```
 
 ## Notes
