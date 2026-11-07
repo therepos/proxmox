@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: github.actor != 'github-actions[bot]'
+      actions: write
+    # bot pushes are skipped, except the re-run this job dispatches after a fix
+    if: github.actor != 'github-actions[bot]' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,10 +30,16 @@ jobs:
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -am "lint: auto-fix one-liners and admonition blocks"
+            git commit -am "lint: auto-fix one-liners and shared blocks"
             git pull --rebase
             git push
+            # a push made with GITHUB_TOKEN starts no workflow, so the fixed commit
+            # would have no lint result; start one so required checks can pass
+            gh workflow run ci-lint.yml --ref "$BRANCH"
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
 
       - name: Lint
         run: bash scripts/lint.sh
