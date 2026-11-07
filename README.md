@@ -17,6 +17,7 @@ proxmox
 │   └── templates.md            # site index (auto-generated)
 └── scripts
     ├── sync-admonition.sh      # ok/info/warn/fail, synced into every script
+    ├── lint.sh                 # checks every script against AGENTS.md
     └── docgen-templates.py     # builds docs/templates.md
 ```
 
