@@ -1,6 +1,6 @@
 ## Usage
 
-Open [therepos.github.io/proxmox](https://therepos.github.io/proxmox/), click Copy command, paste into the Proxmox shell and press Enter.
+Visit [therepos.github.io/proxmox](https://therepos.github.io/proxmox/) for script commands.
 
 ## Structure
 
