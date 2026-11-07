@@ -4,8 +4,19 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '17 19 * * 6'   # weekly full check, Sunday 03:17 Singapore time
   workflow_dispatch:
+    inputs:
+      scope:
+        description: 'What to check'
+        type: choice
+        options: [all, changed]
+        default: all
 
+# Scope: PRs and pushes check only the scripts they change (every script if a
+# file in FULL_CHECK_TRIGGERS in scripts/lint.sh changed). Manual runs default
+# to every script; the weekly run always checks every script.
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -19,12 +30,37 @@ jobs:
         with:
           # on a PR, check out the branch itself so fixes can be pushed to it
           ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
 
-      # Fixes are only applied to PR branches (never pushed to main, which the
-      # ruleset protects); on main and on re-runs this job only reports.
+      - name: Decide what to check
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          case "$EVENT" in
+            pull_request) args="--changed origin/$BASE_REF" ;;
+            push)
+              if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+                 && git cat-file -e "$BEFORE" 2>/dev/null; then
+                args="--changed $BEFORE"
+              else
+                args=""
+              fi ;;
+            workflow_dispatch)
+              if [ "$SCOPE" = "changed" ]; then args="--changed origin/main"; else args=""; fi ;;
+            *) args="" ;;
+          esac
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Lint scope: ${args:-every script}"
+
+      # Fixes are only applied to PR branches (never pushed to main); elsewhere this
+      # job only reports.
       - name: Fix what can be fixed safely
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        run: bash scripts/lint.sh --fix || true
+        run: bash scripts/lint.sh --fix ${{ steps.scope.outputs.args }} || true
 
       - name: Commit fixes
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -44,4 +80,4 @@ jobs:
           BRANCH: ${{ github.head_ref }}
 
       - name: Lint
-        run: bash scripts/lint.sh
+        run: bash scripts/lint.sh ${{ steps.scope.outputs.args }}

@@ -50,8 +50,10 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
 ## Before pushing
 
-- `scripts/lint.sh --fix` must pass. It fixes line 2, the shared blocks and `q) Quit` menus itself; fix the rest by hand.
-  CI runs the same on every PR and pushes the safe fixes back to the PR branch (never to `main`).
-- `main` is protected: lint must pass. Work on a branch and open a PR.
+- `scripts/lint.sh --fix --changed origin/main` must pass. It fixes line 2, the shared blocks and `q) Quit`
+  menus itself; fix the rest by hand. Without `--changed` it checks every script.
+  CI checks changed scripts on every PR and push (every script when `sync-blocks.sh`, `lint.sh` or the
+  workflow changes, weekly, or on a manual run) and pushes safe fixes back to the PR branch (never to `main`).
+- Work on a branch and open a PR; merge only when lint is green.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
