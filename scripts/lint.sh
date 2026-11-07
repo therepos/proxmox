@@ -3,10 +3,8 @@
 # =============================================================================
 # Usage:
 #   scripts/lint.sh                    check all scripts, change nothing
-#   scripts/lint.sh --fix              fix bootstrap, shared blocks, q) Quit; report the rest
-#   scripts/lint.sh --changed <base>   only scripts changed since <base> (all if a FULL_CHECK_TRIGGERS file changed)
-#
-#   Options combine. CI runs --fix --changed origin/main on PRs.
+#   scripts/lint.sh --fix              also fix bootstrap, admonition, menu
+#   scripts/lint.sh --changed <base>   only scripts changed since <base>
 # =============================================================================
 set -uo pipefail
 
@@ -87,8 +85,8 @@ if (( FIX )); then
         fi
     done
     for f in "${APPS[@]}"; do
-        if grep -qE '^\s*menu "' "$f" && ! grep -q '^# >>> menu ' "$f"; then
-            awk '{print} /^# <<< admonition <<</{print "# >>> menu (managed by scripts/sync-blocks.sh — do not edit here) >>>"; print "# <<< menu <<<"}' "$f" > "$f.tmp"
+        if grep -qE '^\s*menu "' "$f" && ! grep -qx '# >>> menu' "$f"; then
+            awk '{print} /^# <<< admonition$/{print "# >>> menu"; print "# <<< menu"}' "$f" > "$f.tmp"
             cat "$f.tmp" > "$f" && rm -f "$f.tmp"
             echo "[FIX ] $f: added menu block"
         fi
@@ -109,7 +107,7 @@ done
 for f in "${APPS[@]}"; do
     [[ -f "$f" ]] || continue
     grep -q 'set -euo pipefail' "$f"   || bad "$f" "missing 'set -euo pipefail'"
-    grep -q '^# >>> admonition' "$f"   || bad "$f" "missing admonition block"
+    grep -qx '# >>> admonition' "$f" || bad "$f" "missing admonition block"
     [[ "$(sed -n 3p "$f")" == "# Purpose: "* ]] || bad "$f" "line 3 must be '# Purpose: ...'"
     l2="$(sed -n 2p "$f")"
     if [[ "$l2" == '# bash -c "$(wget'* && "$l2" != "$(oneliner "$f")" ]]; then
@@ -133,7 +131,7 @@ scripts/sync-blocks.sh --check >/dev/null || bad "scripts/sync-blocks.sh" "share
 # --- Menu helper: every option has a case branch ------------------------------
 for f in "${APPS[@]}"; do
     grep -qE '^\s*menu "' "$f" || continue
-    grep -q '^# >>> menu ' "$f" || bad "$f" "calls menu but has no menu block (scripts/lint.sh --fix)"
+    grep -qx '# >>> menu' "$f" || bad "$f" "calls menu but has no menu block (scripts/lint.sh --fix)"
     while IFS= read -r msg; do bad "$f" "$msg"; done < <(python3 - "$f" <<'PY'
 import re, shlex, sys
 src = open(sys.argv[1]).read().replace("\\\n", " ")

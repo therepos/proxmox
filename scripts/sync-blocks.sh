@@ -5,8 +5,8 @@
 #   scripts/sync-blocks.sh           copy each block into every script that has its markers
 #   scripts/sync-blocks.sh --check   report scripts out of sync, change nothing
 #
-#   Edit a block below, then run this or scripts/lint.sh --fix.
-#   Markers: # >>> <name> (managed by scripts/sync-blocks.sh — do not edit here) >>>  …  # <<< <name> <<<
+# Markers:
+#   # >>> <name>  …  # <<< <name>
 # =============================================================================
 set -euo pipefail
 
@@ -74,13 +74,13 @@ for f in "$ROOT"/apps/installers/*.sh "$ROOT"/apps/tools/*.sh; do
     [[ -f "$f" ]] || continue
     cp "$f" "$f.new"
     for b in "${BLOCK_NAMES[@]}"; do
-        grep -q "^# >>> $b " "$f.new" || continue
+        grep -qE "^# >>> $b( |$)" "$f.new" || continue
         var="BLOCK_$b"
         printf '%s\n' "${!var}" > "$TMP_BLOCK"
         awk -v blockfile="$TMP_BLOCK" -v b="$b" '
             BEGIN { n=0; while ((getline l < blockfile) > 0) blk[n++]=l; close(blockfile) }
-            $0 ~ "^# >>> " b " " { print; for (i=0;i<n;i++) print blk[i]; skip=1; next }
-            $0 ~ "^# <<< " b " "  { skip=0; print; next }
+            $0 ~ "^# >>> " b "( |$)" { print; for (i=0;i<n;i++) print blk[i]; skip=1; next }
+            $0 ~ "^# <<< " b "( |$)" { skip=0; print; next }
             !skip { print }
         ' "$f.new" > "$f.tmp" && mv "$f.tmp" "$f.new"
     done
