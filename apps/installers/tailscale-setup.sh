@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # --- Helpers -----------------------------------------------------------------
-# >>> admonition (managed by scripts/sync-admonition.sh — do not edit here) >>>
+# >>> admonition (managed by scripts/sync-blocks.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
 else
@@ -17,6 +17,30 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< admonition <<<
+# >>> menu (managed by scripts/sync-blocks.sh — do not edit here) >>>
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu <<<
 
 [[ $EUID -eq 0 ]] || fail "Run as root."
 
@@ -314,21 +338,13 @@ if [[ -n "$EXISTING_CTID" ]]; then
 else
     info "Not installed"
 fi
-echo ""
-echo "  1) Install / Reinstall"
-echo "  2) Update Tailscale"
-echo "  3) Uninstall"
-echo "  4) Show status"
-echo "  0) Exit"
-echo ""
-read -p "Select an option: " choice </dev/tty
+
+menu "Install / Reinstall" "Update Tailscale" "Uninstall" "Show status"
 echo ""
 
-case "$choice" in
-    1) action_install ;;
-    2) action_update ;;
-    3) action_uninstall ;;
-    4) action_status ;;
-    0|q|Q) status_message "info" "Bye."; exit 0 ;;
-    *) status_message "error" "Invalid option." ;;
+case "$CHOICE" in
+    "Install / Reinstall") action_install ;;
+    "Update Tailscale")    action_update ;;
+    "Uninstall")           action_uninstall ;;
+    "Show status")         action_status ;;
 esac

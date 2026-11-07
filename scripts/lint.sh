@@ -2,7 +2,7 @@
 # Lint every script against the rules in AGENTS.md.
 #   scripts/lint.sh         report problems, change nothing
 #   scripts/lint.sh --fix   first fix what can be fixed safely (line 2 one-liner,
-#                           admonition block, q) Quit menus), then report what is left
+#                           shared blocks, q) Quit menus), then report what is left
 # CI runs --fix on every PR and push to main and commits the fixes.
 # =============================================================================
 set -uo pipefail
@@ -42,7 +42,14 @@ if (( FIX )); then
             echo "[FIX ] $f: q) Quit -> 0) Exit"
         fi
     done
-    scripts/sync-admonition.sh | sed -n 's/^updated: /[FIX ] admonition block: /p'
+    for f in apps/installers/*.sh apps/tools/*.sh; do
+        if grep -qE '^\s*menu "' "$f" && ! grep -q '^# >>> menu ' "$f"; then
+            awk '{print} /^# <<< admonition <<</{print "# >>> menu (managed by scripts/sync-blocks.sh — do not edit here) >>>"; print "# <<< menu <<<"}' "$f" > "$f.tmp"
+            cat "$f.tmp" > "$f" && rm -f "$f.tmp"
+            echo "[FIX ] $f: added menu block"
+        fi
+    done
+    scripts/sync-blocks.sh | sed -n 's/^updated: /[FIX ] shared blocks: /p'
 fi
 
 command -v shellcheck >/dev/null || { echo "[FAIL] shellcheck not installed (apt install shellcheck)"; exit 1; }
@@ -76,7 +83,36 @@ for f in apps/installers/*.sh; do
 done
 
 # --- Admonition copies match the source --------------------------------------
-scripts/sync-admonition.sh --check >/dev/null || bad "scripts/sync-admonition.sh" "admonition block out of sync (scripts/lint.sh --fix)"
+scripts/sync-blocks.sh --check >/dev/null || bad "scripts/sync-blocks.sh" "shared blocks out of sync (scripts/lint.sh --fix)"
+
+# --- Menu helper: every option has a case branch ------------------------------
+for f in apps/installers/*.sh apps/tools/*.sh; do
+    grep -qE '^\s*menu "' "$f" || continue
+    grep -q '^# >>> menu ' "$f" || bad "$f" "calls menu but has no menu block (scripts/lint.sh --fix)"
+    while IFS= read -r msg; do bad "$f" "$msg"; done < <(python3 - "$f" <<'PY'
+import re, shlex, sys
+src = open(sys.argv[1]).read().replace("\\\n", " ")
+lines = src.split("\n")
+for i, line in enumerate(lines):
+    if not re.match(r'\s*menu "', line):
+        continue
+    names = [o.split("|")[0] for o in shlex.split(line.strip())[1:]]
+    body = []
+    for l in lines[i + 1:]:
+        body.append(l)
+        if re.match(r"\s*esac\b", l):
+            break
+    text = "\n".join(body)
+    if 'case "$CHOICE" in' not in text:
+        print(f"line {i+1}: menu is not followed by case \"$CHOICE\" in")
+        continue
+    for n in names:
+        pat = r'(^|[\s|(])("' + re.escape(n) + r'"|' + re.escape(n) + r')\s*[|)]'
+        if not re.search(pat, text, re.M):
+            print(f"line {i+1}: menu option '{n}' has no case branch")
+PY
+)
+done
 
 # --- Python ------------------------------------------------------------------
 for f in scripts/*.py; do

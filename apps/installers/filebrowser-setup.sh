@@ -22,7 +22,7 @@ SERVICE_FILE="/etc/systemd/system/filebrowser.service"
 INSTALL_URL="https://raw.githubusercontent.com/filebrowser/get/master/get.sh"
 
 # --- Helpers -----------------------------------------------------------------
-# >>> admonition (managed by scripts/sync-admonition.sh — do not edit here) >>>
+# >>> admonition (managed by scripts/sync-blocks.sh — do not edit here) >>>
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
   _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
 else
