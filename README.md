@@ -16,7 +16,7 @@ proxmox
 └── scripts
     ├── sync-blocks.sh          # standardise scripts (admonition, menu)
     ├── lint.sh                 # diagnose and repair scripts
-    └── docgen-templates.py     # builds the script page (deployed by CI, not committed)
+    └── docgen-pages.py     # builds the script page (deployed by CI, not committed)
 ```
 
 ## Notes
