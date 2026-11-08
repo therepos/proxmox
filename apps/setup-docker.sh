@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/setup-docker.sh?$(date +%s))"
+# Purpose: Installs docker engine and docker compose (Ubuntu/PVE9)
+# =============================================================================
+
+set -euo pipefail
+
+LOG_DIR="/var/log"
+LOG_FILE="$LOG_DIR/dockerhost-install-$(date +%F).log"
+mkdir -p "$LOG_DIR"; : >"$LOG_FILE"; chmod 0644 "$LOG_FILE"
+[[ -t 1 ]] && export FORCE_COLOR=1
+exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
+trap 'err "Error on line $LINENO"' ERR
+
+# --- Helpers -----------------------------------------------------------------
+# >>> admonition
+if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
+  _CK=$'\033[1;32m'; _CI=$'\033[1;36m'; _CW=$'\033[1;33m'; _CE=$'\033[1;31m'; _C0=$'\033[0m'
+else
+  _CK=''; _CI=''; _CW=''; _CE=''; _C0=''
+fi
+ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
+info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
+warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
+fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+# <<< admonition
+
+# Back-compat aliases used within this script:
+log() { ok "$@"; }
+err() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; }   # print-only (no exit)
+
+# --- Prerequisites -----------------------------------------------------------
+require_root() { [[ $EUID -eq 0 ]] || { err "Run as root (no sudo on Proxmox)."; exit 1; }; }
+
+detect_os() {
+  [[ -r /etc/os-release ]] || { err "/etc/os-release not found"; exit 1; }
+  . /etc/os-release
+  OS_ID="${ID:-debian}"               # debian | ubuntu
+  OS_CODENAME="${VERSION_CODENAME:-}" # trixie/bookworm/bullseye/jammy/focal...
+  ARCH="$(dpkg --print-architecture)"
+  if [[ -z "${OS_CODENAME}" ]]; then
+    case "${OS_ID}:${VERSION_ID:-}" in
+      debian:12) OS_CODENAME="bookworm" ;;
+      debian:11) OS_CODENAME="bullseye" ;;
+      ubuntu:22.04) OS_CODENAME="jammy" ;;
+      ubuntu:20.04) OS_CODENAME="focal" ;;
+      *) err "Cannot determine VERSION_CODENAME"; exit 1 ;;
+    esac
+  fi
+  log "Detected: ${PRETTY_NAME:-$OS_ID} (${OS_CODENAME}) [${ARCH}]"
+}
+
+repo_exists() { curl -fsSI "https://download.docker.com/linux/${OS_ID}/dists/${1}/Release" >/dev/null 2>&1; }
+
+pick_supported_codename() {
+  local c="${OS_CODENAME}"
+  if repo_exists "$c"; then echo "$c"; return; fi
+  if [[ "$OS_ID" == "debian" ]]; then
+    for alt in bookworm bullseye; do
+      if repo_exists "$alt"; then
+        warn "Docker repo not available for '${c}'; falling back to '${alt}'."
+        echo "$alt"; return
+      fi
+    done
+  elif [[ "$OS_ID" == "ubuntu" ]]; then
+    for alt in jammy focal; do
+      if repo_exists "$alt"; then
+        warn "Docker repo not available for '${c}'; falling back to '${alt}'."
+        echo "$alt"; return
+      fi
+    done
+  fi
+  err "No supported Docker repo for ${OS_ID}/${c}."
+  exit 1
+}
+
+apt_prep() {
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y
+  apt-get install -y ca-certificates curl gnupg apt-transport-https software-properties-common || true
+  log "Prerequisites installed"
+}
+
+# --- Install -----------------------------------------------------------------
+install_repo() {
+  # remove any malformed docker entries first (surgical cleanup)
+  if [[ -f /etc/apt/sources.list.d/docker.list ]]; then
+    mv /etc/apt/sources.list.d/docker.list "/etc/apt/sources.list.d/docker.list.$(date +%s).bak"
+  fi
+  sed -i 's|^\(.*download\.docker\.com.*\)$|# \1|' /etc/apt/sources.list || true
+
+  install -m 0755 -d /etc/apt/keyrings
+  KEYRING="/etc/apt/keyrings/docker.gpg"
+  if [[ ! -f "$KEYRING" ]]; then
+    curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" | gpg --dearmor -o "$KEYRING"
+  else
+    warn "Keyring exists: $KEYRING (keeping)"
+  fi
+  chmod a+r "$KEYRING"
+
+  SUPPORTED_CODENAME="$(pick_supported_codename)"
+  LIST="/etc/apt/sources.list.d/docker.list"
+  echo "deb [arch=${ARCH} signed-by=${KEYRING}] https://download.docker.com/linux/${OS_ID} ${SUPPORTED_CODENAME} stable" > "$LIST"
+  log "Docker repo configured: ${SUPPORTED_CODENAME}"
+  apt-get clean
+  rm -rf /var/lib/apt/lists/*
+  apt-get update -y
+}
+
+install_docker() {
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  systemctl enable --now docker
+  log "Docker installed and started"
+}
+
+verify() {
+  docker --version
+  docker compose version
+  log "Validation OK"
+}
+
+main() {
+  require_root
+  detect_os
+  apt_prep
+  install_repo
+  install_docker
+  verify
+  echo "Log saved to: $LOG_FILE"
+  log "All done"
+}
+
+main "$@"
