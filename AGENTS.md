@@ -38,7 +38,9 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   It numbers the options, adds `0) Exit` (0 only ever exits) and the prompt. In submenus put `Back` last.
   New menus must use it; convert hand-written menus when you next edit that script. Confirm destructive actions.
 - Read input with `</dev/tty`; with no tty, take the safe default.
-- Idempotent: detect existing state and skip; "nothing to do" exits 0.
+- Idempotent: detect existing state and skip; "nothing to do" exits 0. Restart a service only when its config changed.
+- Prechecks: on the wrong machine say where to run it; offer to install a missing prerequisite with its
+  `setup-<subject>.sh` instead of only failing. Pass third-party installers their yes/force flag.
 - Section dividers: `# --- Title ---` padded to 79 columns.
 - Secrets go to files with mode 600 under `/root` or `/etc/<app>`; never echo them to logs.
 - Containers are created with `--timezone host` so their clock (and cron) matches the PVE host.
@@ -52,9 +54,11 @@ Scripts that act differently on host vs VM detect with
 
 Orchestrators that log their run: `[[ -t 1 ]] && export FORCE_COLOR=1`, then tee to the log
 through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
-- App data backups (`/mnt/sec/apps`) belong to `setup-backup.sh` (in development). Contract for other
-  scripts: `setup-backup.sh restore <app>` exits 0 when restored, 3 when it has no backup for that app,
-  anything else on failure. `setup-portainer.sh` → Restore → Settings and app data calls it per stack.
+
+Backups go to the private repo `therepos/backups`, one folder per app, overwritten each run (git keeps history).
+A restore confirms first, stops the app, restores, always starts it again, and says what is not restored (secrets).
+App data (`/mnt/sec/apps`) belongs to `setup-backup.sh` (in development): `setup-backup.sh restore <app>` exits 0
+when restored, 3 when it has no backup for that app, anything else on failure.
 
 ## Documentation
 
@@ -74,6 +78,8 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
   `sync-blocks.sh`, `lint.sh` or `ci-lint.yml` changed.
 - CI checks changed scripts on every PR and push (every script weekly, on a manual run, or when those files
   change) and pushes safe fixes to the PR branch, never to `main`.
-- Work on a branch and open a PR; merge only when lint is green.
+- Work on a branch and open a PR (`gh api repos/<owner>/<repo>/pulls`; GraphQL `gh pr` commands are blocked here);
+  merge only when lint is green. Commit before tests that run `git checkout`, and check each edit landed
+  (`git diff`) before reporting it.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
