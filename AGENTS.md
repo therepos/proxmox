@@ -52,6 +52,9 @@ Scripts that act differently on host vs VM detect with
 
 Orchestrators that log their run: `[[ -t 1 ]] && export FORCE_COLOR=1`, then tee to the log
 through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
+- App data backups (`/mnt/sec/apps`) belong to `setup-backup.sh` (in development). Contract for other
+  scripts: `setup-backup.sh restore <app>` exits 0 when restored, 3 when it has no backup for that app,
+  anything else on failure. `setup-portainer.sh` → Restore → Settings and app data calls it per stack.
 
 ## Documentation
 

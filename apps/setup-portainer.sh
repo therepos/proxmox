@@ -21,7 +21,7 @@
 #   /etc/portainer-setup/github.env    GitHub PAT for the docker repo
 #   /etc/portainer-setup/portainer.env Portainer API token used by the nightly backup
 #   /etc/portainer-setup/backup.env    Backup password and nightly backup time
-#   /etc/homelab/mail.env              Alert email settings (shared with backup-setup.sh)
+#   /etc/homelab/mail.env              Alert email settings (shared with setup-backup.sh)
 # Backups: <backups repo>/portainer/portainer-backup.tar.gz (encrypted; git keeps history)
 #          backups over 20 MB are stored as portainer-backup.tar.gz.part01, .part02, ... (see .json "parts")
 # =============================================================================
@@ -606,6 +606,9 @@ def a_redeploy_all():
             failed.append(s["Name"]); warn(f"{s['Name']} FAILED {e.code}: {errtext(e)}")
     if failed: fail(f"{len(failed)} stack(s) failed: {', '.join(failed)}. Retry them in Portainer (Pull and redeploy).")
 
+def a_stack_names():
+    for s in sorted(stacks(), key=lambda s: s["Name"]): print(s["Name"])
+
 def a_mail_test():
     host = os.uname().nodename
     try:
@@ -621,7 +624,7 @@ try:
      "check-token": a_check_token, "check-pat": a_check_pat, "update-source": a_update_source,
      "add": lambda: a_add(args), "backup": lambda: a_backup("--force" in args), "backup-run": a_backup_run,
      "backup-status": a_backup_status, "restore-fetch": lambda: a_restore_fetch(args[0]),
-     "restore-post": lambda: a_restore_post(args[0]), "redeploy-all": a_redeploy_all, "mail-test": a_mail_test}[act]()
+     "restore-post": lambda: a_restore_post(args[0]), "redeploy-all": a_redeploy_all, "stack-names": a_stack_names, "mail-test": a_mail_test}[act]()
 except Fail as e:
     c(31, "[FAIL]", str(e), True); sys.exit(1)
 except urllib.error.URLError as e:
@@ -688,7 +691,7 @@ need_token(){ # ensure a working Portainer API token is stored
   write_env "$CONF_DIR/portainer.env" "PORTAINER_TOKEN=$PORTAINER_TOKEN"
 }
 
-need_mail(){ # alert email settings, shared with backup-setup.sh
+need_mail(){ # alert email settings, shared with setup-backup.sh
   [[ -n "${SMTP_HOST:-}" && -n "${SMTP_PASSWORD:-}" && -n "${ALERT_TO:-}" ]] && return
   setup_mail
 }
@@ -756,15 +759,31 @@ turn_on_backup(){
 }
 
 # --- Flows ----------------------------------------------------------------------
-apps_dir_empty(){ [[ -n "$HOST_BIND" && -d "$HOST_BIND" && -z "$(ls -A "$HOST_BIND" 2>/dev/null)" ]]; }
+# App data comes from setup-backup.sh (separate tool): "restore <app>" exits 0 when
+# restored, 3 when it has no backup for that app, anything else on failure.
+BACKUP_TOOL_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-backup.sh"
 
-flow_restore(){ # Portainer must be freshly started (no admin yet)
-  if apps_dir_empty; then
-    warn "${HOST_BIND} is empty"
-    if yesno "Restore app data first?" y; then
-      info "Run backup-setup.sh → Restore, then run this again."; exit 0
-    fi
+restore_app_data(){ # restore_app_data <stack...>
+  local body app rc restored=0 skipped=()
+  body="$(wget -qLO- "${BACKUP_TOOL_URL}?$(date +%s)" 2>/dev/null)" || body=""
+  if [[ -z "$body" ]]; then
+    warn "App data backups are not available yet (setup-backup.sh); apps start with empty data"
+    return 0
   fi
+  for app in "$@"; do
+    rc=0; bash -c "$body" setup-backup.sh restore "$app" || rc=$?
+    case "$rc" in
+      0) ok "App data restored: $app"; restored=$((restored + 1)) ;;
+      3) skipped+=("$app") ;;
+      *) warn "App data restore failed: $app" ;;
+    esac
+  done
+  (( ${#skipped[@]} )) && info "No app data backup for: ${skipped[*]} (they start fresh)"
+  info "App data restored for $restored of $# app(s)"
+}
+
+flow_restore(){ # flow_restore settings|all; Portainer must be freshly started (no admin yet)
+  local mode="${1:-settings}"
   need_pat
   local f meta created ver cur pw tok
   f="$(mktemp)"
@@ -788,6 +807,10 @@ flow_restore(){ # Portainer must be freshly started (no admin yet)
   info "Log in with your Portainer account from the backup"
   PORTAINER_TOKEN=""; need_token
   engine update-source >/dev/null || true      # stacks pull with the current PAT
+  if [[ "$mode" == all ]]; then
+    local names=(); mapfile -t names < <(engine stack-names)
+    (( ${#names[@]} )) && restore_app_data "${names[@]}"
+  fi
   engine redeploy-all || true
   if yesno "Turn on nightly backup?" y; then need_mail; timer_enable; fi
   ok "Done. Log in with your account from the backup."
@@ -812,7 +835,7 @@ do_install(){
   echo "Setup options:"
   menu "Restore from backup" "Start fresh" "Finish in the browser"
   case "$CHOICE" in
-    "Restore from backup")   flow_restore ;;
+    "Restore from backup")   pick_restore ;;
     "Start fresh")           flow_fresh ;;
     "Finish in the browser") info "Open https://<host-ip>:${PORT_HTTPS} to finish setup in the browser" ;;
   esac
@@ -848,6 +871,12 @@ view_log(){ # last 20 nightly results, newest last
 }
 
 do_restore_installed(){
+  menu "Settings only|stacks redeploy, apps start with empty data" "Settings and app data|also restores each app's data where a backup exists" "Back"
+  case "$CHOICE" in
+    "Settings only")         RESTORE_MODE=settings ;;
+    "Settings and app data") RESTORE_MODE=all ;;
+    "Back")                  main_menu; return ;;
+  esac
   warn "This replaces Portainer's settings and stacks with the latest backup."
   yesno "Continue?" n || { info "Cancelled."; return; }
   if timer_on && [[ -n "${BACKUP_PASSWORD:-}" ]]; then
@@ -856,7 +885,15 @@ do_restore_installed(){
   docker rm -f "${NAME}" >/dev/null 2>&1 || true
   docker volume rm portainer_data >/dev/null 2>&1 || true
   start_portainer
-  flow_restore
+  flow_restore "$RESTORE_MODE"
+}
+
+pick_restore(){ # restores into a fresh Portainer
+  menu "Settings only|stacks redeploy, apps start with empty data" "Settings and app data|also restores each app's data where a backup exists"
+  case "$CHOICE" in
+    "Settings only")         flow_restore settings ;;
+    "Settings and app data") flow_restore all ;;
+  esac
 }
 
 menu_settings(){
