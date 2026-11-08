@@ -28,6 +28,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
@@ -44,9 +45,7 @@ detect_module() {
 }
 
 do_install() {
-    echo ""
-    echo "Install / Update"
-    echo "================================================="
+    banner "Install / Update"
     echo ""
 
     info "Updating package index and upgrading system..."
@@ -71,9 +70,7 @@ do_install() {
         info "Unknown CPU vendor - skipping CPU driver (NVMe temps will still work)."
     fi
 
-    echo ""
-    echo "Detected sensors"
-    echo "================================================="
+    banner "Detected sensors"
     sensors || fail "'sensors' command failed."
 
     echo ""
@@ -84,9 +81,7 @@ do_install() {
 }
 
 do_uninstall() {
-    echo ""
-    echo "Uninstall"
-    echo "================================================="
+    banner "Uninstall"
     echo ""
 
     local mod
@@ -111,9 +106,7 @@ do_uninstall() {
 }
 
 # --- Menu --------------------------------------------------------------------
-echo ""
-echo "lm-sensors - Temperature Setup for PVE9"
-echo "================================================="
+banner "lm-sensors - Temperature Setup for PVE9"
 echo ""
 echo "  1) Install / Update"
 echo "  2) Uninstall"

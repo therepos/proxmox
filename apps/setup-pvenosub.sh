@@ -34,6 +34,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 C_GREEN="\e[32m"
@@ -140,10 +141,7 @@ if [[ "$PVE_MAJOR" != "8" && "$PVE_MAJOR" != "9" ]]; then
     status_message "error" "Unsupported Proxmox VE major version: $PVE_MAJOR (supports 8.x and 9.x)"
 fi
 
-echo ""
-echo "================================================================"
-echo "  Proxmox VE Post-Install (Automated, single-node defaults)"
-echo "================================================================"
+banner "Proxmox VE Post-Install (Automated, single-node defaults)"
 echo ""
 echo "This will:"
 echo "  - Correct base Debian/Proxmox sources"

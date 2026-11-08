@@ -22,6 +22,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 CYAN="\e[36m"
@@ -107,9 +108,7 @@ preflight() {
 
 # --- Guided setup ------------------------------------------------------------
 choose_provider() {
-    hr
-    echo "  Step 1 of 4 - Choose your AI provider"
-    hr
+    banner "Step 1 of 4 - Choose your AI provider"
     echo ""
     echo "  You need a paid API key from ONE of these providers."
     echo "  A chat subscription (Claude Pro/Max, ChatGPT Plus, Gemini"
@@ -155,9 +154,7 @@ choose_provider() {
 }
 
 setup_telegram() {
-    hr
-    echo "  Step 2 of 4 - Connect Telegram"
-    hr
+    banner "Step 2 of 4 - Connect Telegram"
     echo ""
     echo "  This is how you will talk to your assistant, from any device."
     echo ""
@@ -224,9 +221,7 @@ setup_telegram() {
 }
 
 setup_dashboard() {
-    hr
-    echo "  Step 3 of 4 - Web dashboard (optional)"
-    hr
+    banner "Step 3 of 4 - Web dashboard (optional)"
     echo ""
     echo "  The dashboard is a web page on your home network where you can"
     echo "  see logs, skills, memory and settings in a browser. Telegram"
@@ -247,9 +242,7 @@ setup_dashboard() {
 }
 
 confirm_plan() {
-    hr
-    echo "  Step 4 of 4 - Review"
-    hr
+    banner "Step 4 of 4 - Review"
     echo ""
     echo "  Container   : LXC named '$HOSTNAME' on $STORAGE"
     echo "  Resources   : ${CORES} cores, $((MEMORY/1024))GB RAM, ${DISK}GB disk"
@@ -745,9 +738,7 @@ ghb_key_works() {  # ghb_key_works <ctid> <owner/repo>
 ghb_setup() {
     local id="$1" repo dir c code pub
 
-    hr
-    echo "  Back up Hermes to GitHub"
-    hr
+    banner "Back up Hermes to GitHub"
     echo ""
     echo "  Every night Hermes copies its skills, scripts, scheduled jobs,"
     echo "  settings and memories to a GitHub repo. API keys and the Google"
@@ -790,9 +781,7 @@ ghb_setup() {
     else
         pub=$(pct exec "$id" -- cat "$GHB_KEY.pub")
         echo ""
-        hr
-        echo "  Add this key to GitHub (it can only reach $repo):"
-        hr
+        banner "Add this key to GitHub (it can only reach $repo):"
         echo ""
         echo "  1. Open https://github.com/$repo/settings/keys/new"
         echo "  2. Title: backup-hermes"
@@ -899,9 +888,7 @@ action_google() {
     [[ -n "$url" ]] || fail "Could not get a sign-in link from Hermes."
 
     echo ""
-    hr
-    echo "  1. Open this link and sign in with the Google account Hermes should use:"
-    hr
+    banner "1. Open this link and sign in with the Google account Hermes should use:"
     echo ""
     echo "$url"
     echo ""
@@ -1095,9 +1082,7 @@ action_consent_pages() {
     # exposed through an existing Cloudflare Tunnel route.
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
 
-    hr
-    echo "  OAuth consent pages"
-    hr
+    banner "OAuth consent pages"
     echo ""
     echo "  Publishing your Google Cloud OAuth app stops refresh tokens from"
     echo "  expiring every 7 days. Google requires three public pages first."
@@ -1228,9 +1213,7 @@ EOSH
     fi
 
     echo ""
-    hr
-    echo "  Next steps (done in a browser)"
-    hr
+    banner "Next steps (done in a browser)"
     echo ""
     echo "  1. Cloudflare Tunnel route  ->  http://${ip:-<container-ip>}:${PAGES_PORT}"
     echo "     published as:            https://${host}"
@@ -1314,10 +1297,7 @@ action_local_llm() {
 }
 
 # --- Menu --------------------------------------------------------------------
-echo ""
-echo "================================================================"
-echo "  Hermes Agent - Proxmox Installer"
-echo "================================================================"
+banner "Hermes Agent - Proxmox Installer"
 echo ""
 if [[ -n "$EXISTING_CTID" ]]; then
     ok "Installed (CTID $EXISTING_CTID)"

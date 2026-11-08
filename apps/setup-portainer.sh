@@ -58,6 +58,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 # >>> menu
 menu() {
@@ -952,7 +953,8 @@ fi
 
 main_menu(){
 if exists_container; then
-  echo "Portainer installed:"
+  banner "Portainer"
+  ok "Installed"
   menu "Update" "Backup" "Restore" "Add stack(s)" "Settings" "Uninstall"
   case "$CHOICE" in
     "Update")       do_update ;;
@@ -963,7 +965,8 @@ if exists_container; then
     "Uninstall")    do_uninstall ;;
   esac
 else
-  echo "Portainer not installed:"
+  banner "Portainer"
+  info "Not installed"
   menu "Install"
   case "$CHOICE" in
     "Install") do_install ;;

@@ -115,6 +115,8 @@ for f in "${APPS[@]}"; do
     grep -q 'set -euo pipefail' "$f"   || bad "$f" "missing 'set -euo pipefail'"
     grep -qx '# >>> admonition' "$f" || bad "$f" "missing admonition block"
     [[ "$(sed -n 3p "$f")" == "# Purpose: "* ]] || bad "$f" "line 3 must be '# Purpose: ...'"
+    awk '/^[[:space:]]*echo "=================+"$/ { if (NR - last <= 2) { found=1 } last=NR } END { exit !found }' "$f" \
+        && bad "$f" "title between two ==== lines: use banner \"Title\""
     l2="$(sed -n 2p "$f")"
     if [[ "$l2" == '# bash -c "$(wget'* && "$l2" != "$(oneliner "$f")" ]]; then
         bad "$f" "bootstrap (line 2) is wrong (scripts/lint.sh --fix)"

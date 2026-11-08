@@ -27,6 +27,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
@@ -245,10 +246,7 @@ run_prereqs() {
 # CREATE
 # ============================================================================
 do_create() {
-    echo ""
-    echo "================================================="
-    echo "  Proxmox Host — Create Ubuntu VM"
-    echo "================================================="
+    banner "Proxmox Host — Create Ubuntu VM"
 
     # --- Prompts (env pre-seeds the defaults) --------------------------------
     VMID="$(asknum 'VMID' 100 999999 "$VMID")"
@@ -282,10 +280,7 @@ do_create() {
     fi
 
     # --- Review screen -------------------------------------------------------
-    echo ""
-    echo "================================================="
-    echo "  Review — VM to be created"
-    echo "================================================="
+    banner "Review — VM to be created"
     echo "  VMID / name    ${VMID} / ${VM_NAME}"
     echo "  Cores / CPU    ${VM_CORES} / host"
     echo "  Memory         ${VM_MEMORY} MiB (balloon floor ${VM_BALLOON} MiB)"
@@ -300,8 +295,7 @@ do_create() {
         echo "  GPU            none (no passthrough)"
     fi
     echo "  ISO            ${ISO_STORAGE}:iso/${VM_ISO}"
-    echo "  Autostart      onboot=1"
-    echo "================================================="
+    banner "Autostart      onboot=1"
     echo ""
 
     local proceed; proceed="$(asknum 'Proceed?' 0 1 1)"
@@ -349,15 +343,11 @@ do_create() {
     ok "VM ${VMID} started."
 
     # --- Completion ----------------------------------------------------------
-    echo ""
-    echo "================================================="
-    echo "  VM ${VMID} created. Next steps:"
-    echo "================================================="
+    banner "VM ${VMID} created. Next steps:"
     echo "  1) Install Ubuntu via the Proxmox console (VM ${VMID} -> Console)"
     echo "  2) After install, run setup-vm.sh INSIDE the VM"
     echo "     (docker / nvidia driver / virtiofs)"
-    echo "  3) Run setup-virtiofs.sh on the HOST to attach the share"
-    echo "================================================="
+    banner "3) Run setup-virtiofs.sh on the HOST to attach the share"
     echo ""
 }
 

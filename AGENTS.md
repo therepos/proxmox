@@ -27,10 +27,12 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   (the docs generator reads it), then a `# ===` fence. Optional terse `# Usage:` / `# Note:` lines below.
 - Then `set -euo pipefail`, the shared blocks, and `[[ $EUID -eq 0 ]] || fail "Run as root."`.
 - Shared blocks: the regions between `# >>> <name>` and `# <<< <name>` are copies of the blocks in
-  `scripts/sync-blocks.sh` (`admonition` = ok/info/warn/fail, `menu` = the menu helper). Never edit inside the
+  `scripts/sync-blocks.sh` (`admonition` = ok/info/warn/fail and banner, `menu` = the menu helper). Never edit inside the
   markers; edit the block in `sync-blocks.sh`, then run it or `scripts/lint.sh --fix`. Per-script code goes outside.
   Shared look and behaviour belongs in a block, so changing it never touches a script's features.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
+- Screen titles use `banner "Title"` (admonition block): a `====` line, the title, a `====` line. A menu screen is
+  `banner`, one status line (`ok`/`info`), then `menu`.
 - Menus use the helper: `menu "Install" "Status|what it shows" "Back"`, then
   `case "$CHOICE" in Install) ...;; Status) ...;; Back) ...;; esac`, matching on names, never numbers.
   It numbers the options, adds `0) Exit` (0 only ever exits) and the prompt. In submenus put `Back` last.

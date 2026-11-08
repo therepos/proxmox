@@ -35,6 +35,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # --- Root check --------------------------------------------------------------
@@ -243,9 +244,7 @@ uninstall_kasm(){
     [[ -d /data/kasm-shared ]]   && echo "    /data/kasm-shared"
   fi
 
-  echo ""
-  echo "Uninstall Complete"
-  echo "================================================="
+  banner "Uninstall Complete"
   echo ""
   echo "  Kasm Workspaces has been removed."
   [[ "$remove_data" != "true" && ( -d /data/kasm-profiles || -d /data/kasm-shared ) ]] && \
@@ -266,9 +265,7 @@ show_guide(){
   port="$(docker port kasm_proxy 2>/dev/null | awk -F: 'NR==1{print $2}' || true)"
   [[ -n "$port" ]] || port="${KASM_PORT}"
 
-  echo ""
-  echo "Kasm UI Login Credentials"
-  echo "================================================="
+  banner "Kasm UI Login Credentials"
   echo ""
   echo "  Web UI        https://${ip}:${port}"
   echo ""
@@ -278,9 +275,7 @@ show_guide(){
   echo ""
   echo "  A self-signed certificate warning is expected."
   echo ""
-  echo ""
-  echo "Getting Started"
-  echo "================================================="
+  banner "Getting Started"
   echo ""
   echo "  1. Open https://${ip}:${port} in your browser."
   echo "     Accept the self-signed certificate warning."
@@ -290,9 +285,7 @@ show_guide(){
   echo "  3. CHANGE BOTH PASSWORDS IMMEDIATELY."
   echo "     Admin > Users > select user > edit > update password."
   echo ""
-  echo ""
-  echo "Persistent Profiles Setup Guide"
-  echo "================================================="
+  banner "Persistent Profiles Setup Guide"
   echo ""
   echo "  Kasm does not persist user data between sessions by default."
   echo "  To enable it, configure each workspace in the Admin UI:"
@@ -512,8 +505,7 @@ ok "Cleanup done."
 echo ""
 if [[ "$MODE" == "upgrade" ]]; then
     SERVER_IP=$(hostname -I | awk '{print $1}')
-    echo "Upgrade Complete"
-    echo "================================================="
+    banner "Upgrade Complete"
     echo ""
     echo "  ${EXISTING_VERSION} -> ${KASM_VERSION}"
     echo "  Web UI        https://${SERVER_IP}:${KASM_PORT}"
@@ -525,7 +517,6 @@ if [[ "$MODE" == "upgrade" ]]; then
     echo "  Tip: re-run this script and choose 'Guide' to see setup info."
     echo ""
 else
-    echo "Install Complete"
-    echo "================================================="
+    banner "Install Complete"
     show_guide
 fi

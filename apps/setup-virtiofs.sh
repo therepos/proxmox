@@ -28,6 +28,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
@@ -67,10 +68,7 @@ SHUTDOWN_TIMEOUT="${SHUTDOWN_TIMEOUT:-120}"     # seconds to wait for graceful V
 # ============================================================================
 host_setup() {
     local VM_WAS_RUNNING=0
-    echo ""
-    echo "================================================="
-    echo "  Proxmox Host — VirtIO-FS Share Setup"
-    echo "================================================="
+    banner "Proxmox Host — VirtIO-FS Share Setup"
     echo ""
 
     command -v qm    >/dev/null || fail "'qm' not found — is this really a Proxmox host?"
@@ -150,10 +148,7 @@ host_setup() {
         ok "VM ${VMID} started."
     fi
 
-    echo ""
-    echo "================================================="
-    echo "  Host side complete."
-    echo "================================================="
+    banner "Host side complete."
     echo ""
     echo "  Next: inside the VM, mount the share with:"
     echo "    virtiofs-setup mount"
@@ -219,10 +214,7 @@ host_remove() {
 }
 
 host_menu() {
-    echo ""
-    echo "================================================="
-    echo "  Proxmox Host — VirtIO-FS for VM ${VMID}"
-    echo "================================================="
+    banner "Proxmox Host — VirtIO-FS for VM ${VMID}"
     echo "  1) Setup    (map + attach to VM + chown + restart)"
     echo "  2) Status   (show mapping + device state)"
     echo "  3) Remove   (detach device + delete mapping)"
@@ -309,10 +301,7 @@ vm_status() {
 }
 
 vm_menu() {
-    echo ""
-    echo "================================================="
-    echo "  VirtIO-FS (VM)"
-    echo "================================================="
+    banner "VirtIO-FS (VM)"
     if ! virtiofs_device_present; then
         warn "No VirtIO-FS device detected — run 'virtiofs-setup setup' on the host first."
     fi

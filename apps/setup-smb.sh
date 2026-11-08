@@ -31,6 +31,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
@@ -922,9 +923,7 @@ for a in "$@"; do
 done
 set -- "${args[@]:-}"
 
-echo "================================================================"
-echo "  SMB Setup Manager"
-echo "================================================================"
+banner "SMB Setup Manager"
 echo ""
 
 # Non-interactive mode via flags
