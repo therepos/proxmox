@@ -82,6 +82,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
@@ -294,9 +295,7 @@ EOF
 # Unattended steps first (packages take minutes), then the two steps that need
 # a human (Claude login, browser password), then the services.
 do_install() {
-    echo ""
-    echo "Claude Code + Claude Desktop - Install"
-    echo "================================================="
+    banner "Claude Code + Claude Desktop - Install"
     pick_settings
     install_packages
     install_claude
@@ -309,9 +308,7 @@ do_install() {
 }
 
 print_done() {
-    echo ""
-    echo "Install Complete"
-    echo "================================================="
+    banner "Install Complete"
     echo ""
     echo "  Claude Code"
     echo "  Use it        Claude app -> Code tab -> tap '$(hostname)' under Devices"
@@ -373,10 +370,7 @@ do_status() {
         *)             rc_txt="Not running" ;;
     esac
 
-    echo ""
-    echo "================================================="
-    echo "  Status"
-    echo "================================================="
+    banner "Status"
     echo "  Claude Code     ${ver}"
     echo "  Login           ${login}"
     echo "  GitHub          ${gh_txt}"
@@ -388,8 +382,7 @@ do_status() {
     echo "  User            ${u:--}"
     echo "  Folder          ${CLAUDE_WORKDIR:--}"
     echo "  LAN IP          $(hostname -I 2>/dev/null | awk '{print $1}')"
-    echo "  Settings        ${SETTINGS_SRC}"
-    echo "================================================="
+    banner "Settings        ${SETTINGS_SRC}"
     echo ""
 }
 
@@ -425,9 +418,7 @@ do_static_ip() {
     gw="$(ip route show default | awk '{print $3; exit}')"
     mac="$(cat "/sys/class/net/${iface}/address")"
 
-    echo ""
-    echo "Static IP"
-    echo "================================================="
+    banner "Static IP"
     warn "Run this from the Proxmox console, not SSH/Webmin: the connection drops when the IP changes."
     echo "  Interface  ${iface}"
     echo "  Current    ${cur_cidr}  (gateway ${gw})"
@@ -716,9 +707,7 @@ set_streaming() { # set_streaming performance|balanced|quality
 do_settings() {
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
-        echo ""
-        echo "Settings"
-        echo "================================================="
+        banner "Settings"
         echo "  1) Improve stream performance"
         echo "  2) Improve stream quality"
         echo "  3) Balance stream    work networks: sharper scrolling"
@@ -789,9 +778,7 @@ do_connectors() {
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
         local u; u="$(claude_user)"
-        echo ""
-        echo "Connectors"
-        echo "================================================="
+        banner "Connectors"
         echo "  GitHub: $(gh_state "$u")"
         echo ""
         echo "  1) Connect GitHub"
@@ -867,10 +854,7 @@ case "${1:-}" in
 esac
 
 while true; do
-    echo ""
-    echo "================================================="
-    echo "  Claude Code + Claude Desktop on Ubuntu VM"
-    echo "================================================="
+    banner "Claude Code + Claude Desktop on Ubuntu VM"
     echo "  1) Install      Claude Code (Remote Control) + Claude Desktop"
     echo "  2) Status"
     echo "  3) Update"

@@ -93,6 +93,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 # Back-compat aliases used within this script:
 say()  { ok "$@"; }
@@ -1599,9 +1600,7 @@ maybe_offer_reboot() {
 mode_driver_install() {
   require_vm
 
-  echo ""
-  echo "NVIDIA GPU Driver — Install"
-  echo "================================================="
+  banner "NVIDIA GPU Driver — Install"
   echo ""
 
   # Resolve driver profile (compute vs desktop) and announce it.
@@ -1695,9 +1694,7 @@ mode_driver_install() {
   fi
 
   # Summary
-  echo ""
-  echo "Install Complete"
-  echo "================================================="
+  banner "Install Complete"
   echo ""
   echo "  GPU             ${GPU_MODEL}"
   if [[ "${NEEDS_REBOOT}" == "true" ]]; then
@@ -1752,9 +1749,7 @@ mode_driver_install() {
 mode_driver_update() {
   require_vm
 
-  echo ""
-  echo "NVIDIA GPU Driver — Update"
-  echo "================================================="
+  banner "NVIDIA GPU Driver — Update"
   echo ""
 
   info "Checking for NVIDIA GPU..."
@@ -1828,9 +1823,7 @@ mode_driver_update() {
     fi
   fi
 
-  echo ""
-  echo "Update Complete"
-  echo "================================================="
+  banner "Update Complete"
   echo ""
   echo "  GPU             ${GPU_MODEL}"
   echo "  Driver          ${DRIVER_PKG} (REBOOT REQUIRED)"
@@ -1846,9 +1839,7 @@ mode_driver_update() {
 mode_driver_uninstall() {
   require_vm
 
-  echo ""
-  echo "NVIDIA GPU Driver — Uninstall"
-  echo "================================================="
+  banner "NVIDIA GPU Driver — Uninstall"
   echo ""
 
   local removed_something=false
@@ -1914,9 +1905,7 @@ except:
   fi
 
   if [[ "$removed_something" == "true" ]]; then
-    echo ""
-    echo "Uninstall Complete"
-    echo "================================================="
+    banner "Uninstall Complete"
     echo ""
     echo "  REBOOT RECOMMENDED to fully unload NVIDIA kernel modules."
     echo ""

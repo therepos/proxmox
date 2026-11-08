@@ -21,13 +21,12 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 
-echo ""
-echo "Webmin - Automated Install"
-echo "================================================="
+banner "Webmin - Automated Install"
 echo ""
 
 if dpkg -s webmin >/dev/null 2>&1; then
@@ -68,9 +67,7 @@ fi
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
-echo ""
-echo "Install Complete"
-echo "================================================="
+banner "Install Complete"
 echo ""
 echo "  Web UI        https://${SERVER_IP}:10000"
 echo "  Login         Use your system root credentials."

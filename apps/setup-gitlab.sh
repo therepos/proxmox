@@ -26,6 +26,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # --- Config ------------------------------------------------------------------
@@ -256,9 +257,7 @@ do_install() {
     fi
 
     # Summary
-    echo ""
-    echo "Install Complete"
-    echo "================================================="
+    banner "Install Complete"
     echo ""
     echo "  Web UI          http://${GITLAB_HOST}:3028"
     echo "  SSH clone       ssh://git@${GITLAB_HOST}:2224"
@@ -353,9 +352,7 @@ do_register_runner() {
 # 4) Show status
 # ═════════════════════════════════════════════════════════════════════════════
 do_status() {
-    echo ""
-    echo "GitLab Status"
-    echo "================================================="
+    banner "GitLab Status"
     echo ""
 
     # Container status
@@ -439,9 +436,7 @@ do_upgrade() {
     # Show new version
     NEW_VER=$(docker exec gitlab cat /opt/gitlab/embedded/service/gitlab-rails/VERSION 2>/dev/null || echo "unknown")
 
-    echo ""
-    echo "Upgrade Complete"
-    echo "================================================="
+    banner "Upgrade Complete"
     echo ""
     echo "  Previous version  ${CURRENT_VER}"
     echo "  Current version   ${NEW_VER}"
@@ -456,9 +451,7 @@ do_upgrade() {
 # ═════════════════════════════════════════════════════════════════════════════
 # --- Main menu ---------------------------------------------------------------
 # ═════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "GitLab CE - Setup & Management"
-echo "================================================="
+banner "GitLab CE - Setup & Management"
 echo ""
 echo "  1) Install GitLab"
 echo "  2) Update default email"

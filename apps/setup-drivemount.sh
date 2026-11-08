@@ -16,6 +16,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # Back-compat wrapper used within this script:
@@ -42,10 +43,7 @@ if [[ -z "$OS_DISK" ]]; then
     [[ -n "$PARENT" ]] && OS_DISK="/dev/${PARENT}"
 fi
 
-echo ""
-echo "================================================================"
-echo "  Drive Mount Manager"
-echo "================================================================"
+banner "Drive Mount Manager"
 echo ""
 
 # Show existing managed mounts (Proxmox storage registered under /mnt)
@@ -196,9 +194,6 @@ if [[ "$reg" =~ ^[Yy]$ ]]; then
     fi
 fi
 
-echo ""
-echo "================================================================"
-status_message "success" "Done."
-echo "================================================================"
+banner "Done"
 echo "  Mount:    $MNT_PATH ($AVAIL)"
 [[ $REGISTERED -eq 1 ]] && echo "  Storage:  '$MNT_NAME'"

@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # --- Blocks ------------------------------------------------------------------
 BLOCK_NAMES=(admonition menu)
 
-# admonition: ok/info/warn/fail output (every script)
+# admonition: ok/info/warn/fail output and banner titles (every script)
 # shellcheck disable=SC2034  # read via ${!var} below
 BLOCK_admonition=$(cat <<'BLOCK'
 if [[ -n "${FORCE_COLOR:-}" || -t 1 ]]; then
@@ -27,6 +27,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 BLOCK
 )
 

@@ -30,6 +30,7 @@ ok()   { printf '%s[ OK ]%s %s\n' "$_CK" "$_C0" "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
+banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
@@ -90,10 +91,7 @@ if is_proxmox_host; then
     #     GPU in a state where the VM starts but hangs before networking, with a
     #     black console and no obvious cause. Recovery is a full host reboot.
     adjust_memory() {
-        echo ""
-        echo "================================================="
-        echo "  Adjust VM RAM"
-        echo "================================================="
+        banner "Adjust VM RAM"
         echo ""
         printf "  %-6s %-20s %-10s %s\n" "VMID" "NAME" "STATUS" "MEMORY"
         qm list | awk 'NR>1 {printf "  %-6s %-20s %-10s %s MB\n", $1, $2, $3, $4}'
@@ -188,10 +186,7 @@ if is_proxmox_host; then
         echo ""
     }
 
-    echo ""
-    echo "================================================="
-    echo "  Proxmox Host Setup"
-    echo "================================================="
+    banner "Proxmox Host Setup"
     echo ""
     echo "  1) Create VM        (new Ubuntu VM + GPU passthrough)"
     echo "  2) Mount share      (VirtIO-FS only)"
@@ -393,17 +388,13 @@ full_summary() {
 
 # --- Status (menu option) ----------------------------------------------------
 vm_status() {
-    echo ""
-    echo "================================================="
-    echo "  Status"
-    echo "================================================="
+    banner "Status"
     echo "  Webmin    $(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
     echo "  Docker    $(command -v docker >/dev/null && echo installed || echo missing)"
     echo "  NVIDIA    $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
     echo "  Kasm      $([[ -d /opt/kasm/current ]] && echo installed || echo missing)"
     echo "  Root disk $(df -h / 2>/dev/null | awk 'NR==2{print $3"/"$2" used ("$5")"}')"
-    echo "  /mnt/sec  $(mountpoint -q /mnt/sec 2>/dev/null && echo 'mounted (virtiofs)' || echo 'not mounted')"
-    echo "================================================="
+    banner "/mnt/sec  $(mountpoint -q /mnt/sec 2>/dev/null && echo 'mounted (virtiofs)' || echo 'not mounted')"
     echo ""
 }
 
@@ -437,10 +428,7 @@ print_access_block() {
 }
 
 access_info() {
-    echo ""
-    echo "================================================="
-    echo "  Access info"
-    echo "================================================="
+    banner "Access info"
     print_access_block
     echo "================================================="
     echo ""
@@ -457,10 +445,7 @@ access_info() {
 [[ -t 1 ]] && export FORCE_COLOR=1
 exec > >(tee >(sed -u 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
 
-echo ""
-echo "================================================="
-echo "  Ubuntu VM Setup"
-echo "================================================="
+banner "Ubuntu VM Setup"
 echo ""
 
 # Resume vs fresh: the COMPLETED_FILE exists only once a full setup has started,
@@ -555,10 +540,7 @@ run_plan "${BASE_STEPS[@]}" $VM_APPS
 # --- Done --------------------------------------------------------------------
 remove_resume_hook
 
-echo ""
-echo "================================================="
-echo "  VM Setup Complete!"
-echo "================================================="
+banner "VM Setup Complete!"
 echo ""
 print_access_block
 echo ""
