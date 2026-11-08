@@ -3,7 +3,7 @@
 # Purpose: Install webmin on PVE9
 # =============================================================================
 # Note:
-#   Temp files go to /var/tmp/.webmin (PVE 9 /tmp is a small RAM disk)
+#   Safe to re-run: skips what is already done; temp files move to /var/tmp/.webmin only if /tmp is a RAM disk
 #   Behind a domain: referer=<domain> in /etc/webmin/config
 #   Terminal behind a proxy: redirect_host=<domain> and redirect_port=443 in /etc/webmin/miniserv.conf, then systemctl restart webmin
 # =============================================================================
@@ -30,29 +30,41 @@ echo "Webmin - Automated Install"
 echo "================================================="
 echo ""
 
-info "Updating package index..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-ok "Package index updated."
-
-info "Setting up Webmin repository..."
-bash <(curl -fsSL https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh) || fail "Failed to add Webmin repo."
-ok "Webmin repository added."
-
-info "Installing Webmin..."
-apt-get install -y -qq webmin --install-recommends > /dev/null 2>&1 || fail "Webmin install failed."
-ok "Webmin installed."
-
-info "Moving Webmin temp files to disk..."
-WEBMIN_TMP=/var/tmp/.webmin
-mkdir -p "$WEBMIN_TMP" && chmod 700 "$WEBMIN_TMP"
-if grep -q '^tempdir=' /etc/webmin/config; then
-    sed -i "s|^tempdir=.*|tempdir=${WEBMIN_TMP}|" /etc/webmin/config
+if dpkg -s webmin >/dev/null 2>&1; then
+    ok "Webmin already installed."
 else
-    echo "tempdir=${WEBMIN_TMP}" >> /etc/webmin/config
+    info "Updating package index..."
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    ok "Package index updated."
+
+    info "Setting up Webmin repository..."
+    bash <(curl -fsSL https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh) --force \
+        >/dev/null 2>&1 || fail "Failed to add Webmin repo."
+    ok "Webmin repository added."
+
+    info "Installing Webmin..."
+    apt-get install -y -qq webmin --install-recommends > /dev/null 2>&1 || fail "Webmin install failed."
+    ok "Webmin installed."
 fi
-systemctl restart webmin
-ok "Webmin temp files: ${WEBMIN_TMP}"
+
+# Webmin warns when its temp files sit on a RAM-backed /tmp (PVE 9 default)
+WEBMIN_TMP=/var/tmp/.webmin
+if grep -qx "tempdir=${WEBMIN_TMP}" /etc/webmin/config; then
+    ok "Webmin temp files already on disk."
+elif [[ "$(findmnt -n -o FSTYPE /tmp 2>/dev/null)" != tmpfs ]]; then
+    ok "/tmp is on disk; Webmin temp files left as they are."
+else
+    info "Moving Webmin temp files to disk (restarts Webmin; a Webmin terminal session will close)..."
+    mkdir -p "$WEBMIN_TMP" && chmod 700 "$WEBMIN_TMP"
+    if grep -q '^tempdir=' /etc/webmin/config; then
+        sed -i "s|^tempdir=.*|tempdir=${WEBMIN_TMP}|" /etc/webmin/config
+    else
+        echo "tempdir=${WEBMIN_TMP}" >> /etc/webmin/config
+    fi
+    systemctl restart webmin
+    ok "Webmin temp files: ${WEBMIN_TMP}"
+fi
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 

@@ -59,24 +59,34 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 # <<< admonition
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
 # True only if a controlling terminal can actually be opened. Testing -r alone
 # is not enough: /dev/tty exists and looks readable even with no controlling
 # terminal, and the open then fails at runtime.
 have_tty(){ [[ -r /dev/tty ]] && { : </dev/tty; } 2>/dev/null; }
-
-asknum(){ # asknum "prompt" "min" "max" "default"
-  local p="$1" min="$2" max="$3" def="$4" in
-  while true; do
-    if have_tty; then
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
-    else
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in || in="$def"
-    fi
-    in="${in:-$def}"
-    [[ "$in" =~ ^[0-9]+$ ]] || { echo "Enter a number."; continue; }
-    (( in==0 || (in>=min && in<=max) )) && { echo "$in"; return; }
-  done
-}
 
 ask(){ # ask "prompt" [default] -> answer on stdout
   local p="$1" def="${2:-}" in=""
@@ -126,7 +136,17 @@ load_env(){ [[ -f "$1" ]] && { set -a; . "$1"; set +a; }; return 0; }
 
 # --- Prechecks ---------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
-command -v docker  >/dev/null || fail "Docker not found"
+if [[ -f /etc/pve/.version ]] || command -v pveversion >/dev/null 2>&1; then
+  fail "Run this on the Docker VM, not the Proxmox host."
+fi
+if ! command -v docker >/dev/null; then
+  have_tty || fail "Docker not found. Install it first: setup-docker.sh"
+  read -rp "Docker is not installed. Install it now? [Y/n]: " c </dev/tty || c=n
+  [[ "${c:-y}" =~ ^[Yy]$ ]] || fail "Docker is required."
+  bash -c "$(wget -qLO- "https://github.com/therepos/proxmox/raw/main/apps/setup-docker.sh?$(date +%s)")" \
+    || fail "Docker install failed."
+  command -v docker >/dev/null || fail "Docker still not found."
+fi
 command -v python3 >/dev/null || fail "python3 not found"
 [[ -S /var/run/docker.sock ]] || fail "Docker socket missing: /var/run/docker.sock"
 [[ -n "${HOST_BIND}" ]] && mkdir -p "${HOST_BIND}"
@@ -789,13 +809,11 @@ do_install(){
   start_portainer
   have_tty || { info "Finish setup by running portainer-setup in a terminal"; return; }
   echo "Setup options:"
-  echo "1) Restore from backup"
-  echo "2) Start fresh"
-  echo "0) Exit (finish setup in the browser)"
-  case "$(asknum 'Enter choice' 1 2 1)" in
-    1) flow_restore ;;
-    2) flow_fresh ;;
-    0) info "Open https://<host-ip>:${PORT_HTTPS} to finish setup in the browser" ;;
+  menu "Restore from backup" "Start fresh" "Finish in the browser"
+  case "$CHOICE" in
+    "Restore from backup")   flow_restore ;;
+    "Start fresh")           flow_fresh ;;
+    "Finish in the browser") info "Open https://<host-ip>:${PORT_HTTPS} to finish setup in the browser" ;;
   esac
 }
 
@@ -810,17 +828,13 @@ do_update(){
 menu_backup(){
   local st; st="$(engine backup-status 2>/dev/null || echo '?')"
   if timer_on; then echo "Nightly backup: ON at ${BACKUP_TIME} (${st})"; else echo "Nightly backup: OFF"; fi
-  echo "1) Back up now"
-  if timer_on; then echo "2) Turn off nightly backup"; else echo "2) Turn on nightly backup"; fi
-  echo "3) View log"
-  echo "4) Back"
-  echo "0) Exit"
-  case "$(asknum 'Enter choice' 1 4 "$(timer_on && echo 1 || echo 2)")" in
-    1) need_token; need_pat; need_backup_password; engine backup ;;
-    2) if timer_on; then timer_disable; else turn_on_backup; fi ;;
-    3) view_log ;;
-    4) main_menu ;;
-    0) exit 0 ;;
+  local toggle; if timer_on; then toggle="Turn off nightly backup"; else toggle="Turn on nightly backup"; fi
+  menu "Back up now" "$toggle" "View log" "Back"
+  case "$CHOICE" in
+    "Back up now") need_token; need_pat; need_backup_password; engine backup ;;
+    "$toggle")     if timer_on; then timer_disable; else turn_on_backup; fi ;;
+    "View log")    view_log ;;
+    "Back")        main_menu ;;
   esac
 }
 
@@ -846,15 +860,10 @@ do_restore_installed(){
 
 menu_settings(){
   echo "Settings:"
-  echo "1) Change GitHub PAT"
-  echo "2) Change backup password"
-  echo "3) Change backup time"
-  echo "4) Reset Portainer admin password"
-  echo "5) Change alert email"
-  echo "6) Back"
-  echo "0) Exit"
-  case "$(asknum 'Enter choice' 1 6 1)" in
-    1) local old="${GH_PAT:-}"
+  menu "Change GitHub PAT" "Change backup password" "Change backup time" \
+       "Reset Portainer admin password" "Change alert email" "Back"
+  case "$CHOICE" in
+    "Change GitHub PAT") local old="${GH_PAT:-}"
        while true; do
          GH_PAT="$(ask_secret "GitHub PAT for ${GH_REPO} + ${BK_REPO} (Contents: Read and write)")"; export GH_PAT
          engine check-pat && break
@@ -863,11 +872,11 @@ menu_settings(){
        need_token; engine update-source
        [[ -n "$old" && "$old" != "$GH_PAT" ]] && info "Delete the old PAT on GitHub"
        return 0 ;;
-    2) BACKUP_PASSWORD="$(ask_new_secret 'New backup password')"; export BACKUP_PASSWORD
+    "Change backup password") BACKUP_PASSWORD="$(ask_new_secret 'New backup password')"; export BACKUP_PASSWORD
        save_backup_env
        need_token; need_pat; engine backup --force
        info "Older backups still need the old password" ;;
-    3) local t tz; tz="$(date +%Z)"
+    "Change backup time") local t tz; tz="$(date +%Z)"
        while true; do
          t="$(ask "Backup time, 24h server time ${tz}" "$BACKUP_TIME")"
          [[ "$t" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && break
@@ -875,14 +884,13 @@ menu_settings(){
        done
        BACKUP_TIME="$t"; save_backup_env
        if timer_on; then timer_enable; else ok "Saved. Turn on nightly backup under Backup."; fi ;;
-    4) yesno "Reset the original admin account's password?" n || return 0
+    "Reset Portainer admin password") yesno "Reset the original admin account's password?" n || return 0
        docker stop "$NAME" >/dev/null
        docker run --rm -v portainer_data:/data portainer/helper-reset-password 2>&1 | sed -n 's/.*\(Password succes.*\|Use the following.*\)/\1/p'
        docker start "$NAME" >/dev/null; engine wait-up >/dev/null
        ok "Log in with the password above, then change it in Portainer (My account)" ;;
-    5) setup_mail ;;
-    6) main_menu ;;
-    0) exit 0 ;;
+    "Change alert email") setup_mail ;;
+    "Back") main_menu ;;
   esac
 }
 
@@ -945,29 +953,20 @@ fi
 main_menu(){
 if exists_container; then
   echo "Portainer installed:"
-  echo "1) Update"
-  echo "2) Backup"
-  echo "3) Restore"
-  echo "4) Add stack(s)"
-  echo "5) Settings"
-  echo "6) Uninstall"
-  echo "0) Exit"
-  case "$(asknum 'Enter choice' 1 6 1)" in
-    0) exit 0 ;;
-    1) do_update ;;
-    2) menu_backup ;;
-    3) do_restore_installed ;;
-    4) need_token; need_pat; engine add ;;
-    5) menu_settings ;;
-    6) do_uninstall ;;
+  menu "Update" "Backup" "Restore" "Add stack(s)" "Settings" "Uninstall"
+  case "$CHOICE" in
+    "Update")       do_update ;;
+    "Backup")       menu_backup ;;
+    "Restore")      do_restore_installed ;;
+    "Add stack(s)") need_token; need_pat; engine add ;;
+    "Settings")     menu_settings ;;
+    "Uninstall")    do_uninstall ;;
   esac
 else
   echo "Portainer not installed:"
-  echo "1) Install"
-  echo "0) Exit"
-  case "$(asknum 'Enter choice' 1 1 1)" in
-    0) exit 0 ;;
-    1) do_install ;;
+  menu "Install"
+  case "$CHOICE" in
+    "Install") do_install ;;
   esac
 fi
 }
