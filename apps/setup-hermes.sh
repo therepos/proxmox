@@ -711,15 +711,17 @@ action_github_backup() {
             || echo "    (no runs yet)"
         echo ""
         echo "    1) Back up now"
-        echo "    2) Change repo or folder"
-        echo "    3) Turn off"
+        echo "    2) Restore"
+        echo "    3) Change repo or folder"
+        echo "    4) Turn off"
         echo ""
-        read -p "  Select [1-3]: " c </dev/tty
+        read -p "  Select [1-4]: " c </dev/tty
         echo ""
         case "$c" in
             1) pct exec "$id" -- /usr/local/bin/backup-hermes.sh || fail "Backup failed."; return ;;
-            2) ;;
-            3) ghb_off "$id"; return ;;
+            2) ghb_restore "$id"; return ;;
+            3) ;;
+            4) ghb_off "$id"; return ;;
             *) fail "Invalid choice." ;;
         esac
     fi
@@ -805,15 +807,34 @@ ghb_setup() {
         'HERMES_BACKUP_REPO=git@github.com:${repo}.git' 'HERMES_BACKUP_DIR=${dir}' > $GHB_CONF" \
         || fail "Could not save backup settings."
 
-    local tmp
-    tmp=$(mktemp)
-    curl -fsSL --max-time 30 "$GHB_TOOL_URL" -o "$tmp" || { rm -f "$tmp"; fail "Could not download the backup job."; }
-    pct push "$id" "$tmp" /usr/local/bin/backup-hermes.sh --perms 755 || { rm -f "$tmp"; fail "Could not copy the backup job."; }
-    rm -f "$tmp"
+    ghb_push_tool "$id"
 
     pct exec "$id" -- /usr/local/bin/backup-hermes.sh --install || fail "First backup failed."
     echo ""
     ok "GitHub backup is on: github.com/$repo/tree/HEAD/$dir"
+}
+
+ghb_push_tool() {  # refresh the backup job in the container from main
+    local tmp; tmp=$(mktemp)
+    curl -fsSL --max-time 30 "${GHB_TOOL_URL}?$(date +%s)" -o "$tmp" || { rm -f "$tmp"; fail "Could not download the backup job."; }
+    pct push "$1" "$tmp" /usr/local/bin/backup-hermes.sh --perms 755 || { rm -f "$tmp"; fail "Could not copy the backup job."; }
+    rm -f "$tmp"
+}
+
+ghb_restore() {
+    local id="$1" c rc=0
+    warn "This replaces Hermes' skills, scripts, scheduled jobs, settings and memories"
+    warn "with the latest GitHub backup. API keys and the Google sign-in stay as they are."
+    read -p "  Restore now? [y/N]: " c </dev/tty
+    [[ "$c" =~ ^[Yy]$ ]] || { info "Cancelled."; return; }
+    ghb_push_tool "$id"
+    info "Stopping Hermes..."
+    pct exec "$id" -- bash -c "cd ${DATA_DIR} && docker compose stop" >/dev/null 2>&1 || true
+    pct exec "$id" -- env HERMES_DATA="${DATA_DIR}/data" /usr/local/bin/backup-hermes.sh --restore || rc=$?
+    info "Starting Hermes..."
+    pct exec "$id" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null || fail "Could not start Hermes."
+    (( rc == 0 )) || fail "Restore failed. Hermes was started with its previous files."
+    ok "Hermes restored and running."
 }
 
 ghb_off() {

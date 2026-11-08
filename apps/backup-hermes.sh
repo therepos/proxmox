@@ -5,6 +5,7 @@
 # Usage (inside the Hermes LXC):
 #   backup-hermes.sh --install   install git/rsync/cron, schedule 03:30 daily, run once
 #   backup-hermes.sh             back up now (what the schedule runs)
+#   backup-hermes.sh --restore   copy the latest backup back into Hermes (stop Hermes first)
 #
 # Needs a GitHub deploy key with write access at /root/.ssh/backup_hermes.
 # Secrets (.env, auth.json, google_*.json), databases, logs and caches are never copied.
@@ -67,7 +68,7 @@ copy_file() {  # copy_file <src> <dest>
     [[ -f "$1" ]] && cp "$1" "$2" || warn "Skipped $1 (missing)."
 }
 
-backup() {
+fetch() {  # clone or update the backup folder into $WORK
     [[ -n "$REPO_URL" ]] || fail "No repo set. Configure it from setup-hermes.sh."
     export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 
@@ -84,7 +85,10 @@ backup() {
     cd "$WORK"
     git sparse-checkout set "$DEST"
     git pull -q --rebase
+}
 
+backup() {
+    fetch
     copy_dir "$SRC/skills"   "$DEST/skills" --exclude='.*'
     copy_dir "$SRC/scripts"  "$DEST/scripts"
     copy_dir "$SRC/memories" "$DEST/memories"
@@ -106,8 +110,26 @@ backup() {
     ok "Backed up to $REPO_URL ($DEST/)."
 }
 
+restore() {
+    fetch
+    [[ -d "$DEST" ]] || fail "No backup found in $REPO_URL ($DEST/)."
+    [[ -d "$SRC" ]] || fail "Hermes data folder $SRC not found."
+    local owner; owner=$(stat -c %u:%g "$SRC")
+    mkdir -p "$SRC/cron"
+    copy_dir "$DEST/skills"   "$SRC/skills" --exclude='.*'
+    copy_dir "$DEST/scripts"  "$SRC/scripts"
+    copy_dir "$DEST/memories" "$SRC/memories"
+    copy_file "$DEST/config.yaml"    "$SRC/config.yaml"
+    copy_file "$DEST/SOUL.md"        "$SRC/SOUL.md"
+    copy_file "$DEST/cron-jobs.json" "$SRC/cron/jobs.json"
+    chown -R "$owner" "$SRC/skills" "$SRC/scripts" "$SRC/memories" "$SRC/cron" 2>/dev/null || true
+    chown "$owner" "$SRC/config.yaml" "$SRC/SOUL.md" 2>/dev/null || true
+    ok "Restored from $REPO_URL ($DEST/, $(git -C "$WORK" log -1 --format=%cs -- "$DEST"))."
+}
+
 case "${1:-}" in
     --install) do_install ;;
+    --restore) restore ;;
     "")        backup ;;
-    *)         fail "Usage: $0 [--install]" ;;
+    *)         fail "Usage: $0 [--install|--restore]" ;;
 esac
