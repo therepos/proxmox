@@ -117,6 +117,10 @@ for f in "${APPS[@]}"; do
     [[ "$(sed -n 3p "$f")" == "# Purpose: "* ]] || bad "$f" "line 3 must be '# Purpose: ...'"
     awk '/^[[:space:]]*echo "=================+"$/ { if (NR - last <= 2) { found=1 } last=NR } END { exit !found }' "$f" \
         && bad "$f" "title between two ==== lines: use banner \"Title\""
+    if grep -qx '# >>> shortcut' "$f"; then
+        grep -qx "SCRIPT_URL=\"https://github.com/therepos/proxmox/raw/main/$f\"" "$f" \
+            || bad "$f" "shortcut block needs SCRIPT_URL=\"https://github.com/therepos/proxmox/raw/main/$f\""
+    fi
     l2="$(sed -n 2p "$f")"
     if [[ "$l2" == '# bash -c "$(wget'* && "$l2" != "$(oneliner "$f")" ]]; then
         bad "$f" "bootstrap (line 2) is wrong (scripts/lint.sh --fix)"

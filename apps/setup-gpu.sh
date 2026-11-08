@@ -5,21 +5,21 @@
 # Usage (auto-detects Proxmox host vs VM):
 #
 # Host commands (Proxmox only):
-#   gpu-setup                            Interactive menu
-#   gpu-setup status                     Show current GPU passthrough state
-#   gpu-setup enable                     Configure host for passthrough (may need reboot)
-#   gpu-setup bind                       Assign GPU to a VM (interactive selection)
-#   gpu-setup bind 200                   Assign GPU to VM 200
-#   gpu-setup bind free                  Unbind GPU from all VMs
-#   gpu-setup revert                     Undo all changes
-#   gpu-setup snapshot                   Save diagnostics to /root/
+#   setup-gpu                            Interactive menu
+#   setup-gpu status                     Show current GPU passthrough state
+#   setup-gpu enable                     Configure host for passthrough (may need reboot)
+#   setup-gpu bind                       Assign GPU to a VM (interactive selection)
+#   setup-gpu bind 200                   Assign GPU to VM 200
+#   setup-gpu bind free                  Unbind GPU from all VMs
+#   setup-gpu revert                     Undo all changes
+#   setup-gpu snapshot                   Save diagnostics to /root/
 #
 # VM commands (Ubuntu VM only):
-#   gpu-setup driver                     Install NVIDIA driver (auto: desktop/compute)
-#   gpu-setup driver --desktop           Force full driver + Vulkan/OpenGL
-#   gpu-setup driver --compute           Force headless (CUDA/Docker only)
-#   gpu-setup driver --update            Update driver to newest compatible branch
-#   gpu-setup driver --uninstall         Remove NVIDIA driver + container toolkit
+#   setup-gpu driver                     Install NVIDIA driver (auto: desktop/compute)
+#   setup-gpu driver --desktop           Force full driver + Vulkan/OpenGL
+#   setup-gpu driver --compute           Force headless (CUDA/Docker only)
+#   setup-gpu driver --update            Update driver to newest compatible branch
+#   setup-gpu driver --uninstall         Remove NVIDIA driver + container toolkit
 #
 # Advanced overrides (not needed for normal use — the script self-heals):
 #   NVIDIA_DRIVER_VERSION=610            Pin a specific driver branch
@@ -41,39 +41,38 @@ is_proxmox_host() {
   [[ -f /etc/pve/.version ]] || command -v pveversion &>/dev/null
 }
 
-# Self-install (host only — VMs just run directly)
-INSTALL_PATH="/usr/local/bin/gpu-setup.sh"
-FUNC_LINE='gpu-setup() { /usr/local/bin/gpu-setup.sh "$@"; }'
+SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-gpu.sh"
 
-if is_proxmox_host; then
-  if [[ "$(readlink -f "$0" 2>/dev/null)" != "$INSTALL_PATH" ]] && [[ "${BASH_SOURCE[0]:-}" != "$INSTALL_PATH" ]]; then
-    SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-gpu.sh"
-    echo "[info] Installing setup-gpu.sh to $INSTALL_PATH..."
-    wget -qO "$INSTALL_PATH" "${SCRIPT_URL}?$(date +%s)" || { echo "[err] Download failed." >&2; exit 1; }
-    chmod +x "$INSTALL_PATH"
-    echo "[ok] Installed to $INSTALL_PATH"
+# >>> shortcut
+SHORTCUT_RC="${HOME:-/root}/.bashrc"
+shortcut_name() { local n="${SCRIPT_URL##*/}"; printf '%s' "${n%.sh}"; }
+shortcut_line() {
+  # shellcheck disable=SC2016  # expanded when the shortcut runs
+  printf '%s() { bash -c "$(wget -qLO- %s?$(date +%%s))" %s "$@"; }' "$(shortcut_name)" "$SCRIPT_URL" "$(shortcut_name)"
+}
+shortcut_on() { grep -qxF "$(shortcut_line)" "$SHORTCUT_RC" 2>/dev/null; }
+shortcut_state() { if shortcut_on; then printf on; else printf off; fi; }
+shortcut_toggle() {
+  local was=0; shortcut_on && was=1
+  [[ -f "$SHORTCUT_RC" ]] && sed -i "/^$(shortcut_name)() /d" "$SHORTCUT_RC"
+  if (( was )); then ok "Shortcut removed."; return 0; fi
+  printf '%s\n' "$(shortcut_line)" >> "$SHORTCUT_RC"
+  ok "Shortcut added. In a new shell, type: $(shortcut_name)"
+}
+# <<< shortcut
 
-    # Add gpu-setup function to bashrc if not present
-    if ! grep -qF 'gpu-setup()' ~/.bashrc 2>/dev/null; then
-      echo "$FUNC_LINE" >> ~/.bashrc
-      echo "[ok] Added gpu-setup function to ~/.bashrc"
-    fi
-
-    # Remove old gpu-passthrough function if present
-    if grep -qF 'gpu-passthrough()' ~/.bashrc 2>/dev/null; then
-      sed -i '/gpu-passthrough()/d' ~/.bashrc
-      rm -f /usr/local/bin/gpu-passthrough.sh 2>/dev/null || true
-      echo "[ok] Cleaned up old gpu-passthrough references"
-    fi
-
-    echo "[ok] Done! Run: gpu-setup"
-    echo "  Host: gpu-setup status|enable|bind|revert|snapshot"
-    echo "  VM:   gpu-setup driver"
-    echo "  Starting now..."
-    echo
-    exec "$INSTALL_PATH" "$@"
+# Remove the old saved copy and its .bashrc commands (it now runs from GitHub)
+cleanup_old_install() {
+  local rc="${HOME:-/root}/.bashrc" f found=0
+  for f in /usr/local/bin/gpu-setup.sh /usr/local/bin/gpu-passthrough.sh; do
+    [[ -e "$f" ]] && { rm -f "$f"; found=1; }
+  done
+  if [[ -f "$rc" ]] && grep -qE '^(gpu-setup|gpu-passthrough)\(\)' "$rc"; then
+    sed -i -E '/^(gpu-setup|gpu-passthrough)\(\)/d' "$rc"; found=1
   fi
-fi
+  (( found )) && info "Removed the old 'gpu-setup' command. Use Settings > Shortcut for 'setup-gpu'."
+  return 0
+}
 
 # --- Version -----------------------------------------------------------------
 SCRIPT_VERSION="2.2.0"
@@ -95,6 +94,30 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
 # Back-compat aliases used within this script:
 say()  { ok "$@"; }
 err()  { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; }   # print-only (no exit)
@@ -796,7 +819,7 @@ start_vm_with_wait() {
     echo "  • IOMMU group conflict"
     echo "  • GPU not properly bound to vfio-pci (try rebooting host)"
     echo
-    info "Run 'gpu-setup snapshot' and check the output for clues."
+    info "Run 'setup-gpu snapshot' and check the output for clues."
     return 1
   fi
 
@@ -859,9 +882,9 @@ mode_status() {
   # Show state file status
   echo
   if [[ -f "$STATE_FILE" ]]; then
-    echo "  State file: $STATE_FILE (gpu-setup has been run before)"
+    echo "  State file: $STATE_FILE (setup-gpu has been run before)"
   else
-    echo "  State file: none (gpu-setup has not configured anything yet)"
+    echo "  State file: none (setup-gpu has not configured anything yet)"
   fi
 }
 
@@ -871,7 +894,7 @@ mode_snapshot() {
   mapfile -t FUNCS < <(sibling_functions "$gpu")
 
   {
-    echo "===== gpu-setup snapshot ====="
+    echo "===== setup-gpu snapshot ====="
     echo "Version: $SCRIPT_VERSION"
     echo
     echo "===== DATE ====="; date
@@ -974,7 +997,7 @@ mode_enable() {
     if [[ "$flags_changed" == "1" ]]; then
       warn "Reboot required to activate IOMMU after adding kernel flags."
       echo
-      info "After reboot, run: gpu-setup enable"
+      info "After reboot, run this script again and choose Enable."
       exit 0
     fi
     echo
@@ -985,7 +1008,7 @@ mode_enable() {
     info "  1. Reboot into BIOS/UEFI setup"
     info "  2. Enable VT-d (Intel) or IOMMU/AMD-Vi (AMD)"
     info "  3. Save and reboot"
-    info "  4. Run: gpu-setup enable"
+    info "  4. Run: setup-gpu enable"
     die "IOMMU is not active."
   fi
   say "IOMMU is active"
@@ -1013,10 +1036,10 @@ mode_enable() {
     warn " REBOOT REQUIRED to complete GPU setup"
     warn "═══════════════════════════════════════════"
     echo
-    info "After reboot, run: gpu-setup bind"
+    info "After reboot, run this script again and choose Bind."
   else
     say "Host is already configured for GPU passthrough."
-    say "No reboot required. You can run: gpu-setup bind"
+    say "No reboot required. Next: Bind."
   fi
 }
 
@@ -1024,7 +1047,7 @@ mode_bind() {
   local target_vmid="${1:-}"
 
   if ! iommu_active; then
-    die "IOMMU is not active. Run: gpu-setup enable (and reboot if instructed)."
+    die "IOMMU is not active. Run: setup-gpu enable (and reboot if instructed)."
   fi
 
   local gpu; gpu="$(choose_gpu)"
@@ -1050,10 +1073,10 @@ mode_bind() {
   if [[ $all_vfio -eq 0 ]]; then
     echo
     warn "Not all GPU functions are bound to vfio-pci."
-    info "Did you run 'gpu-setup enable' and reboot?"
-    info "Try: gpu-setup enable → reboot → gpu-setup bind"
+    info "Did you run 'setup-gpu enable' and reboot?"
+    info "Try: setup-gpu enable → reboot → setup-gpu bind"
     if ! prompt_yn "Continue anyway (advanced users only)?"; then
-      die "Aborted. Run 'gpu-setup enable' first."
+      die "Aborted. Run 'setup-gpu enable' first."
     fi
   else
     say "All GPU functions bound to vfio-pci."
@@ -1222,10 +1245,10 @@ mode_revert() {
   echo " GPU Passthrough — Revert"
   echo "═══════════════════════════════════"
   echo
-  warn "This will undo ONLY what gpu-setup added:"
+  warn "This will undo ONLY what setup-gpu added:"
   echo "  • Remove script VFIO binding + blacklists"
-  echo "  • Remove VFIO boot module lines that gpu-setup added"
-  echo "  • Remove IOMMU kernel flags that gpu-setup added (if any)"
+  echo "  • Remove VFIO boot module lines that setup-gpu added"
+  echo "  • Remove IOMMU kernel flags that setup-gpu added (if any)"
   echo "  • Rebuild initramfs"
   echo
 
@@ -1300,53 +1323,45 @@ mode_revert() {
 }
 
 # --- Interactive menu --------------------------------------------------------
-interactive_menu() {
-  echo
-  echo "═══════════════════════════════════════"
-  echo "  gpu-setup v${SCRIPT_VERSION}"
-  echo "  NVIDIA GPU Setup"
-  echo "═══════════════════════════════════════"
+settings_menu() {
+  while true; do
+    banner "GPU settings"
+    menu "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
+    case "$CHOICE" in
+      Shortcut) shortcut_toggle ;;
+      Back)     return 0 ;;
+    esac
+  done
+}
 
+interactive_menu() {
   if is_proxmox_host; then
-    echo
-    echo "  Detected: Proxmox host"
     while true; do
-      echo
-      echo "  1) Status    — show current state"
-      echo "  2) Enable    — prepare host for passthrough"
-      echo "  3) Bind      — assign GPU to a VM"
-      echo "  4) Snapshot  — save diagnostics"
-      echo "  5) Revert    — undo all changes"
-      echo "  0) Exit"
-      echo
-      read -r -p "Choose [0-5]: " choice
-      case "${choice:-}" in
-        1) mode_status ;;
-        2) mode_enable ;;
-        3) mode_bind ;;
-        4) mode_snapshot ;;
-        5) mode_revert ;;
-        0|q|Q|exit) say "Goodbye."; exit 0 ;;
-        *) warn "Invalid option. Enter 0-5." ;;
+      banner "GPU setup v${SCRIPT_VERSION}"
+      info "Proxmox host"
+      menu "Status|show current state" "Enable|prepare host for passthrough" "Bind|assign GPU to a VM" \
+        "Snapshot|save diagnostics" "Revert|undo all changes" "Settings"
+      case "$CHOICE" in
+        Status)   mode_status ;;
+        Enable)   mode_enable ;;
+        Bind)     mode_bind ;;
+        Snapshot) mode_snapshot ;;
+        Revert)   mode_revert ;;
+        Settings) settings_menu ;;
       esac
     done
   else
-    echo
-    echo "  Detected: VM / guest"
-    echo
-    echo "  1) Install NVIDIA driver"
-    echo "  2) Update NVIDIA driver"
-    echo "  3) Uninstall NVIDIA driver"
-    echo "  0) Exit"
-    echo
-    read -r -p "Choose [0-3]: " choice
-    case "${choice:-}" in
-      1) mode_driver_install ;;
-      2) mode_driver_update ;;
-      3) mode_driver_uninstall ;;
-      0|q|Q|exit) say "Goodbye."; exit 0 ;;
-      *) warn "Invalid option."; exit 1 ;;
-    esac
+    while true; do
+      banner "GPU setup v${SCRIPT_VERSION}"
+      info "VM"
+      menu "Install|NVIDIA driver" "Update|NVIDIA driver" "Uninstall|NVIDIA driver" "Settings"
+      case "$CHOICE" in
+        Install)   mode_driver_install; return ;;
+        Update)    mode_driver_update; return ;;
+        Uninstall) mode_driver_uninstall; return ;;
+        Settings)  settings_menu ;;
+      esac
+    done
   fi
 }
 
@@ -1360,11 +1375,11 @@ require_vm() {
     err "This command runs inside a VM, not on the Proxmox host."
     echo ""
     echo "  On the Proxmox host, use:"
-    echo "    gpu-setup enable    — configure GPU passthrough"
-    echo "    gpu-setup bind      — assign GPU to a VM"
+    echo "    setup-gpu enable    — configure GPU passthrough"
+    echo "    setup-gpu bind      — assign GPU to a VM"
     echo ""
     echo "  Then inside the VM, use:"
-    echo "    gpu-setup driver    — install NVIDIA driver"
+    echo "    setup-gpu driver    — install NVIDIA driver"
     echo ""
     exit 1
   fi
@@ -1376,8 +1391,8 @@ require_host() {
     err "This command runs on the Proxmox host, not inside a VM."
     echo ""
     echo "  Inside a VM, use:"
-    echo "    gpu-setup driver             — install NVIDIA driver"
-    echo "    gpu-setup driver --uninstall — remove NVIDIA driver"
+    echo "    setup-gpu driver             — install NVIDIA driver"
+    echo "    setup-gpu driver --uninstall — remove NVIDIA driver"
     echo ""
     exit 1
   fi
@@ -1928,6 +1943,7 @@ for arg in "$@"; do
 done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 
+cleanup_old_install
 MODE="${1:-}"
 case "$MODE" in
   "")        interactive_menu ;;
@@ -1948,9 +1964,9 @@ case "$MODE" in
       *) err "Unknown driver option: ${2}"; echo "Valid: --desktop | --compute | --update | --uninstall"; exit 1 ;;
     esac
     ;;
-  --version|-v) echo "gpu-setup v${SCRIPT_VERSION}" ;;
+  --version|-v) echo "setup-gpu v${SCRIPT_VERSION}" ;;
   --help|-h)
-    echo "Usage: gpu-setup [OPTIONS] COMMAND [ARGS]"
+    echo "Usage: setup-gpu [OPTIONS] COMMAND [ARGS]"
     echo
     echo "Host commands (Proxmox only):"
     echo "  status              Show current GPU passthrough state"
@@ -1974,19 +1990,19 @@ case "$MODE" in
     echo "  -y, --yes           Non-interactive mode (auto-confirm all prompts)"
     echo
     echo "Examples:"
-    echo "  gpu-setup                          # Interactive menu (auto-detects host/VM)"
-    echo "  gpu-setup enable                   # Configure host for passthrough"
-    echo "  gpu-setup bind 200                 # Bind GPU to VM 200"
-    echo "  gpu-setup bind 200 -y              # Non-interactive bind (for Webmin)"
-    echo "  gpu-setup bind free -y             # Unbind GPU from all VMs"
-    echo "  gpu-setup driver                   # Install NVIDIA driver in VM"
-    echo "  gpu-setup driver --uninstall       # Remove NVIDIA driver from VM"
+    echo "  setup-gpu                          # Interactive menu (auto-detects host/VM)"
+    echo "  setup-gpu enable                   # Configure host for passthrough"
+    echo "  setup-gpu bind 200                 # Bind GPU to VM 200"
+    echo "  setup-gpu bind 200 -y              # Non-interactive bind (for Webmin)"
+    echo "  setup-gpu bind free -y             # Unbind GPU from all VMs"
+    echo "  setup-gpu driver                   # Install NVIDIA driver in VM"
+    echo "  setup-gpu driver --uninstall       # Remove NVIDIA driver from VM"
     echo
     echo "The script auto-detects whether it's running on a Proxmox host or VM."
     ;;
   *)
     err "Unknown command: $MODE"
-    echo "Usage: gpu-setup {status|snapshot|enable|bind|revert|driver}"
+    echo "Usage: setup-gpu {status|snapshot|enable|bind|revert|driver}"
     echo "Run with no arguments for interactive menu."
     echo "Run with --help for full usage."
     exit 1
