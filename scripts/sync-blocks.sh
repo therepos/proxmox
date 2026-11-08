@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Copy the shared blocks (admonition, menu) into every installer and tool
+# Purpose: Copy the shared blocks (admonition, menu, shortcut) into every installer and tool
 # =============================================================================
 # Usage:
 #   scripts/sync-blocks.sh           copy each block into every script that has its markers
@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # --- Blocks ------------------------------------------------------------------
-BLOCK_NAMES=(admonition menu)
+BLOCK_NAMES=(admonition menu shortcut)
 
 # admonition: ok/info/warn/fail output and banner titles (every script)
 # shellcheck disable=SC2034  # read via ${!var} below
@@ -58,6 +58,30 @@ menu() {
     fi
     warn "Choose a number from 0 to $#."
   done
+}
+BLOCK
+)
+
+# shortcut: Settings > Shortcut, a shell command named after the script that runs the latest
+# version from GitHub (needs SCRIPT_URL, the raw URL of the script, set above the block)
+#   menu "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
+#   case "$CHOICE" in Shortcut) shortcut_toggle ;; ... esac
+# shellcheck disable=SC2034  # read via ${!var} below
+BLOCK_shortcut=$(cat <<'BLOCK'
+SHORTCUT_RC="${HOME:-/root}/.bashrc"
+shortcut_name() { local n="${SCRIPT_URL##*/}"; printf '%s' "${n%.sh}"; }
+shortcut_line() {
+  # shellcheck disable=SC2016  # expanded when the shortcut runs
+  printf '%s() { bash -c "$(wget -qLO- %s?$(date +%%s))" %s "$@"; }' "$(shortcut_name)" "$SCRIPT_URL" "$(shortcut_name)"
+}
+shortcut_on() { grep -qxF "$(shortcut_line)" "$SHORTCUT_RC" 2>/dev/null; }
+shortcut_state() { if shortcut_on; then printf on; else printf off; fi; }
+shortcut_toggle() {
+  local was=0; shortcut_on && was=1
+  [[ -f "$SHORTCUT_RC" ]] && sed -i "/^$(shortcut_name)() /d" "$SHORTCUT_RC"
+  if (( was )); then ok "Shortcut removed."; return 0; fi
+  printf '%s\n' "$(shortcut_line)" >> "$SHORTCUT_RC"
+  ok "Shortcut added. In a new shell, type: $(shortcut_name)"
 }
 BLOCK
 )
