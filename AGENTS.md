@@ -40,7 +40,8 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
 - Read input with `</dev/tty`; with no tty, take the safe default.
 - Scripts run again later (like `setup-gpu.sh`) offer Settings > Shortcut via the `shortcut` block: a `.bashrc`
   command named after the script that runs the latest version from GitHub (set `SCRIPT_URL` above the block).
-  Never save a local copy of a script.
+  Never save a local copy of a script; remove an old one on the next run. Next-step hints name the menu option
+  ("run this again and choose Bind"), not a command that may not exist.
 - Idempotent: detect existing state and skip; "nothing to do" exits 0. Restart a service only when its config changed.
 - Prechecks: on the wrong machine say where to run it; offer to install a missing prerequisite with its
   `setup-<subject>.sh` instead of only failing. Pass third-party installers their yes/force flag.
@@ -82,7 +83,7 @@ when restored, 3 when it has no backup for that app, anything else on failure.
 - CI checks changed scripts on every PR and push (every script weekly, on a manual run, or when those files
   change) and pushes safe fixes to the PR branch, never to `main`.
 - Work on a branch and open a PR (`gh api repos/<owner>/<repo>/pulls`; GraphQL `gh pr` commands are blocked here);
-  merge only when lint is green. Commit before tests that run `git checkout`, and check each edit landed
+  merge only when lint is green. Run negative tests on a temp copy, never via `git checkout` (it drops uncommitted edits), and check each edit landed
   (`git diff`) before reporting it.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
