@@ -3,7 +3,7 @@
 # Purpose: Dump a full Proxmox VE configuration/health report to a text file (PVE host)
 # =============================================================================
 # Usage:
-#   report-pve.sh [output-file]      # default: ./pve-report.txt; prints a system map at the end
+#   report-pve.sh [output-file]      # default: ./pve-report.txt (system map first)
 #
 #   find / -name pve-report.txt 2>/dev/null
 # Environment:
@@ -645,7 +645,4 @@ collect "PERFORMANCE"          pveperf
 { echo ""; echo "==================== END OF REPORT ===================="; } >>"$OUT"
 
 ok "Report complete: $OUT"
-banner "System map"
-awk '/^========== SYSTEM MAP/ {on = 1; next} /^========== / {on = 0} on && NF' "$OUT"
-info "For a new Claude session: paste the map above, or upload $OUT for full detail."
 info "Contains hostnames, IPs, MACs and serials — review before sharing."
