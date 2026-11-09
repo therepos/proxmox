@@ -7,7 +7,7 @@
 #   report-llmfit.sh fit              ranked table of models that fit
 #   report-llmfit.sh agent            only models with tool-use support (Hermes)
 #   report-llmfit.sh perfect          only models that fit fully in VRAM
-#   report-llmfit.sh recommend        shortlist as JSON
+#   report-llmfit.sh uncensored       only abliterated / uncensored models
 #   report-llmfit.sh system           detected GPU / VRAM / RAM
 #   report-llmfit.sh uninstall        remove llmfit (add --all to remove uv too)
 #   report-llmfit.sh <other>          passed straight through to llmfit
@@ -116,6 +116,18 @@ cmd_fit()     { run_llmfit fit -n "$LIMIT" "$@"; }
 cmd_agent()   { run_llmfit fit --tool-use -n "$LIMIT" "$@"; }
 cmd_perfect() { run_llmfit fit --perfect -n "$LIMIT" "$@"; }
 
+# llmfit has no uncensored filter: rank everything, keep matching names, cut to LIMIT.
+cmd_uncensored() {
+    ensure_uv
+    gpu_note
+    info "uvx llmfit fit -n 5000 (names matching abliterated / heretic / uncensored)"
+    uvx llmfit fit -n 5000 "$@" | awk -v lim="$LIMIT" '
+        !body { if ($0 ~ /^Found [0-9]+ compatible/) next; print; if ($0 ~ /^├/) body=1; next }
+        /^╰/  { if (!n) print "│ (none fit this machine)"; print; body=2; next }
+        body == 1 { if (n < lim && tolower($0) ~ /abliterat|heretic|uncensor/) { print; n++ } next }
+        { print }'
+}
+
 remove_uv() {
     local f
     rm -rf "$HOME/.cache/uv" "$HOME/.local/share/uv"
@@ -183,18 +195,18 @@ main_menu() {
         menu "Fit|models that fit, ranked" \
              "Agent|tool-use models only (Hermes)" \
              "Perfect|models that fit fully in VRAM" \
-             "Recommend|shortlist as JSON" \
+             "Uncensored|abliterated / uncensored models only" \
              "System|detected GPU, VRAM and RAM" \
              "Settings" \
              "Uninstall|remove llmfit (and optionally uv)"
         case "$CHOICE" in
-            Fit)       cmd_fit || warn "llmfit exited with an error." ;;
-            Agent)     cmd_agent || warn "llmfit exited with an error." ;;
-            Perfect)   cmd_perfect || warn "llmfit exited with an error." ;;
-            Recommend) run_llmfit recommend --limit "$LIMIT" || warn "llmfit exited with an error." ;;
-            System)    run_llmfit system || warn "llmfit exited with an error." ;;
-            Settings)  settings_menu ;;
-            Uninstall) uninstall_menu ;;
+            Fit)        cmd_fit || warn "llmfit exited with an error." ;;
+            Agent)      cmd_agent || warn "llmfit exited with an error." ;;
+            Perfect)    cmd_perfect || warn "llmfit exited with an error." ;;
+            Uncensored) cmd_uncensored || warn "llmfit exited with an error." ;;
+            System)     run_llmfit system || warn "llmfit exited with an error." ;;
+            Settings)   settings_menu ;;
+            Uninstall)  uninstall_menu ;;
         esac
     done
 }
@@ -205,7 +217,7 @@ case "${1:-}" in
     fit)         shift; cmd_fit "$@" ;;
     agent)       shift; cmd_agent "$@" ;;
     perfect)     shift; cmd_perfect "$@" ;;
-    recommend)   shift; run_llmfit recommend --limit "$LIMIT" "$@" ;;
+    uncensored)  shift; cmd_uncensored "$@" ;;
     system)      shift; run_llmfit system "$@" ;;
     uninstall)   shift; cmd_uninstall "$@" ;;
     -h|--help)   sed -n '5,13p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; exit 0 ;;
