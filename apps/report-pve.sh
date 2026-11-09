@@ -3,7 +3,7 @@
 # Purpose: Dump a full Proxmox VE configuration/health report to a text file (PVE host)
 # =============================================================================
 # Usage:
-#   report-pve.sh [output-file]      # default: ./pve-report.txt
+#   report-pve.sh [output-file]      # default: ./pve-report.txt; prints a system map at the end
 #
 #   find / -name pve-report.txt 2>/dev/null
 # Environment:
@@ -110,6 +110,123 @@ pending_reboot() {
     newest=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sed 's|.*/vmlinuz-||' | sort -V | tail -1)
     [[ -n "$newest" && "$newest" != "$running" ]] || return 1
     echo "running $running, newest installed $newest"
+}
+
+# --- System map --------------------------------------------------------------
+# One screen a new session can read first: guests with IPs, what runs inside them,
+# snapshots, firewall and storage. Every probe is time-boxed and optional.
+
+# Field "key=value" from a comma-separated config value.
+_kv() { tr ',' '\n' <<<"$1" | sed -n "s/^$2=//p" | head -1; }
+_gb() { awk -v m="$1" 'BEGIN { if (m >= 1024) printf "%gG", m / 1024; else printf "%sM", m }'; }
+
+# First global IPv4 that is not a container bridge, from `ip -4 -o addr` output on stdin.
+_pick_ip() { awk '$2 !~ /^(docker|br-|veth|lo|virbr|tailscale|cni|flannel)/ { split($4, a, "/"); print a[1]; exit }'; }
+
+_ct_ip() {
+    timeout 8 pct exec "$1" -- ip -4 -o addr show scope global 2>/dev/null | _pick_ip || true
+}
+_vm_ip() {
+    timeout 8 qm guest cmd "$1" network-get-interfaces 2>/dev/null | python3 -c '
+import json, sys
+try: ifs = json.load(sys.stdin)
+except Exception: sys.exit()
+skip = ("lo", "docker", "br-", "veth", "virbr", "tailscale", "cni")
+for i in ifs:
+    if i.get("name", "").startswith(skip): continue
+    for a in i.get("ip-addresses", []):
+        if a.get("ip-address-type") == "ipv4": print(a["ip-address"]); sys.exit()
+' 2>/dev/null || true
+}
+
+# "name|image|status" lines for Docker containers inside a running guest.
+_docker_cmd='command -v docker >/dev/null 2>&1 && docker ps --format "{{.Names}}|{{.Image}}|{{.Status}}" 2>/dev/null'
+_ct_docker() { timeout 10 pct exec "$1" -- sh -c "$_docker_cmd" 2>/dev/null || true; }
+_vm_docker() {
+    timeout 15 qm guest exec "$1" --timeout 10 -- sh -c "$_docker_cmd" 2>/dev/null | python3 -c '
+import json, sys
+try: print(json.load(sys.stdin).get("out-data", ""), end="")
+except Exception: pass
+' 2>/dev/null || true
+}
+
+# "name (date)" for each snapshot, comma-separated.
+_snaps() {
+    "$1" listsnapshot "$2" 2>/dev/null | awk '
+        { for (i = 1; i <= NF; i++) if ($i ~ /->$/) { n = $(i + 1); d = $(i + 2); break } }
+        n && n != "current" { out = out (out ? ", " : "") n (d ~ /^[0-9]{4}-/ ? " (" d ")" : ""); n = "" }
+        END { print out }' || true
+}
+
+_fw() { # firewall summary for guest $1 with NIC line $2
+    local f="/etc/pve/firewall/$1.fw" n
+    [[ -f "$f" ]] && grep -qx 'enable: 1' "$f" || return 0
+    n=$(grep -cE '^(IN|OUT|GROUP) ' "$f" || true)
+    if [[ "$2" == *"firewall=1"* ]]; then echo "on, ${n} rules$(grep -qx 'ipfilter: 1' "$f" && echo ', ipfilter')"
+    else echo "rules defined but NIC firewall=0 (inactive)"; fi
+}
+
+_guest_line() { # type id
+    local t="$1" id="$2" cfg name state cores mem disk net0 ip mode extra=() kids=() fw sn d
+    if [[ "$t" == CT ]]; then
+        cfg=$(pct config "$id" 2>/dev/null) || return 0
+        name=$(sed -n 's/^hostname: //p' <<<"$cfg")
+        state=$(pct status "$id" 2>/dev/null | awk '{print $2}')
+        disk=$(_kv "$(sed -n 's/^rootfs: //p' <<<"$cfg")" size)
+        net0=$(sed -n 's/^net0: //p' <<<"$cfg")
+        mode=$(_kv "$net0" ip); [[ "$mode" == dhcp ]] || mode=fixed
+        [[ "$state" == running ]] && ip=$(_ct_ip "$id")
+        [[ -z "${ip:-}" ]] && ip=$(_kv "$net0" ip | cut -d/ -f1)
+        [[ "$ip" == dhcp ]] && ip=""
+        grep -q '^unprivileged: 1' <<<"$cfg" || extra+=(privileged)
+        [[ "$state" == running ]] && while IFS='|' read -r d img st; do
+            [[ -n "$d" ]] && kids+=("docker: $d  $img  $st")
+        done < <(_ct_docker "$id")
+    else
+        cfg=$(qm config "$id" 2>/dev/null) || return 0
+        name=$(sed -n 's/^name: //p' <<<"$cfg")
+        state=$(qm status "$id" 2>/dev/null | awk '{print $2}')
+        disk=$(awk -F': ' '/^(scsi|virtio|sata|ide)[0-9]+: / && $2 !~ /media=cdrom|cloudinit/ { print $2; exit }' <<<"$cfg")
+        disk=$(_kv "$disk" size)
+        net0=$(sed -n 's/^net0: //p' <<<"$cfg")
+        ip=$(_kv "$(sed -n 's/^ipconfig0: //p' <<<"$cfg")" ip | cut -d/ -f1)
+        if [[ -n "$ip" && "$ip" != dhcp ]]; then mode=fixed; else mode=""; ip=""; fi
+        [[ -z "$ip" && "$state" == running ]] && ip=$(_vm_ip "$id")
+        grep -q '^hostpci' <<<"$cfg" && extra+=("GPU passthrough")
+        [[ "$state" == running ]] && while IFS='|' read -r d img st; do
+            [[ -n "$d" ]] && kids+=("docker: $d  $img  $st")
+        done < <(_vm_docker "$id")
+    fi
+    cores=$(sed -n 's/^cores: //p' <<<"$cfg"); mem=$(sed -n 's/^memory: //p' <<<"$cfg")
+    grep -q '^onboot: 1' <<<"$cfg" && extra+=(onboot)
+    printf '├── %-3s %-5s %-16s %-8s %-15s %-6s %s\n' "$([[ $t == CT ]] && echo LXC || echo VM)" "$id" "${name:-?}" "${state:-?}" "${ip:--}" "${mode:-}" \
+        "${cores:-1}c $(_gb "${mem:-512}") ${disk:--}${extra:+  ${extra[*]}}"
+    fw=$(_fw "$id" "$net0"); [[ -n "$fw" ]] && kids+=("firewall: $fw")
+    sn=$(_snaps "$([[ $t == CT ]] && echo pct || echo qm)" "$id"); [[ -n "$sn" ]] && kids+=("snapshots: $sn")
+    local i
+    for (( i = 0; i < ${#kids[@]}; i++ )); do
+        if (( i == ${#kids[@]} - 1 )); then printf '│   └── %s\n' "${kids[i]}"; else printf '│   ├── %s\n' "${kids[i]}"; fi
+    done
+}
+
+sec_map() {
+    local cidr gw ver cfw="off" id
+    cidr=$(ip -4 -o addr show 2>/dev/null | awk '$2 ~ /^vmbr/ { print $2 " " $4; exit }' || true)
+    gw=$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}' || true)
+    ver=$(pveversion 2>/dev/null | head -1 | cut -d' ' -f1 || true)
+    if grep -qsx 'enable: 1' /etc/pve/firewall/cluster.fw; then
+        cfw="on (incoming default $(sed -n 's/^policy_in: *//p' /etc/pve/firewall/cluster.fw | head -1))"
+        [[ "$cfw" == *"default )" ]] && cfw="on (incoming default DROP)"
+    fi
+    echo "$(hostname)  host ${cidr:-?}  gw ${gw:-?}  ${ver:-}"
+    echo "│   datacenter firewall: $cfw"
+    for id in $( { pct list 2>/dev/null | awk 'NR>1 {print $1 " CT"}'; qm list 2>/dev/null | awk 'NR>1 {print $1 " VM"}'; } | sort -n | tr ' ' ':'); do
+        _guest_line "${id#*:}" "${id%%:*}"
+    done
+    pvesm status 2>/dev/null | awk 'NR>1 {
+        u = $5 / 1048576; t = $4 / 1048576
+        rows[++n] = sprintf("storage %-12s %-8s %s  %.0fG/%.0fG (%s)", $1, $2, $3, u, t, $7) }
+        END { for (i = 1; i <= n; i++) print (i == n ? "└── " : "├── ") rows[i] }'
 }
 
 # --- Health summary ----------------------------------------------------------
@@ -500,6 +617,7 @@ info "Writing Proxmox report to: $OUT"
     echo "Hostname: $(hostname)"
 } >"$OUT"
 
+collect "SYSTEM MAP"           sec_map
 collect "HEALTH SUMMARY"       sec_summary
 collect "PVE / KERNEL VERSION" sec_versions
 collect "HOST / BOOT / IOMMU"  sec_host
@@ -527,4 +645,7 @@ collect "PERFORMANCE"          pveperf
 { echo ""; echo "==================== END OF REPORT ===================="; } >>"$OUT"
 
 ok "Report complete: $OUT"
+banner "System map"
+awk '/^========== SYSTEM MAP/ {on = 1; next} /^========== / {on = 0} on && NF' "$OUT"
+info "For a new Claude session: paste the map above, or upload $OUT for full detail."
 info "Contains hostnames, IPs, MACs and serials — review before sharing."
