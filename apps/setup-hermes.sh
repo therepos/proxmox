@@ -548,6 +548,7 @@ YAML
     sleep 15
 
     smoke_test "$ctid" || true
+    google_deps "$ctid" || true
 
     local ip; ip="$(ct_ip "$ctid")"
     echo ""
@@ -672,6 +673,7 @@ action_update() {
     fi
     sleep 15
     ok "Updated. Memory, skills and scheduled jobs were preserved."
+    google_deps "$EXISTING_CTID" || true
 }
 
 action_logs() {
@@ -926,6 +928,34 @@ google_status() {  # one line: AUTHENTICATED... / NOT_AUTHENTICATED... / unavail
     gsetup "$1" --check 2>&1 | head -n 1 || true
 }
 
+# The image has no pip and does not ship the skill's Python libraries, so they
+# are lost whenever the container is recreated (Install, Update). Pins are read
+# from setup.py so they follow Hermes' own versions.
+google_deps() {  # google_deps <ctid>: install the libraries if missing
+    local id="$1" pkgs
+    pct exec "$id" -- docker exec hermes test -f "$GSETUP" 2>/dev/null || return 0
+    pct exec "$id" -- docker exec hermes python -c \
+        "import googleapiclient, google_auth_oauthlib, google_auth_httplib2" >/dev/null 2>&1 && return 0
+    pkgs="$(pct exec "$id" -- docker exec hermes grep -oE '(google-[a-z0-9-]+|httplib2|pyasn1)==[0-9][0-9.]*[0-9]' "$GSETUP" 2>/dev/null \
+        | awk -F'==' '!seen[$1]++' | tr '\n' ' ' || true)"
+    [[ -n "${pkgs// /}" ]] || pkgs="google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2 httplib2"
+    info "Installing the Google libraries Gmail and Calendar need..."
+    # uv if the image has it, else pip (bootstrapped by ensurepip or get-pip.py).
+    if pct exec "$id" -- docker exec -u 0 hermes sh -c "P=\$(command -v python)
+        uv pip install --python \"\$P\" $pkgs && exit 0
+        \"\$P\" -m pip --version >/dev/null 2>&1 || \"\$P\" -m ensurepip || {
+            \"\$P\" -c \"import urllib.request as u; u.urlretrieve('https://bootstrap.pypa.io/get-pip.py', '/tmp/get-pip.py')\" \
+            && \"\$P\" /tmp/get-pip.py; }
+        \"\$P\" -m pip install $pkgs" >>"$LOG_FILE" 2>&1 \
+       && pct exec "$id" -- docker exec hermes python -c \
+        "import googleapiclient, google_auth_oauthlib, google_auth_httplib2" >/dev/null 2>&1; then
+        ok "Google libraries installed."
+    else
+        warn "Could not install the Google libraries. See $LOG_FILE"
+        return 1
+    fi
+}
+
 action_google() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
     [[ "$(pct status "$EXISTING_CTID" 2>/dev/null)" == "status: running" ]] \
@@ -934,6 +964,7 @@ action_google() {
     uid="$(hermes_uid "$id")"
     pct exec "$id" -- docker exec hermes test -f "$GSETUP" \
         || fail "The google-workspace skill is missing. Update Hermes (choose Update) and try again."
+    google_deps "$id" || fail "Gmail and Calendar cannot work without them."
 
     st="$(google_status "$id")"
     echo "  Google: $st"
