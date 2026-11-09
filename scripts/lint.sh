@@ -199,6 +199,9 @@ for f in "${PY[@]}"; do
 done
 find . -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
 
+# --- Script page: every script has a display name (all scripts; fast) -------
+while IFS= read -r msg; do bad "${msg%%:*}" "${msg#*: }"; done < <(python3 scripts/docgen-pages.py --check)
+
 if (( errors )); then
     echo "$errors problem(s)."
     exit 1
