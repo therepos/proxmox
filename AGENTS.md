@@ -40,6 +40,7 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
 - Menus use the helper: `menu "Install" "Status|what it shows" "Back"`, then
   `case "$CHOICE" in Install) ...;; Status) ...;; Back) ...;; esac`, matching on names, never numbers.
   It numbers the options, adds `0) Exit` (0 only ever exits) and the prompt. In submenus put `Back` last.
+  A generated option list (`menu "${opts[@]}" "Back"`) is handled by a `*)` branch.
   New menus must use it; convert hand-written menus when you next edit that script. Confirm destructive actions.
 - Read input with `</dev/tty`; with no tty, take the safe default.
 - Users are non-technical: ask only what has no safe default. Show the recommended settings with one
