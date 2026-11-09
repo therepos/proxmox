@@ -92,7 +92,7 @@ when restored, 3 when it has no backup for that app, anything else on failure.
 - CI checks changed scripts on every PR and push (every script weekly, on a manual run, or when those files
   change) and pushes safe fixes to the PR branch, never to `main`.
 - Work on a branch and open a PR (`gh api repos/<owner>/<repo>/pulls`, body via `-F body=@file`; GraphQL `gh pr` commands
-  are blocked here); merge only when lint is green. Dry-run host-changing flows with stub `qm`/`pct`/`ssh` first on `PATH`
+  are blocked here); merge it yourself, without asking, as soon as lint is green. Dry-run host-changing flows with stub `qm`/`pct`/`ssh` first on `PATH`
   against a copy whose `/etc/pve` paths point to a temp dir. Run negative tests on a temp copy, never via `git checkout` (it drops uncommitted edits), and check each edit landed
   (`git diff`) before reporting it.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
