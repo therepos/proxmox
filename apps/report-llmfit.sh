@@ -11,7 +11,6 @@
 #   report-llmfit.sh system           detected GPU / VRAM / RAM
 #   report-llmfit.sh uninstall        remove llmfit (add --all to remove uv too)
 #   report-llmfit.sh <other>          passed straight through to llmfit
-#   LIMIT=25 bash -c "$(wget ...)" _ agent    one-liner form: args go after _
 # =============================================================================
 
 set -euo pipefail
@@ -209,6 +208,6 @@ case "${1:-}" in
     recommend)   shift; run_llmfit recommend --limit "$LIMIT" "$@" ;;
     system)      shift; run_llmfit system "$@" ;;
     uninstall)   shift; cmd_uninstall "$@" ;;
-    -h|--help)   sed -n '5,14p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; exit 0 ;;
+    -h|--help)   sed -n '5,13p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true; exit 0 ;;
     *)           run_llmfit "$@" ;;
 esac
