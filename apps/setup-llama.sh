@@ -10,6 +10,7 @@
 #   update           newest llama.cpp release (model and settings untouched)
 #   thinking on|off  model thinks before answering (smarter) or not (faster)
 #   new-key          replace the API key; prints the one command Hermes needs
+#   model            switch model (official, uncensored or any GGUF); Hermes needs no change
 #   uninstall        remove server + settings; asks separately about the model file
 #
 # What install does (safe to re-run, finished steps are skipped):
@@ -45,6 +46,31 @@ fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
 
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
+
 hr() { echo "================================================================"; }
 
 # Strict mode stops on any unexpected error; say so plainly instead of going quiet.
@@ -72,9 +98,16 @@ THINKING="${LLM_THINKING:-off}"        # off = fast replies; judgement work goes
 VIRTIOFS_TAG="${VIRTIOFS_TAG:-sec}"
 MOUNT_POINT="${MOUNT_POINT:-/mnt/sec}"
 
-HF_REPO="unsloth/Qwen3.6-35B-A3B-GGUF"
+# Model presets: "Name|repo|file|label". The Model menu saves the choice as MODEL_REPO,
+# MODEL_FILE and MODEL_LABEL in the env file; install uses it from then on.
+PRESETS=(
+    "Official|unsloth/Qwen3.6-35B-A3B-GGUF|Qwen3.6-35B-A3B-${QUANT}.gguf|Qwen3.6-35B-A3B (official)"
+    "Uncensored|HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive|Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf|Qwen3.6-35B-A3B Uncensored (HauhauCS)"
+)
+IFS='|' read -r _ HF_REPO MODEL_FILE_NAME MODEL_LABEL <<< "${PRESETS[0]}"
+DEFAULT_REPO="$HF_REPO"
+# Hermes asks for this name; it stays the same whichever model is loaded.
 MODEL_ALIAS="qwen3.6-35b-a3b"
-MODEL_FILE_NAME="Qwen3.6-35B-A3B-${QUANT}.gguf"
 MIN_FREE_GB=30
 
 APP_DIR="/opt/llama"             # binaries: $APP_DIR/releases/<tag>, $APP_DIR/current -> active
@@ -132,6 +165,7 @@ usage() {
     update            newest llama.cpp release
     thinking on|off   smarter (on) or faster (off) replies
     new-key           replace the API key (then update Hermes)
+    model             switch model (Hermes needs no change)
     retune            redo the GPU/RAM split search
     uninstall         remove server and settings (asks about the model file)
 EOF
@@ -185,6 +219,20 @@ unset_env() { [[ -f "$ENV_FILE" ]] && sed -i "/^$1=/d" "$ENV_FILE"; backup_env; 
 get_env() { { grep -s "^$1=" "$ENV_FILE" || true; } | cut -d= -f2- | tr -d "'"; }
 
 is_installed() { [[ -f "$UNIT_FILE" && -f "$ENV_FILE" ]]; }
+
+# Saved model choice overrides the default preset.
+load_model_choice() {
+    local r f; r="$(get_env MODEL_REPO)"; f="$(get_env MODEL_FILE)"
+    if [[ -n "$r" && -n "$f" ]]; then HF_REPO="$r"; MODEL_FILE_NAME="$f"; MODEL_LABEL="$(get_env MODEL_LABEL)"
+    else IFS='|' read -r _ HF_REPO MODEL_FILE_NAME MODEL_LABEL <<< "${PRESETS[0]}"; fi
+}
+model_root() { if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then echo "${MOUNT_POINT}/models"; else echo "${APP_DIR}/models"; fi; }
+# The official model keeps its original folder so existing downloads are reused.
+model_subdir() { # model_subdir repo
+    if [[ "$1" == "$DEFAULT_REPO" ]]; then echo "$MODEL_ALIAS"; return; fi
+    local n="${1##*/}"; n="${n%-GGUF}"; n="${n%-gguf}"; echo "${n,,}"
+}
+model_file_path() { echo "$(model_root)/$(model_subdir "$1")/$2"; } # repo file
 svc_state()    { [[ -f "$UNIT_FILE" ]] || { echo "not installed"; return; }; systemctl is-active "$SERVICE" 2>/dev/null || true; }
 lan_ip()       { ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}' || true; }
 
@@ -234,11 +282,12 @@ step_storage() {
         info "Mounting the '${VIRTIOFS_TAG}' share at ${MOUNT_POINT} (setup-virtiofs.sh)..."
         run_remote setup-virtiofs.sh mount || true
     fi
+    restore_env; load_model_choice
     if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
-        MODEL_DIR="${MOUNT_POINT}/models/${MODEL_ALIAS}"
+        MODEL_DIR="${MOUNT_POINT}/models/$(model_subdir "$HF_REPO")"
         ok "Model storage: ${MODEL_DIR} (host drive, survives a VM rebuild)"
     else
-        MODEL_DIR="${APP_DIR}/models/${MODEL_ALIAS}"
+        MODEL_DIR="${APP_DIR}/models/$(model_subdir "$HF_REPO")"
         warn "The '${VIRTIOFS_TAG}' share is not available; the model would go on this VM's own disk."
         echo "  To use the host's big drive instead, run on the Proxmox host:  virtiofs-setup setup"
         ask_yn "Continue with the VM disk (${MODEL_DIR})?" n || fail "Stopped. Fix the share, then re-run."
@@ -469,6 +518,9 @@ write_service() {
     fi
     set_env MODEL_PATH "$MODEL_PATH"
     set_env MODEL_ALIAS "$MODEL_ALIAS"
+    set_env MODEL_REPO "$HF_REPO"
+    set_env MODEL_FILE "$MODEL_FILE_NAME"
+    set_env MODEL_LABEL "$MODEL_LABEL"
     set_env CTX "$CTX"
     set_env PORT "$PORT"
     set_env THINKING "$THINKING"
@@ -496,6 +548,11 @@ WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
     systemctl enable --now "$SERVICE" >/dev/null 2>&1
+    # A running server keeps its old model until restarted.
+    local mpid; mpid="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || true)"
+    if [[ -n "$mpid" && "$mpid" != "0" ]] && ! tr '\0' ' ' < "/proc/$mpid/cmdline" 2>/dev/null | grep -qF -- "$MODEL_PATH"; then
+        systemctl restart "$SERVICE"
+    fi
     echo -n "  Starting the server"
     local i
     for i in $(seq 1 200); do
@@ -561,7 +618,7 @@ action_install() {
     hr
     echo ""
     info "Step 1/7  NVIDIA driver";        step_driver
-    info "Step 2/7  Model storage";        step_storage; restore_env
+    info "Step 2/7  Model storage";        step_storage
     info "Step 3/7  llama.cpp";            step_llama
     info "Step 4/7  Model download";       step_model
     info "Step 5/7  GPU/RAM split";        step_tune
@@ -577,7 +634,7 @@ action_status_brief() {
     load_env || return 0
     echo ""
     echo "  Service  : ${SERVICE}  [$(svc_state)]"
-    echo "  Model    : ${MODEL_PATH:-?}"
+    echo "  Model    : ${MODEL_LABEL:-Qwen3.6-35B-A3B (official)}  (${MODEL_PATH:-?})"
     echo "  Split    : --n-cpu-moe ${N_CPU_MOE:-?}   Speed: ~${TOKENS_PER_SEC:-?} tokens/sec   Thinking: ${THINKING:-off}"
     echo "  GPU      : $(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader 2>/dev/null | head -1 || echo unknown)"
     echo "  Address  : http://$(lan_ip):${PORT:-8080}/v1"
@@ -668,67 +725,158 @@ action_new_key() {
     echo ""
 }
 
-# --- Settings menu -----------------------------------------------------------
-settings_menu() {
-    load_env || fail "Not installed yet. Choose 'Install' first."
+# --- Model ------------------------------------------------------------------
+# Switch by re-running install with another model: download (kept on disk for later),
+# retune, restart. Address, key and model name stay the same, so Hermes needs no change.
+switch_model() { # switch_model repo file label
+    local repo="$1" file="$2" label="$3" size path
+    size="$(HF_REPO="$repo"; MODEL_FILE_NAME="$file"; hf_file_size || true)"
+    path="$(model_file_path "$repo" "$file")"
     echo ""
-    echo "  Settings"
-    echo "  ----------------------------------------------------------------"
-    echo "  Thinking mode is currently: ${THINKING:-off}"
-    echo ""
-    echo "  1) Thinking mode on   (smarter, slower replies)"
-    echo "  2) Thinking mode off  (faster replies, recommended)"
-    echo "  3) New API key        (use if the old key may have leaked)"
-    echo "  b) Back"
-    echo ""
-    local c
-    read -rp "Select an option: " c </dev/tty
-    echo ""
-    case "$c" in
-        1) action_thinking on ;;
-        2) action_thinking off ;;
-        3) action_new_key ;;
-        b|B) menu ;;
-        *) fail "Invalid option." ;;
+    info "${label}"
+    echo "       ${repo}/${file}${size:+, $(( size / 1000000000 )) GB}"
+    [[ -s "$path" ]] && echo "       Already downloaded."
+    echo "       Hermes keeps working: same address, key and model name."
+    ask_yn "Switch to this model?" y || { info "Cancelled."; return 0; }
+    if ! is_installed; then
+        HF_REPO="$repo"; MODEL_FILE_NAME="$file"; MODEL_LABEL="$label"; action_install; return 0
+    fi
+    # Run in a subshell so a failed download or tune falls back to the previous model.
+    if ( HF_REPO="$repo"; MODEL_FILE_NAME="$file"; MODEL_LABEL="$label"
+         rm -f "$ENV_FILE.prev"; cp -f "$ENV_FILE" "$ENV_FILE.prev"
+         set_env MODEL_REPO "$repo"; set_env MODEL_FILE "$file"; set_env MODEL_LABEL "$label"
+         action_install ); then
+        rm -f "$ENV_FILE.prev"
+        ok "Switched to ${label}."
+    else
+        if [[ -f "$ENV_FILE.prev" ]]; then mv -f "$ENV_FILE.prev" "$ENV_FILE"; backup_env; fi
+        systemctl start "$SERVICE" 2>/dev/null || true
+        warn "Could not switch; the previous model is running again."
+    fi
+}
+
+# Pick a .gguf from any public Hugging Face repo. Split and vision (mmproj) files are skipped.
+custom_model() {
+    local repo files vram ram rec="" line name sz opts=() i
+    read -rp "  Hugging Face repo (owner/name): " repo </dev/tty || repo=""
+    repo="${repo#https://huggingface.co/}"; repo="${repo%%/tree/*}"; repo="${repo%/}"
+    [[ "$repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || { warn "Use the form owner/name."; return 0; }
+    files="$(curl -fsSL --max-time 30 "https://huggingface.co/api/models/${repo}/tree/main?recursive=true" \
+        | jq -r '.[] | select(.type=="file") | select(.path|test("\\.gguf$")) | select(.path|test("mmproj|-of-[0-9]+\\.gguf$")|not)
+                 | "\(.path)|\(.lfs.size // .size)"' 2>/dev/null | sort -t'|' -k2 -n || true)"
+    [[ -n "$files" ]] || { warn "No single-file GGUF models found in ${repo} (or it is private / misspelt)."; return 0; }
+    vram=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9' || true)
+    vram=$(( ${vram:-0} / 1024 )); ram=$(free -g | awk '/^Mem:/ {print $2}')
+    # Largest file within GPU + 4 GB (rest goes to RAM) is the recommended pick.
+    while IFS='|' read -r name sz; do
+        (( sz / 1000000000 <= vram + 4 )) && rec="$name"
+    done <<< "$files"
+    while IFS='|' read -r name sz; do
+        (( sz / 1000000000 > vram + ram - 8 )) && continue
+        line="${name##*/}|$(( sz / 1000000000 )) GB"; [[ "$name" == "$rec" ]] && line+="  recommended"
+        opts+=("$line")
+    done <<< "$files"
+    (( ${#opts[@]} )) || { warn "None of the files in ${repo} fit this VM (${vram} GB GPU + ${ram} GB RAM)."; return 0; }
+    info "Files that fit this VM (${vram} GB GPU + ${ram} GB RAM):"
+    menu "${opts[@]}" "Back"
+    case "$CHOICE" in
+        Back) return 0 ;;
+        *)  while IFS='|' read -r name sz; do [[ "${name##*/}" == "$CHOICE" ]] && break; done <<< "$files"
+            warn "Sampling settings are tuned for Qwen, and Hermes needs working tool calls (the test step shows it)."
+            switch_model "$repo" "$name" "${repo##*/} (${CHOICE%.gguf})" ;;
     esac
 }
 
-# --- Menu --------------------------------------------------------------------
-menu() {
-    echo ""
-    banner "Local LLM for Hermes - GPU VM Installer"
-    echo ""
-    if is_installed; then
-        ok "Installed  [$(svc_state)]"
-    else
-        info "Not installed"
-        echo ""
-        echo "  Runs a free open model (Qwen3.6-35B-A3B) on this VM's GPU so Hermes can do"
-        echo "  routine work without using Claude credits. Takes 20-40 minutes the first"
-        echo "  time (22 GB download). Everything else is automatic."
-    fi
-    echo ""
-    echo "  1) Install or repair"
-    echo "  2) Status"
-    echo "  3) Test (tool call + speed)"
-    echo "  4) Settings"
-    echo "  5) Update llama.cpp"
-    echo "  6) Uninstall"
-    echo "  0) Exit"
-    echo ""
-    local choice
-    read -rp "Select an option: " choice </dev/tty
-    echo ""
-    case "$choice" in
-        1) action_install ;;
-        2) action_status ;;
-        3) run_test ;;
-        4) settings_menu ;;
-        5) action_update ;;
-        6) action_uninstall ;;
-        0) exit 0 ;;
-        *) fail "Invalid option." ;;
+delete_model() {
+    local root cur d opts=() size
+    root="$(model_root)"; load_env || true; cur="$(dirname "${MODEL_PATH:-/nonexistent/x}")"
+    for d in "$root"/*/; do
+        d="${d%/}"; [[ -d "$d" && "$d" != "$cur" ]] || continue
+        compgen -G "$d/*.gguf" >/dev/null || continue
+        size="$(du -sh "$d" 2>/dev/null | cut -f1)"
+        opts+=("${d##*/}|${size}")
+    done
+    (( ${#opts[@]} )) || { info "No other downloaded models (the running one cannot be deleted)."; return 0; }
+    info "Downloaded models in ${root} (the running one is not listed):"
+    menu "${opts[@]}" "Back"
+    case "$CHOICE" in
+        Back) return 0 ;;
+        *)  ask_yn "Delete ${root}/${CHOICE}?" n || { info "Nothing deleted."; return 0; }
+            rm -rf "${root:?}/${CHOICE:?}"
+            ok "Deleted ${CHOICE}." ;;
     esac
+}
+
+model_menu() {
+    local p name repo file label tag opts cur
+    while true; do
+        load_model_choice
+        cur="$HF_REPO|$MODEL_FILE_NAME"
+        banner "Local LLM > Model"
+        info "Current: ${MODEL_LABEL}  ·  ${MODEL_FILE_NAME}"
+        opts=()
+        for p in "${PRESETS[@]}"; do
+            IFS='|' read -r name repo file label <<< "$p"
+            tag=""
+            if [[ "$repo|$file" == "$cur" ]]; then tag="  [current]"
+            elif [[ -s "$(model_file_path "$repo" "$file")" ]]; then tag="  [downloaded]"; fi
+            opts+=("${name}|${label}${tag}")
+        done
+        menu "${opts[@]}" "Custom|any GGUF from Hugging Face" "Delete|remove a model you no longer use" "Back"
+        case "$CHOICE" in
+            Custom) custom_model ;;
+            Delete) delete_model ;;
+            Back)   return 0 ;;
+            *)  for p in "${PRESETS[@]}"; do
+                    IFS='|' read -r name repo file label <<< "$p"
+                    [[ "$name" == "$CHOICE" ]] || continue
+                    if [[ "$repo|$file" == "$cur" ]] && is_installed; then info "Already running ${label}."
+                    else switch_model "$repo" "$file" "$label"; fi
+                done ;;
+        esac
+    done
+}
+
+# --- Settings menu -----------------------------------------------------------
+settings_menu() {
+    load_env || fail "Not installed yet. Choose 'Install' first."
+    while true; do
+        load_env
+        banner "Local LLM > Settings"
+        info "Thinking mode: ${THINKING:-off}"
+        menu "Thinking on|smarter, slower replies" "Thinking off|faster replies (recommended)" \
+             "New API key|use if the old key may have leaked" "Back"
+        case "$CHOICE" in
+            "Thinking on")  action_thinking on ;;
+            "Thinking off") action_thinking off ;;
+            "New API key")  action_new_key ;;
+            Back)           return 0 ;;
+        esac
+    done
+}
+
+# --- Menu --------------------------------------------------------------------
+main_menu() {
+    while true; do
+        banner "Local LLM for Hermes"
+        if is_installed; then
+            load_env; load_model_choice
+            ok "Installed [$(svc_state)]  ·  Model: ${MODEL_LABEL}"
+        else
+            info "Not installed. Runs Qwen3.6-35B-A3B on this VM's GPU for Hermes (20-40 min, 22 GB download)."
+        fi
+        menu "Install|or repair" "Status" "Test|tool call + speed" "Model|switch to another model" \
+             "Settings" "Update|llama.cpp" "Uninstall"
+        case "$CHOICE" in
+            Install)   action_install ;;
+            Status)    action_status ;;
+            Test)      run_test ;;
+            Model)     model_menu ;;
+            Settings)  settings_menu ;;
+            Update)    action_update ;;
+            Uninstall) action_uninstall ;;
+        esac
+    done
 }
 
 # --- Dispatch ----------------------------------------------------------------
@@ -739,7 +887,8 @@ done
 set -- "${ARGS[@]+"${ARGS[@]}"}"
 
 case "${1:-}" in
-    "")         menu ;;
+    "")         main_menu ;;
+    model)      model_menu ;;
     install)    action_install ;;
     status)     action_status ;;
     test)       run_test ;;

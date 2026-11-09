@@ -162,6 +162,8 @@ for i, line in enumerate(lines):
         print(f"line {i+1}: menu is not followed by case \"$CHOICE\" in")
         continue
     for n in names:
+        if n.startswith("$"):  # dynamic list, handled by a *) branch
+            continue
         pat = r'(^|[\s|(])("' + re.escape(n) + r'"|' + re.escape(n) + r')\s*[|)]'
         if not re.search(pat, text, re.M):
             print(f"line {i+1}: menu option '{n}' has no case branch")
