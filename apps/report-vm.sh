@@ -3,7 +3,7 @@
 # Purpose: Dump a full guest (VM or LXC) configuration/health report to a text file (Debian/Ubuntu)
 # =============================================================================
 # Usage:
-#   report-vm.sh [output-file]       # default: ./vm-report.txt
+#   report-vm.sh [output-file]       # default: ./vm-report.txt (system map first)
 #
 # Environment:
 #   SECTION_TIMEOUT=90   seconds any single section may run before it is
@@ -554,6 +554,63 @@ sec_perf() {
     fi
 }
 
+# --- System map --------------------------------------------------------------
+# One screen a new session can read first: identity, resources, network, what runs here.
+_tree() { # print lines from stdin as tree children
+    local lines=() i
+    mapfile -t lines
+    for (( i = 0; i < ${#lines[@]}; i++ )); do
+        [[ -n "${lines[i]}" ]] || continue
+        if (( i == ${#lines[@]} - 1 )); then printf '└── %s\n' "${lines[i]}"; else printf '├── %s\n' "${lines[i]}"; fi
+    done
+}
+
+sec_map() {
+    local os kind cores mem root gw dns
+    os=$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-unknown}")
+    if is_container; then kind="LXC"; else kind="VM"; fi
+    cores=$(nproc 2>/dev/null || echo "?")
+    mem=$(free -g 2>/dev/null | awk '/^Mem:/ {print $2 "G"}' || true)
+    root=$(df -hP / 2>/dev/null | awk 'NR==2 {print $2 " (" $5 " used)"}' || true)
+    gw=$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}' || true)
+    dns=$(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | paste -sd, || true)
+    [[ "$dns" == 127.0.0.53 ]] && dns=$(resolvectl dns 2>/dev/null | awk -F': ' 'NF > 1 && $2 != "" {print $2; exit}' || echo "$dns")
+    echo "$(hostname)  $kind ($(virt_type))  ${os}  ${cores}c ${mem:-?}  root ${root:-?}"
+    {
+        ip -4 -o addr show scope global 2>/dev/null \
+            | awk '$2 !~ /^(docker|br-|veth|virbr|cni|flannel)/ { printf "ip: %s %s\n", $2, $4 }' || true
+        echo "gateway ${gw:--}  dns ${dns:--}"
+        if gpu_present; then
+            if has nvidia-smi; then
+                nvidia-smi --query-gpu=name,driver_version,memory.used,memory.total --format=csv,noheader 2>/dev/null \
+                    | sed 's/^/gpu: /' || echo "gpu: present, nvidia-smi failed"
+            else
+                lspci 2>/dev/null | grep -iE 'VGA|3D controller' | grep -viE 'virtio|qxl|bochs|cirrus|vmware' \
+                    | sed 's/^[^ ]* [^:]*: /gpu: /' | head -2 || true
+            fi
+        fi
+        findmnt -rn -t virtiofs,9p,nfs,nfs4,cifs -o TARGET,FSTYPE 2>/dev/null | awk '{print "mount: " $1 " (" $2 ")"}' || true
+        if has docker; then
+            docker ps --format 'docker: {{.Names}}  {{.Image}}  {{.Status}}' 2>/dev/null || echo "docker: installed, daemon not reachable"
+        fi
+        ss -Hltnp 2>/dev/null | awk '{
+            n = split($4, a, ":"); port = a[n]; addr = substr($4, 1, length($4) - length(port) - 1)
+            if (addr ~ /^(127\.|\[::1\])/) next
+            p = $6; sub(/^users:\(\("/, "", p); sub(/".*/, "", p)
+            if (!(port in seen)) { seen[port] = 1; out = out (out ? ", " : "") port " " p }
+        } END { if (out) print "listening: " out }' || true
+        local u
+        for u in /etc/systemd/system/*.service; do
+            [[ -f "$u" && ! -L "$u" ]] || continue   # aliases point at packaged units
+            u=${u##*/}
+            echo "service: ${u%.service} ($(systemctl is-active "$u" 2>/dev/null || true), $(systemctl is-enabled "$u" 2>/dev/null || true))"
+        done
+        u=$(systemctl list-units --failed --no-legend --no-pager 2>/dev/null | wc -l)
+        if (( u > 0 )); then echo "failed units: $u"; fi
+        if u=$(pending_reboot); then echo "reboot pending: $u"; fi
+    } | _tree
+}
+
 # --- Pre-flight --------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 [[ -f /etc/os-release ]] || fail "No /etc/os-release — is this a Linux guest?"
@@ -574,6 +631,7 @@ info "Writing guest report to: $OUT"
     echo "Hostname: $(hostname)   Virtualisation: $(virt_type)"
 } >"$OUT"
 
+collect "SYSTEM MAP"       sec_map
 collect "HEALTH SUMMARY"   sec_summary
 collect "OS"               sec_os
 collect "VIRTUALISATION"   sec_virt
