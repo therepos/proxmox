@@ -24,6 +24,30 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
 
 CYAN="\e[36m"
 RESET="\e[0m"
@@ -50,6 +74,8 @@ DASH_BIND="127.0.0.1"
 DASH_ENABLE=""
 DASH_USER=""
 DASH_PASS=""
+
+SANDBOX_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-hermessb.sh"
 
 PAGES_PORT=8088
 PAGES_DIR="/opt/hermes-pages"
@@ -114,19 +140,13 @@ choose_provider() {
     echo "  A chat subscription (Claude Pro/Max, ChatGPT Plus, Gemini"
     echo "  Advanced) is NOT the same thing and will not work here."
     echo ""
-    echo "    1) Anthropic  - Claude    console.anthropic.com"
-    echo "    2) Google     - Gemini    aistudio.google.com"
-    echo "    3) OpenAI     - GPT       platform.openai.com"
-    echo "    4) OpenRouter - many      openrouter.ai"
-    echo ""
-    local c
-    read -p "  Select [1-4]: " c </dev/tty
-    case "$c" in
-        1) PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-haiku-5-5" ;;
-        2) PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_ID="gemini";     PROVIDER_MODEL="gemini-3.6-flash" ;;
-        3) PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_ID="";           PROVIDER_MODEL="" ;;
-        4) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_ID="openrouter"; PROVIDER_MODEL="" ;;
-        *) fail "Invalid choice." ;;
+    menu "Anthropic|Claude    console.anthropic.com" "Google|Gemini    aistudio.google.com" \
+        "OpenAI|GPT       platform.openai.com" "OpenRouter|many      openrouter.ai"
+    case "$CHOICE" in
+        Anthropic)  PROVIDER_LABEL="Anthropic";  PROVIDER_ENVVAR="ANTHROPIC_API_KEY";  PROVIDER_ID="anthropic";  PROVIDER_MODEL="claude-haiku-5-5" ;;
+        Google)     PROVIDER_LABEL="Gemini";     PROVIDER_ENVVAR="GEMINI_API_KEY";     PROVIDER_ID="gemini";     PROVIDER_MODEL="gemini-3.6-flash" ;;
+        OpenAI)     PROVIDER_LABEL="OpenAI";     PROVIDER_ENVVAR="OPENAI_API_KEY";     PROVIDER_ID="";           PROVIDER_MODEL="" ;;
+        OpenRouter) PROVIDER_LABEL="OpenRouter"; PROVIDER_ENVVAR="OPENROUTER_API_KEY"; PROVIDER_ID="openrouter"; PROVIDER_MODEL="" ;;
     esac
 
     echo ""
@@ -168,7 +188,7 @@ setup_telegram() {
     local c
     read -p "  Set up Telegram now? [Y/n]: " c </dev/tty
     if [[ "$c" =~ ^[Nn]$ ]]; then
-        warn "Skipping. You can add it later with menu option 9."
+        warn "Skipping. You can add it later: run this again and choose Telegram."
         return
     fi
 
@@ -215,7 +235,7 @@ setup_telegram() {
 
     if [[ -z "$TG_USERID" || "$TG_USERID" == "null" ]]; then
         warn "No message arrived. Install continues, but the bot is locked to nobody."
-        warn "Re-run this script and choose option 2 to finish pairing."
+        warn "Run this again and choose Telegram to finish pairing."
         TG_USERID=""
     fi
 }
@@ -225,7 +245,7 @@ setup_dashboard() {
     echo ""
     echo "  The dashboard is a web page on your home network where you can"
     echo "  see logs, skills, memory and settings in a browser. Telegram"
-    echo "  works fine without it. You can turn it on later (menu option 12)."
+    echo "  works fine without it. You can turn it on later (choose Dashboard login)."
     echo ""
     local c
     read -p "  Enable the web dashboard? [Y/n]: " c </dev/tty
@@ -282,6 +302,33 @@ find_ctid() {
 EXISTING_CTID="$(find_ctid || true)"
 
 ct_ip() { pct exec "$1" -- ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || true; }
+
+# Keep the DHCP address for good: a moving IP breaks the sandbox firewall rules and links.
+pin_ct_ip() {
+    local ctid="$1" ip cidr gw net0
+    net0=$(pct config "$ctid" | sed -n 's/^net0: //p')
+    [[ "$net0" == *"ip=dhcp"* ]] || return 0
+    ip="$(ct_ip "$ctid")"
+    cidr=$(ip -4 -o addr show dev "$BRIDGE" 2>/dev/null | awk '{print $4; exit}')
+    gw=$(ip -4 route show default 2>/dev/null | awk '{print $3; exit}')
+    [[ -n "$ip" && -n "$cidr" && -n "$gw" ]] || { warn "Could not fix the container IP; it stays on DHCP."; return 0; }
+    pct set "$ctid" --net0 "${net0/ip=dhcp/ip=${ip}/${cidr#*/},gw=${gw}}" >/dev/null 2>&1 || true   # live apply can clash with the lease
+    pct config "$ctid" | grep -q "^net0:.*ip=${ip}/" || { warn "Could not fix the container IP; it stays on DHCP."; return 0; }
+    pct reboot "$ctid" >/dev/null
+    local tries=0
+    until pct exec "$ctid" -- getent hosts deb.debian.org >/dev/null 2>&1; do
+        sleep 3; tries=$((tries + 1))
+        (( tries > 20 )) && fail "Container lost its network after fixing the IP. Check CT $ctid."
+    done
+    ok "Container IP fixed at ${ip}. Reserve it in your router so no other device gets it."
+}
+
+sandbox_vmid() { qm list 2>/dev/null | awk 'NR>1 && $2 == "hermes-sb" {print $1; exit}'; }
+run_sandbox() {
+    local src
+    src=$(wget -qLO- "${SANDBOX_URL}?$(date +%s)") && [[ -n "$src" ]] || { warn "Could not download setup-hermessb.sh."; return 1; }
+    bash -c "$src" setup-hermessb "$@"
+}
 
 # Files in the data dir belong to the Hermes user, not root. docker exec runs as
 # root by default, so commands that write there (config, tokens) must run as
@@ -384,7 +431,7 @@ smoke_test() {
     else
         warn "The test reply did not come back as expected:"
         echo "$out" | tail -12 | sed 's/^/    /'
-        warn "Fix the provider with menu option 7, or run:"
+        warn "Fix the provider (run this again and choose AI provider), or run:"
         warn "  pct exec ${ctid} -- docker exec -it -u $(hermes_uid "$ctid") hermes hermes setup model"
         return 1
     fi
@@ -394,7 +441,7 @@ smoke_test() {
              "Hermes is online and ready." >/dev/null 2>&1; then
             ok "Test message sent to your Telegram."
         else
-            warn "Telegram test message failed. Check menu option 3 (logs)."
+            warn "Telegram test message failed. Run this again and choose Logs."
         fi
     fi
 }
@@ -404,7 +451,7 @@ action_install() {
     if [[ -n "$EXISTING_CTID" ]]; then
         warn "Hermes is already installed at CTID $EXISTING_CTID."
         echo "  Reinstalling DELETES its memory, skills, sessions and scheduled jobs."
-        echo "  To keep them, quit now and run menu option 5 (Backup) first."
+        echo "  To keep them, quit now and choose Backup to file first."
         echo ""
         local c
         read -p "  Type 'reinstall' to continue: " c </dev/tty
@@ -447,6 +494,7 @@ action_install() {
         sleep 3; tries=$((tries + 1))
         (( tries > 20 )) && fail "Container has no internet. Check bridge '$BRIDGE' and your DHCP server."
     done
+    pin_ct_ip "$ctid"
 
     info "Installing Docker (2-3 minutes)..."
     pct exec "$ctid" -- bash -c "
@@ -487,7 +535,7 @@ YAML
     info "Waiting for first-run setup..."
     sleep 25
     pct exec "$ctid" -- docker ps --filter name=hermes --filter status=running -q | grep -q . \
-        || fail "Hermes did not start. Run menu option 3 to view logs."
+        || fail "Hermes did not start. Run this again and choose Logs."
     ok "Hermes is running."
 
     write_env "$ctid"
@@ -513,7 +561,7 @@ YAML
         echo ""
         echo "  Try asking:  what can you do?"
     else
-        echo "  Telegram is not paired. Re-run this script and choose option 2."
+        echo "  Telegram is not paired. Run this again and choose Telegram."
     fi
     echo ""
     echo "  Container : CTID ${ctid} at ${ip:-unknown}"
@@ -526,10 +574,25 @@ YAML
     echo ""
     echo "  Re-run this script anytime to check status, back up or update."
     echo ""
+    if [[ -n "$(sandbox_vmid)" ]]; then
+        # A reinstalled Hermes has a new key and maybe a new IP: reconnect the existing sandbox.
+        info "Reconnecting Hermes to its sandbox..."
+        run_sandbox install || warn "Sandbox reconnect stopped. Run this again and choose Sandbox, then Install."
+    else
+        info "Recommended: give Hermes its own sandbox computer for its terminal and browser,"
+        echo "       cut off from your home network. Takes 5-10 minutes."
+        local c
+        read -rp "  Set up the sandbox now? [Y/n]: " c </dev/tty || c="n"
+        if [[ "$c" =~ ^[Nn] ]]; then
+            info "Later: run this again and choose Sandbox."
+        else
+            run_sandbox install || warn "Sandbox setup stopped. Hermes works without it; run this again and choose Sandbox."
+        fi
+    fi
 }
 
 action_add_telegram() {
-    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose Install."
     ensure_host_deps
     setup_telegram
     [[ -z "$TG_TOKEN" ]] && { info "Nothing changed."; return; }
@@ -541,7 +604,7 @@ action_add_telegram() {
          "Hermes is online and ready." >/dev/null 2>&1; then
         ok "Done. Check Telegram for a test message."
     else
-        warn "Saved, but the test message failed. Check menu option 3 (logs)."
+        warn "Saved, but the test message failed. Run this again and choose Logs."
     fi
 }
 
@@ -622,7 +685,7 @@ action_logs() {
 hermes_restart_after_backup() {
     [[ -z "${1:-}" ]] && return 0
     pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" \
-        >/dev/null 2>&1 || warn "Hermes did not restart. Try menu option 2 (status)."
+        >/dev/null 2>&1 || warn "Hermes did not restart. Run this again and choose Status."
 }
 
 action_backup() {
@@ -709,20 +772,14 @@ action_github_backup() {
         echo "  Last run:"
         pct exec "$id" -- tail -n 3 "$GHB_LOG" 2>/dev/null | sed 's/^/    /' \
             || echo "    (no runs yet)"
+        menu "Back up now" "Restore" "Change repo or folder" "Turn off" "Back"
         echo ""
-        echo "    1) Back up now"
-        echo "    2) Restore"
-        echo "    3) Change repo or folder"
-        echo "    4) Turn off"
-        echo ""
-        read -p "  Select [1-4]: " c </dev/tty
-        echo ""
-        case "$c" in
-            1) pct exec "$id" -- /usr/local/bin/backup-hermes.sh || fail "Backup failed."; return ;;
-            2) ghb_restore "$id"; return ;;
-            3) ;;
-            4) ghb_off "$id"; return ;;
-            *) fail "Invalid choice." ;;
+        case "$CHOICE" in
+            "Back up now")           pct exec "$id" -- /usr/local/bin/backup-hermes.sh || fail "Backup failed."; return ;;
+            Restore)                 ghb_restore "$id"; return ;;
+            "Change repo or folder") ;;
+            "Turn off")              ghb_off "$id"; return ;;
+            Back)                    return ;;
         esac
     fi
     ghb_setup "$id"
@@ -876,7 +933,7 @@ action_google() {
     local id="$EXISTING_CTID" c st path url code uid
     uid="$(hermes_uid "$id")"
     pct exec "$id" -- docker exec hermes test -f "$GSETUP" \
-        || fail "The google-workspace skill is missing. Update Hermes (menu option 4) and try again."
+        || fail "The google-workspace skill is missing. Update Hermes (choose Update) and try again."
 
     st="$(google_status "$id")"
     echo "  Google: $st"
@@ -962,6 +1019,13 @@ action_uninstall() {
     ghb_repo=$(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)
     ghb_repo="${ghb_repo#git@github.com:}"; ghb_repo="${ghb_repo%.git}"
 
+    local sb; sb="$(sandbox_vmid)"
+    if [[ -n "$sb" ]]; then
+        warn "Hermes has a sandbox VM ($sb). It is useless without Hermes."
+        local c=""
+        read -rp "  Remove the sandbox first? [Y/n]: " c </dev/tty || c="n"
+        [[ "$c" =~ ^[Nn] ]] || run_sandbox uninstall || warn "Sandbox not removed. Remove it later with setup-hermessb.sh, Uninstall."
+    fi
     echo "  This permanently deletes container $EXISTING_CTID and everything inside:"
     echo "  memory, skills, sessions, scheduled jobs and saved API keys."
     echo ""
@@ -1030,7 +1094,7 @@ action_uninstall() {
 }
 
 action_dashboard() {
-    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose Install."
     setup_dashboard
     write_dashboard_env "$EXISTING_CTID"
     pct exec "$EXISTING_CTID" -- bash -c "cd ${DATA_DIR} && docker compose up -d" >/dev/null || fail "Restart failed."
@@ -1073,7 +1137,7 @@ action_status() {
     if pct exec "$EXISTING_CTID" -- grep -q '^HERMES_DASHBOARD=1' "${DATA_DIR}/dashboard.env" 2>/dev/null; then
         echo "  Dashboard : http://${ip:-<container-ip>}:${DASH_PORT}"
     else
-        echo "  Dashboard : off (menu option 12 to enable)"
+        echo "  Dashboard : off (choose Dashboard login to enable)"
     fi
     echo ""
     echo "  Google    : $(google_status "$EXISTING_CTID")"
@@ -1089,8 +1153,11 @@ action_status() {
         echo "  GitHub    : nightly backup to $(ghb_conf_get "$EXISTING_CTID" HERMES_BACKUP_REPO)"
         pct exec "$EXISTING_CTID" -- tail -n 1 "$GHB_LOG" 2>/dev/null | sed 's/^/              last: /' || true
     else
-        echo "  GitHub    : no backup (menu option 6)"
+        echo "  GitHub    : no backup (choose Backup to GitHub)"
     fi
+    local sb; sb="$(sandbox_vmid)"
+    if [[ -n "$sb" ]]; then echo "  Sandbox   : VM $sb (choose Sandbox for its self-test)"
+    else echo "  Sandbox   : none (choose Sandbox to add one)"; fi
     echo -n "  Data size : "
     pct exec "$EXISTING_CTID" -- du -sh "${DATA_DIR}/data" 2>/dev/null | awk '{print $1}' || echo "unknown"
     echo ""
@@ -1101,7 +1168,7 @@ action_consent_pages() {
     # page, privacy policy and terms of service on a domain you own. These are
     # static pages; they contain no user data. Served from the Hermes LXC and
     # exposed through an existing Cloudflare Tunnel route.
-    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose option 1."
+    [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet. Choose Install."
 
     banner "OAuth consent pages"
     echo ""
@@ -1109,18 +1176,19 @@ action_consent_pages() {
     echo "  expiring every 7 days. Google requires three public pages first."
     echo "  This serves them from Hermes on port ${PAGES_PORT}."
     echo ""
-    local c
-    read -p "  1) Install or update pages   2) Remove   [1/2]: " c </dev/tty
-
-    if [[ "$c" == "2" ]]; then
-        pct exec "$EXISTING_CTID" -- bash -c "
-            systemctl disable --now hermes-pages >/dev/null 2>&1 || true
-            rm -f /etc/systemd/system/hermes-pages.service
-            rm -rf ${PAGES_DIR}
-            systemctl daemon-reload >/dev/null 2>&1 || true" || true
-        ok "Consent pages removed. Delete the Cloudflare route manually if unused."
-        return
-    fi
+    menu "Install|or update the pages" "Remove|the pages" "Back"
+    case "$CHOICE" in
+        Back)    return 0 ;;
+        Install) ;;
+        Remove)
+            pct exec "$EXISTING_CTID" -- bash -c "
+                systemctl disable --now hermes-pages >/dev/null 2>&1 || true
+                rm -f /etc/systemd/system/hermes-pages.service
+                rm -rf ${PAGES_DIR}
+                systemctl daemon-reload >/dev/null 2>&1 || true" || true
+            ok "Consent pages removed. Delete the Cloudflare route manually if unused."
+            return ;;
+    esac
 
     local host owner email law
     read -p "  Public hostname (e.g. hermes.example.com): " host </dev/tty
@@ -1247,7 +1315,7 @@ EOSH
     echo "       Terms           https://${host}/terms.html"
     echo "       Authorised domain: the root domain of ${host}"
     echo ""
-    echo "  4. Audience -> Publish app, then reconnect Google (menu option 10)."
+    echo "  4. Audience -> Publish app, then reconnect Google (choose Google)."
     echo ""
     echo "  Note: the container uses DHCP, so if its IP changes you must"
     echo "  update the Cloudflare route."
@@ -1305,7 +1373,7 @@ action_local_llm() {
         ok "Claude shortcuts set: /model sonnet --once (judgement), /model opus --once (hard analysis)."
         ok "Safety net: if the VM is down, the turn goes to Claude Sonnet instead of failing."
     else
-        warn "No Anthropic key in Hermes, so no Claude shortcuts or safety net. Add one with menu option 7 later."
+        warn "No Anthropic key in Hermes, so no Claude shortcuts or safety net. Add one later: choose AI provider."
     fi
 
     pct exec "$ctid" -- docker restart hermes >/dev/null; sleep 15
@@ -1313,7 +1381,7 @@ action_local_llm() {
     echo ""
     echo "  Done. Hermes works on your own GPU for free. In any chat, put"
     echo "    /model sonnet --once   or   /model opus --once"
-    echo "  before a question that needs Claude. To go back to Claude for everything: menu option 7."
+    echo "  before a question that needs Claude. To go back to Claude for everything: choose AI provider."
     echo ""
 }
 
@@ -1333,39 +1401,24 @@ else
     echo "    - a paid AI provider API key"
     echo "    - your phone with Telegram installed"
 fi
-echo ""
-echo "  1) Install"
-echo "  2) Status"
-echo "  3) Logs"
-echo "  4) Update"
-echo "  5) Backup to file"
-echo "  6) Backup to GitHub (nightly)"
-echo "  7) AI provider or key"
-echo "  8) Use local LLM"
-echo "  9) Telegram"
-echo " 10) Google (Gmail, Calendar)"
-echo " 11) Google consent pages"
-echo " 12) Dashboard login"
-echo " 13) Uninstall"
-echo "  0) Exit"
-echo ""
-read -p "Select an option: " choice </dev/tty
+menu "Install" "Status" "Logs" "Update" "Backup to file" "Backup to GitHub|nightly" \
+    "AI provider|or key" "Local LLM|use the GPU VM" "Telegram" "Google|Gmail, Calendar" \
+    "Google consent pages" "Dashboard login" "Sandbox|own computer for terminal and browser" "Uninstall"
 echo ""
 
-case "$choice" in
-    1) action_install ;;
-    2) action_status ;;
-    3) action_logs ;;
-    4) action_update ;;
-    5) action_backup || fail "Backup failed." ;;
-    6) action_github_backup ;;
-    7) action_change_provider ;;
-    8) action_local_llm ;;
-    9) action_add_telegram ;;
-    10) action_google ;;
-    11) action_consent_pages ;;
-    12) action_dashboard ;;
-    13) action_uninstall ;;
-    0) exit 0 ;;
-    *) fail "Invalid option." ;;
+case "$CHOICE" in
+    Install)                action_install ;;
+    Status)                 action_status ;;
+    Logs)                   action_logs ;;
+    Update)                 action_update ;;
+    "Backup to file")       action_backup || fail "Backup failed." ;;
+    "Backup to GitHub")     action_github_backup ;;
+    "AI provider")          action_change_provider ;;
+    "Local LLM")            action_local_llm ;;
+    Telegram)               action_add_telegram ;;
+    Google)                 action_google ;;
+    "Google consent pages") action_consent_pages ;;
+    "Dashboard login")      action_dashboard ;;
+    Sandbox)                run_sandbox ;;
+    Uninstall)              action_uninstall ;;
 esac
