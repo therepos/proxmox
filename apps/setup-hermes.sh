@@ -928,28 +928,20 @@ google_status() {  # one line: AUTHENTICATED... / NOT_AUTHENTICATED... / unavail
     gsetup "$1" --check 2>&1 | head -n 1 || true
 }
 
-# The image has no pip and does not ship the skill's Python libraries, so they
-# are lost whenever the container is recreated (Install, Update). Pins are read
-# from setup.py so they follow Hermes' own versions.
-google_deps() {  # google_deps <ctid>: install the libraries if missing
-    local id="$1" pkgs
+# The image's venv has no pip. Some Hermes versions pin exact Google library
+# versions and install them with pip, so --check fails even when (newer)
+# libraries are present, and anything installed is lost when the container is
+# recreated (Install, Update). Give the venv pip, then let the skill install
+# what it wants itself, as root because the venv belongs to root.
+google_deps() {  # google_deps <ctid>
+    local id="$1"
     pct exec "$id" -- docker exec hermes test -f "$GSETUP" 2>/dev/null || return 0
-    pct exec "$id" -- docker exec hermes python -c \
-        "import googleapiclient, google_auth_oauthlib, google_auth_httplib2" >/dev/null 2>&1 && return 0
-    pkgs="$(pct exec "$id" -- docker exec hermes grep -oE '(google-[a-z0-9-]+|httplib2|pyasn1)==[0-9][0-9.]*[0-9]' "$GSETUP" 2>/dev/null \
-        | awk -F'==' '!seen[$1]++' | tr '\n' ' ' || true)"
-    [[ -n "${pkgs// /}" ]] || pkgs="google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2 httplib2"
-    info "Installing the Google libraries Gmail and Calendar need..."
-    # uv if the image has it, else pip (bootstrapped by ensurepip or get-pip.py).
-    if pct exec "$id" -- docker exec -u 0 hermes sh -c "P=\$(command -v python)
-        uv pip install --python \"\$P\" $pkgs && exit 0
-        \"\$P\" -m pip --version >/dev/null 2>&1 || \"\$P\" -m ensurepip || {
-            \"\$P\" -c \"import urllib.request as u; u.urlretrieve('https://bootstrap.pypa.io/get-pip.py', '/tmp/get-pip.py')\" \
-            && \"\$P\" /tmp/get-pip.py; }
-        \"\$P\" -m pip install $pkgs" >>"$LOG_FILE" 2>&1 \
-       && pct exec "$id" -- docker exec hermes python -c \
-        "import googleapiclient, google_auth_oauthlib, google_auth_httplib2" >/dev/null 2>&1; then
-        ok "Google libraries installed."
+    pct exec "$id" -- docker exec -u 0 hermes sh -c 'P=$(command -v python)
+        "$P" -m pip --version >/dev/null 2>&1 || "$P" -m ensurepip || {
+            "$P" -c "import urllib.request as u; u.urlretrieve(\"https://bootstrap.pypa.io/get-pip.py\", \"/tmp/get-pip.py\")" \
+            && "$P" /tmp/get-pip.py; }' >>"$LOG_FILE" 2>&1 || true
+    if pct exec "$id" -- docker exec -u 0 hermes python "$GSETUP" --install-deps >>"$LOG_FILE" 2>&1; then
+        ok "Google libraries are ready."
     else
         warn "Could not install the Google libraries. See $LOG_FILE"
         return 1
