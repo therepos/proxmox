@@ -579,7 +579,7 @@ YAML
         info "Reconnecting Hermes to its sandbox..."
         run_sandbox install || warn "Sandbox reconnect stopped. Run this again and choose Sandbox, then Install."
     else
-        info "Recommended: give Hermes its own sandbox computer for its terminal and browser,"
+        info "Recommended: give Hermes its own sandbox computer for web browsing,"
         echo "       cut off from your home network. Takes 5-10 minutes."
         local c
         read -rp "  Set up the sandbox now? [Y/n]: " c </dev/tty || c="n"
@@ -1403,7 +1403,7 @@ else
 fi
 menu "Install" "Status" "Logs" "Update" "Backup to file" "Backup to GitHub|nightly" \
     "AI provider|or key" "Local LLM|use the GPU VM" "Telegram" "Google|Gmail, Calendar" \
-    "Google consent pages" "Dashboard login" "Sandbox|own computer for terminal and browser" "Uninstall"
+    "Google consent pages" "Dashboard login" "Sandbox|own computer for web browsing" "Uninstall"
 echo ""
 
 case "$CHOICE" in
