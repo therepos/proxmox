@@ -17,6 +17,9 @@ Scripts are fetched raw from GitHub `main` and run on the PVE host, so `main` mu
   without the bootstrap: line 2 `# Purpose:`, a `# ===` fence, a terse `# Usage:` block, a closing fence.
 - The script page (therepos.github.io/proxmox) is built by CI from each script's lines 2-3 with
   `scripts/docgen-pages.py` and deployed to GitHub Pages; nothing is committed.
+- Script page: title `Proxmox Scripts`, one row per script (name, purpose, button), repo link in the footer.
+  Each subject and action needs a display name in `NAMES` in `docgen-pages.py` (lint checks): Title Case
+  words, acronyms and product names as spelled (`LM Sensors`, `GitLab`); tools read `VM Create`.
 
 ## Installers
 
