@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/setup-hermessb.sh?$(date +%s))"
-# Purpose: Sandbox VM for Hermes Agent: its browser (optionally its terminal) runs there, cut off from the LAN
+# Purpose: Sandbox VM for Hermes Agent: its browser runs there, cut off from the LAN
 # =============================================================================
 # Usage:
 #   setup-hermessb            menu
@@ -111,12 +111,6 @@ yes_no() { # yes_no "question" -> true on Enter/y; false on n or no tty
     has_tty || return 1
     read -rp "  $1 [Y/n]: " a </dev/tty || return 1
     [[ ! "$a" =~ ^[Nn] ]]
-}
-no_yes() { # no_yes "question" -> true only on y; for choices that break things
-    local a=""
-    has_tty || return 1
-    read -rp "  $1 [y/N]: " a </dev/tty || return 1
-    [[ "$a" =~ ^[Yy] ]]
 }
 
 ip2int() { local a b c d; IFS=. read -r a b c d <<<"$1"; echo $(( (a << 24) + (b << 16) + (c << 8) + d )); }
@@ -527,8 +521,8 @@ terminal_in_sandbox() {
         && pct exec "$CTID" -- grep -q "^TERMINAL_SSH_HOST=${SB_IP}\$" "${HERMES_DATA}/.env" 2>/dev/null
 }
 
-# Point Hermes' browser at the sandbox and store the SSH details for the optional sandbox terminal.
-# The terminal stays where it is: Google Workspace, scripts and cron jobs need Hermes' own files.
+# Point Hermes' browser at the sandbox. The terminal stays in Hermes' container: Google Workspace,
+# scripts and the cron jobs that run them need Hermes' own files.
 wire_hermes() {
     local before kh="${HERMES_DATA}/.ssh/known_hosts"
     # A rebuilt sandbox has a new host key; drop the old one so Hermes can connect.
@@ -539,13 +533,12 @@ wire_hermes() {
         || fail "Hermes cannot log in to the sandbox. See $LOG_FILE"
 
     before=$(hermes_conf_md5)
-    { hx config set TERMINAL_SSH_HOST "$SB_IP" \
-        && hx config set TERMINAL_SSH_USER "$VM_USER" \
-        && hx config set TERMINAL_SSH_KEY "$HERMES_KEY_IN" \
-        && hx config set browser.cdp_url "http://${SB_IP}:${CDP_PORT}"; } >/dev/null \
+    hx config set browser.cdp_url "http://${SB_IP}:${CDP_PORT}" >/dev/null \
         || fail "Could not change Hermes' settings. See $LOG_FILE"
+    # An earlier version ran the terminal in the sandbox, which broke Google and scripts.
     if terminal_in_sandbox; then
-        hx config set terminal.cwd "/home/${VM_USER}" >/dev/null || fail "Could not change Hermes' settings."
+        terminal_to_hermes_settings || fail "Could not move Hermes' terminal back to its container."
+        ok "Hermes' terminal moved back to its own container."
     fi
     if [[ "$before" != "$(hermes_conf_md5)" ]]; then
         restart_hermes
@@ -564,26 +557,6 @@ terminal_to_hermes_settings() {
     hx config set terminal.backend local >/dev/null || return 1
     [[ "$(hermes_terminal cwd)" == "/home/${VM_USER}" ]] && { hx config set terminal.cwd . >/dev/null || return 1; }
     pct exec "$CTID" -- sed -i 's/^TERMINAL_ENV=ssh$/TERMINAL_ENV=local/' "${HERMES_DATA}/.env"
-}
-
-terminal_toggle() {
-    need_sandbox
-    if terminal_in_sandbox; then
-        info "Hermes' terminal runs in the sandbox."
-        yes_no "Move it back into Hermes' container (Google, scripts and cron jobs work again)?" || return 0
-        terminal_to_hermes_settings || fail "Could not change Hermes' settings."
-        restart_hermes
-        ok "Hermes' terminal runs in its own container again. The browser stays in the sandbox."
-    else
-        info "Hermes' terminal runs in its own container (recommended)."
-        warn "In the sandbox, the terminal cannot see Hermes' files: Google Workspace (Gmail,"
-        echo "       Calendar, Contacts), scripts in its data folder and cron jobs that use them stop working."
-        no_yes "Move the terminal into the sandbox anyway?" || return 0
-        { hx config set terminal.backend ssh && hx config set terminal.cwd "/home/${VM_USER}"; } >/dev/null \
-            || fail "Could not change Hermes' settings."
-        restart_hermes
-        ok "Hermes' terminal now runs in the sandbox."
-    fi
 }
 
 # Returns the number of failed checks.
@@ -623,8 +596,7 @@ self_test() {
 
     if hermes_wired; then ok "Hermes opens web pages in the sandbox."
     else warn "Hermes is not set to use the sandbox browser (choose Install to fix)."; bad=$((bad + 1)); fi
-    if terminal_in_sandbox; then info "Hermes' terminal runs in the sandbox (Settings > Terminal)."
-    else info "Hermes' terminal runs in its own container (Settings > Terminal)."; fi
+    if terminal_in_sandbox; then warn "Hermes' terminal runs in the sandbox, which breaks Google and scripts (choose Install to fix)."; bad=$((bad + 1)); fi
     return "$bad"
 }
 
@@ -645,7 +617,7 @@ snapshot_hermes() {
 summary() {
     banner "Sandbox ready"
     ok "Hermes now opens web pages in the sandbox. Its terminal stays in its own container,"
-    echo "       so Gmail, Calendar, Contacts and your scripts keep working (Settings > Terminal to change)."
+    echo "       so Gmail, Calendar, Contacts and your scripts keep working."
     echo "       Hermes   : CT $CTID at $HERMES_IP"
     echo "       Sandbox  : VM $VMID ($VM_NAME) at $SB_IP, user $VM_USER"
     echo "       Log      : $LOG_FILE"
@@ -787,14 +759,13 @@ action_guide() {
     info "Test from Telegram (send /new first)"
     echo "       1. Use your browser tool to open https://www.whatismybrowser.com and tell me the user agent."
     echo "          Expect: HeadlessChrome"
-    echo "       2. Run hostname && whoami && pwd in your terminal and tell me the output."
-    echo "          Expect: Hermes' own container by default; ${VM_NAME}, ${VM_USER:-toor} if Settings > Terminal is set to the sandbox."
+    echo "       2. List my 3 latest unread emails."
+    echo "          Expect: your emails (Google works because the terminal stays with Hermes)"
     echo ""
-    info "Terminal: Hermes or sandbox"
-    echo "       By default only the browser runs in the sandbox. Web pages are where most attacks on"
-    echo "       agents come from, and the terminal needs Hermes' own files: Google Workspace (Gmail,"
-    echo "       Calendar, Contacts), scripts in its data folder and the cron jobs that run them."
-    echo "       Settings > Terminal moves the terminal into the sandbox if you use none of those."
+    info "Why only the browser"
+    echo "       Web pages are where most attacks on agents come from, so they open in the sandbox."
+    echo "       The terminal stays with Hermes: Google Workspace (Gmail, Calendar, Contacts), scripts"
+    echo "       in its data folder and the cron jobs that run them need Hermes' own files."
     echo ""
     info "Reset"
     echo "       Hermes can install or break anything in the sandbox. Choose Reset to roll it back"
@@ -831,7 +802,7 @@ hermes_local() {
 action_disconnect() {
     need_sandbox
     hermes_wired || terminal_in_sandbox || { info "Hermes is not using the sandbox. Nothing to do."; return 0; }
-    warn "Hermes' browser (and terminal, if moved) go back into its own container, without the LAN block."
+    warn "Hermes' browser goes back into its own container, without the LAN block."
     yes_no "Disconnect Hermes from the sandbox?" || { info "Cancelled."; return 0; }
     hermes_local
     ok "Hermes disconnected. The sandbox VM is kept; choose Install to reconnect."
@@ -844,7 +815,7 @@ action_uninstall() {
     detect_hermes_soft
     load_existing "$VMID" || true
     warn "This deletes VM $VMID ($VM_NAME), its firewall rules and its restore point."
-    echo "       Hermes goes back to browsing (and running commands) in its own container."
+    echo "       Hermes goes back to browsing in its own container."
     echo "       Hermes' memory, skills and settings are kept. Its 'pre-sandbox' restore point is removed."
     local c=""
     has_tty && { read -rp "  Type 'yes' to confirm: " c </dev/tty || c=""; }
@@ -869,10 +840,8 @@ action_uninstall() {
 settings_menu() {
     while true; do
         banner "Sandbox settings"
-        menu "Terminal|where Hermes runs commands: its container or the sandbox" \
-            "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
+        menu "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
         case "$CHOICE" in
-            Terminal) terminal_toggle ;;
             Shortcut) shortcut_toggle ;;
             Back)     return 0 ;;
         esac
