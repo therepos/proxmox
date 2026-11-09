@@ -38,6 +38,12 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   It numbers the options, adds `0) Exit` (0 only ever exits) and the prompt. In submenus put `Back` last.
   New menus must use it; convert hand-written menus when you next edit that script. Confirm destructive actions.
 - Read input with `</dev/tty`; with no tty, take the safe default.
+- Users are non-technical: ask only what has no safe default. Show the recommended settings with one
+  `Use these? [Y/n]`; only on `n` prompt per field, Enter keeping the default. Do recommended steps without asking.
+- No setting whose only effect is to break another feature: fix the safe behaviour and move old installs to it on the next Install.
+- Installers whose result the user works with offer `Guide`: key addresses, how to log in, how to test it, how to undo.
+- Under `set -euo pipefail`, `v=$(cmd | grep ...)` with no match exits silently: add `|| true` inside `$( )` and check `v`.
+  Run fetched scripts as `src=$(wget ...) || fail ...; bash -c "$src"`: `bash -c "$(wget ...)"` succeeds on a failed download.
 - Scripts run again later (like `setup-gpu.sh`) offer Settings > Shortcut via the `shortcut` block: a `.bashrc`
   command named after the script that runs the latest version from GitHub (set `SCRIPT_URL` above the block).
   Never save a local copy of a script; remove an old one on the next run. Next-step hints name the menu option
@@ -82,8 +88,9 @@ when restored, 3 when it has no backup for that app, anything else on failure.
   `sync-blocks.sh`, `lint.sh` or `ci-lint.yml` changed.
 - CI checks changed scripts on every PR and push (every script weekly, on a manual run, or when those files
   change) and pushes safe fixes to the PR branch, never to `main`.
-- Work on a branch and open a PR (`gh api repos/<owner>/<repo>/pulls`; GraphQL `gh pr` commands are blocked here);
-  merge only when lint is green. Run negative tests on a temp copy, never via `git checkout` (it drops uncommitted edits), and check each edit landed
+- Work on a branch and open a PR (`gh api repos/<owner>/<repo>/pulls`, body via `-F body=@file`; GraphQL `gh pr` commands
+  are blocked here); merge only when lint is green. Dry-run host-changing flows with stub `qm`/`pct`/`ssh` first on `PATH`
+  against a copy whose `/etc/pve` paths point to a temp dir. Run negative tests on a temp copy, never via `git checkout` (it drops uncommitted edits), and check each edit landed
   (`git diff`) before reporting it.
 - Never commit tokens, LAN IPs, serial numbers or MAC addresses. Use `<host-ip>` in docs.
 - Do not put model names in commits, comments or docs.
