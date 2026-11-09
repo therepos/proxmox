@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/setup-hermessb.sh?$(date +%s))"
-# Purpose: Sandbox VM for Hermes Agent: its terminal and browser run there, cut off from the LAN
+# Purpose: Sandbox VM for Hermes Agent: its browser (optionally its terminal) runs there, cut off from the LAN
 # =============================================================================
 # Usage:
 #   setup-hermessb            menu
@@ -111,6 +111,12 @@ yes_no() { # yes_no "question" -> true on Enter/y; false on n or no tty
     has_tty || return 1
     read -rp "  $1 [Y/n]: " a </dev/tty || return 1
     [[ ! "$a" =~ ^[Nn] ]]
+}
+no_yes() { # no_yes "question" -> true only on y; for choices that break things
+    local a=""
+    has_tty || return 1
+    read -rp "  $1 [y/N]: " a </dev/tty || return 1
+    [[ "$a" =~ ^[Yy] ]]
 }
 
 ip2int() { local a b c d; IFS=. read -r a b c d <<<"$1"; echo $(( (a << 24) + (b << 16) + (c << 8) + d )); }
@@ -273,7 +279,8 @@ ensure_hermes_key() {
             || fail "Could not create the Hermes SSH key."
         ok "Hermes SSH key created."
     fi
-    pct exec "$CTID" -- sh -c "chown -R ${HERMES_UID}:${HERMES_UID} '${HERMES_DATA}/.ssh' && chmod 700 '${HERMES_DATA}/.ssh' && chmod 600 '$HERMES_KEY'"
+    pct exec "$CTID" -- sh -c "chown -R ${HERMES_UID}:${HERMES_UID} '${HERMES_DATA}/.ssh' && chmod 700 '${HERMES_DATA}/.ssh' && chmod 600 '$HERMES_KEY'" \
+        || fail "Could not set permissions on the Hermes SSH key."
 }
 
 host_pubkey() {
@@ -500,9 +507,30 @@ REMOTE
     ok "Docker, Chrome and the browser service are ready."
 }
 
-# Point Hermes at the sandbox. Restarts Hermes only when a setting changed.
+hermes_conf_md5() { pct exec "$CTID" -- sh -c "cat '${HERMES_DATA}/config.yaml' '${HERMES_DATA}/.env' 2>/dev/null | md5sum"; }
+
+restart_hermes() {
+    info "Restarting Hermes to apply..."
+    pct exec "$CTID" -- docker restart hermes >/dev/null || fail "Could not restart Hermes (CT $CTID)."
+    local t=0
+    until hermes_running; do sleep 3; t=$((t + 3)); (( t > 90 )) && fail "Hermes did not restart."; done
+    sleep 10
+}
+
+# Value of a key under terminal: in Hermes' config.yaml.
+hermes_terminal() {
+    pct exec "$CTID" -- awk -v k="$1" '/^terminal:/ {t=1; next} /^[^[:space:]]/ {t=0}
+        t && $1 == k":" {print $2; exit}' "${HERMES_DATA}/config.yaml" 2>/dev/null | tr -d "'\"" || true
+}
+terminal_in_sandbox() {
+    [[ "$(hermes_terminal backend)" == ssh ]] \
+        && pct exec "$CTID" -- grep -q "^TERMINAL_SSH_HOST=${SB_IP}\$" "${HERMES_DATA}/.env" 2>/dev/null
+}
+
+# Point Hermes' browser at the sandbox and store the SSH details for the optional sandbox terminal.
+# The terminal stays where it is: Google Workspace, scripts and cron jobs need Hermes' own files.
 wire_hermes() {
-    local before after kh="${HERMES_DATA}/.ssh/known_hosts"
+    local before kh="${HERMES_DATA}/.ssh/known_hosts"
     # A rebuilt sandbox has a new host key; drop the old one so Hermes can connect.
     pct exec "$CTID" -- sh -c "[ -f '$kh' ] && ssh-keygen -q -R '$SB_IP' -f '$kh' >/dev/null 2>&1; rm -f '${kh}.old'; true"
     pct exec "$CTID" -- chown -R "${HERMES_UID}:${HERMES_UID}" "${HERMES_DATA}/.ssh"
@@ -510,30 +538,52 @@ wire_hermes() {
         -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/opt/data/.ssh/known_hosts "${VM_USER}@${SB_IP}" true >/dev/null 2>&1 \
         || fail "Hermes cannot log in to the sandbox. See $LOG_FILE"
 
-    before=$(pct exec "$CTID" -- sh -c "cat '${HERMES_DATA}/config.yaml' '${HERMES_DATA}/.env' 2>/dev/null | md5sum")
-    { hx config set terminal.backend ssh \
-        && hx config set terminal.cwd "/home/${VM_USER}" \
-        && hx config set TERMINAL_SSH_HOST "$SB_IP" \
+    before=$(hermes_conf_md5)
+    { hx config set TERMINAL_SSH_HOST "$SB_IP" \
         && hx config set TERMINAL_SSH_USER "$VM_USER" \
         && hx config set TERMINAL_SSH_KEY "$HERMES_KEY_IN" \
         && hx config set browser.cdp_url "http://${SB_IP}:${CDP_PORT}"; } >/dev/null \
         || fail "Could not change Hermes' settings. See $LOG_FILE"
-    after=$(pct exec "$CTID" -- sh -c "cat '${HERMES_DATA}/config.yaml' '${HERMES_DATA}/.env' 2>/dev/null | md5sum")
-    if [[ "$before" != "$after" ]]; then
-        info "Restarting Hermes to apply..."
-        pct exec "$CTID" -- docker restart hermes >/dev/null
-        local t=0
-        until hermes_running; do sleep 3; t=$((t + 3)); (( t > 90 )) && fail "Hermes did not restart."; done
-        sleep 10
-        ok "Hermes now uses the sandbox for its terminal and browser."
+    if terminal_in_sandbox; then
+        hx config set terminal.cwd "/home/${VM_USER}" >/dev/null || fail "Could not change Hermes' settings."
+    fi
+    if [[ "$before" != "$(hermes_conf_md5)" ]]; then
+        restart_hermes
+        ok "Hermes now opens web pages in the sandbox."
     else
-        ok "Hermes already uses the sandbox."
+        ok "Hermes already uses the sandbox browser."
     fi
 }
 
 hermes_wired() {
-    pct exec "$CTID" -- grep -q "^TERMINAL_SSH_HOST=${SB_IP}\$" "${HERMES_DATA}/.env" 2>/dev/null \
-        && pct exec "$CTID" -- grep -qE "^[[:space:]]+cdp_url: .*${SB_IP}:${CDP_PORT}" "${HERMES_DATA}/config.yaml" 2>/dev/null
+    pct exec "$CTID" -- grep -qE "^[[:space:]]+cdp_url: .*${SB_IP}:${CDP_PORT}" "${HERMES_DATA}/config.yaml" 2>/dev/null
+}
+
+# Terminal back in Hermes' container; a cwd inside the sandbox would break every command there.
+terminal_to_hermes_settings() {
+    hx config set terminal.backend local >/dev/null || return 1
+    [[ "$(hermes_terminal cwd)" == "/home/${VM_USER}" ]] && { hx config set terminal.cwd . >/dev/null || return 1; }
+    pct exec "$CTID" -- sed -i 's/^TERMINAL_ENV=ssh$/TERMINAL_ENV=local/' "${HERMES_DATA}/.env"
+}
+
+terminal_toggle() {
+    need_sandbox
+    if terminal_in_sandbox; then
+        info "Hermes' terminal runs in the sandbox."
+        yes_no "Move it back into Hermes' container (Google, scripts and cron jobs work again)?" || return 0
+        terminal_to_hermes_settings || fail "Could not change Hermes' settings."
+        restart_hermes
+        ok "Hermes' terminal runs in its own container again. The browser stays in the sandbox."
+    else
+        info "Hermes' terminal runs in its own container (recommended)."
+        warn "In the sandbox, the terminal cannot see Hermes' files: Google Workspace (Gmail,"
+        echo "       Calendar, Contacts), scripts in its data folder and cron jobs that use them stop working."
+        no_yes "Move the terminal into the sandbox anyway?" || return 0
+        { hx config set terminal.backend ssh && hx config set terminal.cwd "/home/${VM_USER}"; } >/dev/null \
+            || fail "Could not change Hermes' settings."
+        restart_hermes
+        ok "Hermes' terminal now runs in the sandbox."
+    fi
 }
 
 # Returns the number of failed checks.
@@ -552,8 +602,8 @@ self_test() {
     else ok "Sandbox is blocked from your LAN."; fi
 
     if pct exec "$CTID" -- docker exec -u "$HERMES_UID" hermes ssh -i "$HERMES_KEY_IN" -o BatchMode=yes \
-         -o ConnectTimeout=8 -o UserKnownHostsFile=/opt/data/.ssh/known_hosts "${VM_USER}@${SB_IP}" true >/dev/null 2>&1; then ok "Hermes logs in to the sandbox."
-    else warn "Hermes cannot log in to the sandbox."; bad=$((bad + 1)); fi
+         -o ConnectTimeout=8 -o UserKnownHostsFile=/opt/data/.ssh/known_hosts "${VM_USER}@${SB_IP}" true >/dev/null 2>&1; then ok "Hermes can log in to the sandbox."
+    else warn "Hermes cannot log in to the sandbox (choose Install to fix)."; bad=$((bad + 1)); fi
 
     if pct exec "$CTID" -- docker exec hermes sh -c "P=/opt/hermes/.venv/bin/python; [ -x \$P ] || P=python3; \$P -c \
          \"import urllib.request,sys;sys.exit(b'Browser' not in urllib.request.urlopen('http://${SB_IP}:${CDP_PORT}/json/version',timeout=5).read())\"" \
@@ -571,8 +621,10 @@ self_test() {
         else ok "Sandbox is blocked from your LAN over IPv6 too."; fi
     fi
 
-    if hermes_wired; then ok "Hermes is set to use the sandbox."
-    else warn "Hermes is not set to use the sandbox (choose Install to fix)."; bad=$((bad + 1)); fi
+    if hermes_wired; then ok "Hermes opens web pages in the sandbox."
+    else warn "Hermes is not set to use the sandbox browser (choose Install to fix)."; bad=$((bad + 1)); fi
+    if terminal_in_sandbox; then info "Hermes' terminal runs in the sandbox (Settings > Terminal)."
+    else info "Hermes' terminal runs in its own container (Settings > Terminal)."; fi
     return "$bad"
 }
 
@@ -592,7 +644,8 @@ snapshot_hermes() {
 
 summary() {
     banner "Sandbox ready"
-    ok "Hermes' terminal and browser now run in the sandbox."
+    ok "Hermes now opens web pages in the sandbox. Its terminal stays in its own container,"
+    echo "       so Gmail, Calendar, Contacts and your scripts keep working (Settings > Terminal to change)."
     echo "       Hermes   : CT $CTID at $HERMES_IP"
     echo "       Sandbox  : VM $VMID ($VM_NAME) at $SB_IP, user $VM_USER"
     echo "       Log      : $LOG_FILE"
@@ -662,7 +715,7 @@ action_install() {
         echo "       Create VM $VMID ($VM_NAME) at $SB_IP with Ubuntu, Docker and Chrome."
         echo "       Firewall: the sandbox reaches the internet but not your LAN."
         echo "       Hermes (CT $CTID) keeps IP $HERMES_IP permanently and restarts once."
-        echo "       Hermes' terminal and browser move into the sandbox."
+        echo "       Hermes' browser moves into the sandbox; its terminal stays (Gmail and scripts keep working)."
         echo "       Takes 5-10 minutes. No more questions after this."
         echo ""
         firewall_precheck
@@ -732,10 +785,16 @@ action_guide() {
     echo "       No password: it uses this host's key. The VM console has no password on purpose."
     echo ""
     info "Test from Telegram (send /new first)"
-    echo "       1. Run hostname && whoami && pwd in your terminal and tell me the output."
-    echo "          Expect: ${VM_NAME}, ${VM_USER:-toor}, /home/${VM_USER:-toor}"
-    echo "       2. Use your browser tool to open https://www.whatismybrowser.com and tell me the user agent."
+    echo "       1. Use your browser tool to open https://www.whatismybrowser.com and tell me the user agent."
     echo "          Expect: HeadlessChrome"
+    echo "       2. Run hostname && whoami && pwd in your terminal and tell me the output."
+    echo "          Expect: Hermes' own container by default; ${VM_NAME}, ${VM_USER:-toor} if Settings > Terminal is set to the sandbox."
+    echo ""
+    info "Terminal: Hermes or sandbox"
+    echo "       By default only the browser runs in the sandbox. Web pages are where most attacks on"
+    echo "       agents come from, and the terminal needs Hermes' own files: Google Workspace (Gmail,"
+    echo "       Calendar, Contacts), scripts in its data folder and the cron jobs that run them."
+    echo "       Settings > Terminal moves the terminal into the sandbox if you use none of those."
     echo ""
     info "Reset"
     echo "       Hermes can install or break anything in the sandbox. Choose Reset to roll it back"
@@ -764,16 +823,15 @@ action_reset() {
 }
 
 hermes_local() {
-    hx config set terminal.backend local >/dev/null
-    pct exec "$CTID" -- sh -c "sed -i -E '/^[[:space:]]+cdp_url:/d' '${HERMES_DATA}/config.yaml'; \
-        sed -i 's/^TERMINAL_ENV=ssh\$/TERMINAL_ENV=local/' '${HERMES_DATA}/.env'"
-    pct exec "$CTID" -- docker restart hermes >/dev/null
+    terminal_to_hermes_settings || return 1
+    pct exec "$CTID" -- sed -i -E '/^[[:space:]]+cdp_url:/d' "${HERMES_DATA}/config.yaml" || return 1
+    restart_hermes
 }
 
 action_disconnect() {
     need_sandbox
-    hermes_wired || { info "Hermes is not using the sandbox. Nothing to do."; return 0; }
-    warn "Hermes' terminal and browser go back into its own container, without the LAN block."
+    hermes_wired || terminal_in_sandbox || { info "Hermes is not using the sandbox. Nothing to do."; return 0; }
+    warn "Hermes' browser (and terminal, if moved) go back into its own container, without the LAN block."
     yes_no "Disconnect Hermes from the sandbox?" || { info "Cancelled."; return 0; }
     hermes_local
     ok "Hermes disconnected. The sandbox VM is kept; choose Install to reconnect."
@@ -786,12 +844,12 @@ action_uninstall() {
     detect_hermes_soft
     load_existing "$VMID" || true
     warn "This deletes VM $VMID ($VM_NAME), its firewall rules and its restore point."
-    echo "       Hermes goes back to running commands and browsing in its own container."
+    echo "       Hermes goes back to browsing (and running commands) in its own container."
     echo "       Hermes' memory, skills and settings are kept. Its 'pre-sandbox' restore point is removed."
     local c=""
     has_tty && { read -rp "  Type 'yes' to confirm: " c </dev/tty || c=""; }
     [[ "$c" == "yes" ]] || { info "Cancelled."; return 0; }
-    if [[ -n "$CTID" && -n "$SB_IP" ]] && hermes_wired; then
+    if [[ -n "$CTID" && -n "$SB_IP" ]] && { hermes_wired || terminal_in_sandbox; }; then
         hermes_local || fail "Could not switch Hermes back to its own container; the sandbox is kept."
         ok "Hermes disconnected."
     fi
@@ -811,8 +869,10 @@ action_uninstall() {
 settings_menu() {
     while true; do
         banner "Sandbox settings"
-        menu "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
+        menu "Terminal|where Hermes runs commands: its container or the sandbox" \
+            "Shortcut|[$(shortcut_state)]  type '$(shortcut_name)' in a new shell" "Back"
         case "$CHOICE" in
+            Terminal) terminal_toggle ;;
             Shortcut) shortcut_toggle ;;
             Back)     return 0 ;;
         esac
@@ -829,7 +889,7 @@ while true; do
     banner "Hermes Sandbox"
     id="$(find_vmid)"
     if [[ -n "$id" ]]; then ok "Installed: VM $id at $(vm_ip "$id")"
-    else info "Not installed. Gives Hermes its own computer for its terminal and browser, cut off from your LAN."; fi
+    else info "Not installed. Gives Hermes its own computer for web browsing, cut off from your LAN."; fi
     menu "Install|create the sandbox, or repair it" "Status|run the self-test" "Guide|IPs, login, Telegram tests" \
         "Reset|roll the sandbox back to fresh" "Disconnect|Hermes stops using the sandbox" \
         "Uninstall|delete the sandbox" "Settings"
