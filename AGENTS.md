@@ -72,8 +72,12 @@ through `sed 's/\x1b\[[0-9;]*m//g'`; keep logs outside dirs cleaned at the end.
 
 Backups go to the private repo `therepos/backups`, one folder per app, overwritten each run (git keeps history).
 A restore confirms first, stops the app, restores, always starts it again, and says what is not restored (secrets).
-App data (`/mnt/sec/apps`) belongs to `setup-backup.sh` (in development): `setup-backup.sh restore <app>` exits 0
-when restored, 3 when it has no backup for that app, anything else on failure.
+App data (`/mnt/sec/apps`) belongs to `setup-backup.sh` (restic, to a USB drive and/or OneDrive; too large for git):
+`setup-backup.sh restore <app>` exits 0 when restored, 3 when it has no backup for that app, anything else on failure
+(including "backups unreachable", so callers never start an app empty by mistake). Snapshots use the fixed host
+`homelab` so a rebuilt VM finds them; an empty folder is never backed up, so it can never become the latest copy.
+Re-downloadable data (models, caches) is excluded via `EXCLUDES` and left in place by a restore.
+Google Drive is not offered: rclone's shared Google client is being retired and own client IDs are too technical.
 
 ## Documentation
 
