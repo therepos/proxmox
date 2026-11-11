@@ -46,6 +46,13 @@ DESKTOP_KEY_FILE="/usr/share/keyrings/claude-desktop-archive-keyring.asc"
 DESKTOP_KEY_FPR="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
 DESKTOP_REPO_FILE="/etc/apt/sources.list.d/claude-desktop.list"
 DESKTOP_REPO_LINE="deb [arch=amd64,arm64 signed-by=${DESKTOP_KEY_FILE}] https://downloads.claude.ai/claude-desktop/apt/stable stable main"
+# Browser for links the app opens (Mozilla apt repo; the snap cannot run in the desktop service)
+BROWSER_KEY_URL="https://packages.mozilla.org/apt/repo-signing-key.gpg"
+BROWSER_KEY_FILE="/etc/apt/keyrings/packages.mozilla.org.asc"
+BROWSER_KEY_FPR="35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3"
+BROWSER_REPO_FILE="/etc/apt/sources.list.d/mozilla.list"
+BROWSER_REPO_LINE="deb [signed-by=${BROWSER_KEY_FILE}] https://packages.mozilla.org/apt mozilla main"
+BROWSER_PIN_FILE="/etc/apt/preferences.d/mozilla"
 DESKTOP_SERVICE="claude-desktop"
 DESKTOP_SERVICE_FILE="/etc/systemd/system/${DESKTOP_SERVICE}.service"
 DESKTOP_DISPLAY=":1"
@@ -402,6 +409,12 @@ do_update() {
         DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --only-upgrade claude-desktop >/dev/null \
             || warn "Claude Desktop update failed."
         ok "Claude Desktop $(pkg_ver claude-desktop). Restart the app (or reboot) to use it."
+        if [[ -n "$(pkg_ver firefox)" && ! -e /snap/bin/firefox ]]; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --only-upgrade firefox >/dev/null \
+                || warn "Firefox update failed."
+        else
+            install_browser
+        fi
     fi
 }
 
@@ -689,8 +702,49 @@ EOF
     chown -R "$CLAUDE_USER:" "${home}/.config"
     ok "Claude Desktop starts with the desktop."
 
+    install_browser
     install_kasmvnc
     usermod -aG ssl-cert "$CLAUDE_USER"
+}
+
+# Firefox for links the app opens (Update available, sign-in pages). Ubuntu's
+# snap build refuses to start inside the desktop service, so use Mozilla's .deb.
+install_browser() {
+    local home; home="$(user_home "$CLAUDE_USER")"
+    export DEBIAN_FRONTEND=noninteractive
+    if command -v snap >/dev/null && snap list firefox >/dev/null 2>&1; then
+        info "Replacing the snap Firefox (it cannot start in this desktop)..."
+        snap remove firefox >/dev/null 2>&1 || warn "Could not remove the snap Firefox."
+    fi
+    # Newer Firefox packages may ship their own mozilla.sources; a second entry breaks apt.
+    if [[ ! -f "$BROWSER_REPO_FILE" && ! -f /etc/apt/sources.list.d/mozilla.sources ]]; then
+        info "Adding Mozilla's apt repository..."
+        install -d -m 0755 /etc/apt/keyrings
+        curl -fsSLo "$BROWSER_KEY_FILE" "$BROWSER_KEY_URL" || fail "Key download failed. Check access to packages.mozilla.org."
+        gpg --show-keys --with-colons "$BROWSER_KEY_FILE" 2>/dev/null | grep -q "^fpr:::::::::${BROWSER_KEY_FPR}:" \
+            || { rm -f "$BROWSER_KEY_FILE"; fail "Mozilla key fingerprint mismatch. Not installing."; }
+        echo "$BROWSER_REPO_LINE" > "$BROWSER_REPO_FILE"
+        printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > "$BROWSER_PIN_FILE"
+    fi
+    apt-get update -qq
+    apt-get install -y -qq --allow-downgrades firefox xdg-utils >/dev/null || fail "Firefox install failed."
+    [[ -x /usr/bin/firefox ]] || fail "Firefox installed but /usr/bin/firefox is missing."
+
+    # Links reach the browser through www-browser, xdg-open and Xfce's helper.
+    [[ -L /usr/local/bin/www-browser ]] && rm -f /usr/local/bin/www-browser
+    local alt
+    for alt in www-browser x-www-browser; do
+        update-alternatives --install "/usr/bin/${alt}" "$alt" /usr/bin/firefox 200 >/dev/null
+        update-alternatives --set "$alt" /usr/bin/firefox >/dev/null
+    done
+    as_user "$CLAUDE_USER" xdg-mime default firefox.desktop text/html x-scheme-handler/http x-scheme-handler/https 2>/dev/null || true
+    mkdir -p "${home}/.config/xfce4"
+    touch "${home}/.config/xfce4/helpers.rc"
+    sed -i '/^WebBrowser=/d' "${home}/.config/xfce4/helpers.rc"
+    echo "WebBrowser=firefox" >> "${home}/.config/xfce4/helpers.rc"
+    rm -f "${home}/.local/share/xfce4/helpers/firefox-snap.desktop"
+    chown -R "$CLAUDE_USER:" "${home}/.config"
+    ok "Firefox $(pkg_ver firefox) is the default browser."
 }
 
 # --- Settings ----------------------------------------------------------------
@@ -814,7 +868,8 @@ desktop_remove() {
         # shellcheck disable=SC2086
         systemctl unmask $SLEEP_TARGETS >/dev/null 2>&1 || true
         # shellcheck disable=SC2086
-        apt-get remove -y -qq kasmvncserver $DESKTOP_PKGS lightdm lightdm-gtk-greeter >/dev/null 2>&1 || true
+        apt-get remove -y -qq kasmvncserver $DESKTOP_PKGS lightdm lightdm-gtk-greeter firefox >/dev/null 2>&1 || true
+        rm -f "$BROWSER_REPO_FILE" "$BROWSER_PIN_FILE" "$BROWSER_KEY_FILE"
         apt-get autoremove -y -qq >/dev/null 2>&1 || true
         ok "KasmVNC and the desktop removed."
     fi
