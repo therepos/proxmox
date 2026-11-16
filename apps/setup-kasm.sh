@@ -1,25 +1,31 @@
 #!/usr/bin/env bash
 # bash -c "$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/setup-kasm.sh?$(date +%s))"
-# Purpose: Install Kasm Workspaces (Ubuntu)
+# Purpose: Install Kasm Workspaces (Ubuntu), with a watchdog that re-registers gateways whose token expired
 # =============================================================================
 # Usage:
-#   No args (interactive):
-#     - No existing install     -> menu: install / guide / exit
-#     - Existing install found  -> menu: update / uninstall / guide / exit
-#   CLI arg (non-interactive):  install | upgrade | uninstall | guide
+#   setup-kasm                     Interactive menu
+#   setup-kasm install|upgrade     Install, or update to KASM_VERSION
+#   setup-kasm uninstall           Remove Kasm and the watchdog
+#   setup-kasm guide               Login, getting started, persistent profiles
+#   setup-kasm watchdog            Check the gateways once (what the watchdog timer runs)
+#
+# Stored on this machine (root only, mode 600):
+#   /etc/setup-kasm/watchdog.env   Component Registration Token for the watchdog
+#   /etc/homelab/mail.env          Alert email settings (shared with setup-backup.sh)
 #
 # Defaults:
-#   Password                                            (default: password)
-#   KASM_VERSION        Target version, or "latest"     (default: latest)
-#   KASM_SWAP_GB        Swap size in GB                 (default: 4)
-#   KASM_PORT           Web UI port                     (default: 443)
-#   SKIP_QEMU_AGENT     Set "true" to skip              (default: false)
-#   SKIP_PERSISTENT     Set "true" to skip dirs         (default: false)
+#   Password                                                    (default: password)
+#   KASM_VERSION             Target version, or "latest"        (default: latest)
+#   KASM_SWAP_GB             Swap size in GB                    (default: 4)
+#   KASM_PORT                Web UI port                        (default: 443)
+#   SKIP_QEMU_AGENT          Set "true" to skip                 (default: false)
+#   SKIP_PERSISTENT          Set "true" to skip dirs            (default: false)
+#   KASM_REGISTRATION_TOKEN  Turn the watchdog on with it       (default: unset)
 #
 # Uninstall flags (opt-in; also prompted interactively):
-#   REMOVE_DATA         Delete /data/kasm-profiles + -shared  (default: false)
-#   REMOVE_SWAP         Remove the install swap file          (default: false)
-#   FORCE               Skip the uninstall confirmation       (default: false)
+#   REMOVE_DATA              Delete /data/kasm-profiles + -shared  (default: false)
+#   REMOVE_SWAP              Remove the install swap file          (default: false)
+#   FORCE                    Skip the uninstall confirmation       (default: false)
 # =============================================================================
 
 set -euo pipefail
@@ -37,6 +43,30 @@ warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
 # <<< admonition
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
 
 # --- Root check --------------------------------------------------------------
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
@@ -55,21 +85,38 @@ SKIP_QEMU_AGENT="${SKIP_QEMU_AGENT:-false}"
 SKIP_PERSISTENT="${SKIP_PERSISTENT:-false}"
 FORCE="${FORCE:-false}"
 DEFAULT_PASS="password"
+SCRIPT_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-kasm.sh"
+KASM_APP_DIR="${KASM_APP_DIR:-/opt/kasm/current/conf/app}"
+WD_CONF_DIR="${WD_CONF_DIR:-/etc/setup-kasm}"
+WD_CONF="$WD_CONF_DIR/watchdog.env"
+WD_STATE_DIR="${WD_STATE_DIR:-/var/lib/setup-kasm}"
+MAIL_CONF="${MAIL_CONF:-/etc/homelab/mail.env}"
+UNIT_DIR="${UNIT_DIR:-/etc/systemd/system}"
+WD_UNIT="setup-kasm-watchdog"
+# <config folder under $KASM_APP_DIR>:<container> for each component the watchdog re-registers
+WD_COMPONENTS=(rdp_gateway:kasm_rdp_gateway rdp_https_gateway:kasm_rdp_https_gateway)
 
-# --- Menu helpers ------------------------------------------------------------
-asknum(){ # asknum "prompt" "min" "max" "default"
-  local p="$1" min="$2" max="$3" def="$4" in
-  while true; do
-    if [[ -r /dev/tty ]]; then
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in </dev/tty || in="$def"
-    else
-      read -rp "$p [$min-$max, 0 to exit] (default: $def): " in || in="$def"
-    fi
-    in="${in:-$def}"
-    [[ "$in" =~ ^[0-9]+$ ]] || { echo "Enter a number."; continue; }
-    (( in==0 || (in>=min && in<=max) )) && { echo "$in"; return; }
-  done
+# --- Input helpers -----------------------------------------------------------
+have_tty(){ [[ -r /dev/tty ]] && { : </dev/tty; } 2>/dev/null; }
+askv(){ # askv "  LABEL" [default] [e.g.] -> prompts "  LABEL (default: x) = "
+  local l="$1" def="${2:-}" eg="${3:-}" in="" h=""
+  have_tty || fail "No terminal to ask: $l"
+  [[ -n "$eg" ]] && h="e.g. $eg"
+  [[ -n "$def" ]] && h="${h:+$h, }default: $def"
+  read -rp "$l${h:+ ($h)} = " in </dev/tty
+  printf '%s' "${in:-$def}"
 }
+ask_secret(){ local in=""; have_tty || fail "No terminal to ask: $1"
+  read -rsp "$1: " in </dev/tty; echo >/dev/tty; printf '%s' "$in"; }
+write_env(){ # write_env file KEY=VALUE ...  (mode 600, values single-quoted)
+  local f="$1" kv; shift
+  mkdir -p "$(dirname "$f")"; chmod 700 "$(dirname "$f")"
+  ( umask 077; : >"$f.tmp"
+    for kv in "$@"; do printf "%s='%s'\n" "${kv%%=*}" "$(printf '%s' "${kv#*=}" | sed "s/'/'\\\\''/g")" >>"$f.tmp"; done )
+  mv "$f.tmp" "$f"; chmod 600 "$f"
+}
+# shellcheck disable=SC1090  # env file path is a runtime argument
+load_env(){ [[ -f "$1" ]] && { set -a; . "$1"; set +a; }; return 0; }
 
 askyn(){ # askyn "prompt"  -> exit 0 if yes
   local p="$1" in=""
@@ -141,6 +188,193 @@ resolve_target(){
   KASM_URL="${KASM_BASE_URL}/${KASM_TARBALL}"
 }
 
+# --- Alert email -------------------------------------------------------------
+mail_ready(){ [[ -n "${SMTP_HOST:-}" && -n "${SMTP_PASSWORD:-}" && -n "${ALERT_TO:-}" ]]; }
+send_mail(){ # send_mail subject body; returns 1 when email is not set up or sending fails
+  mail_ready || return 1
+  SUBJECT="$1" BODY="$2" python3 - <<'PY'
+import os, smtplib
+from email.message import EmailMessage
+E = os.environ
+m = EmailMessage(); m["Subject"] = E["SUBJECT"]; m["From"] = E.get("SMTP_FROM") or E["SMTP_USERNAME"]; m["To"] = E["ALERT_TO"]
+m.set_content(E["BODY"])
+port = int(E.get("SMTP_PORT") or 587); sec = E.get("SMTP_SECURITY") or "starttls"
+if sec == "force_tls" or port == 465:
+    s = smtplib.SMTP_SSL(E["SMTP_HOST"], port, timeout=30)
+else:
+    s = smtplib.SMTP(E["SMTP_HOST"], port, timeout=30)
+    if sec != "off": s.starttls()
+with s:
+    s.login(E["SMTP_USERNAME"], E["SMTP_PASSWORD"]); s.send_message(m)
+PY
+}
+setup_mail(){
+  local pw
+  echo "Alert email (Enter = default):"
+  SMTP_HOST="$(askv '  SMTP_HOST' "${SMTP_HOST:-smtp.zoho.com}")"
+  SMTP_PORT="$(askv '  SMTP_PORT' "${SMTP_PORT:-587}")"
+  SMTP_SECURITY="${SMTP_SECURITY:-starttls}"
+  SMTP_USERNAME="$(askv '  SMTP_USERNAME' "${SMTP_USERNAME:-}" admin@example.com)"
+  read -rsp "  SMTP_PASSWORD = " pw </dev/tty; echo >/dev/tty
+  SMTP_PASSWORD="${pw:-${SMTP_PASSWORD:-}}"
+  ALERT_TO="$(askv '  ALERT_TO' "${ALERT_TO:-$SMTP_USERNAME}")"
+  export SMTP_HOST SMTP_PORT SMTP_SECURITY SMTP_USERNAME SMTP_PASSWORD ALERT_TO
+  write_env "$MAIL_CONF" "SMTP_HOST=$SMTP_HOST" "SMTP_PORT=$SMTP_PORT" "SMTP_SECURITY=$SMTP_SECURITY" \
+    "SMTP_USERNAME=$SMTP_USERNAME" "SMTP_PASSWORD=$SMTP_PASSWORD" "ALERT_TO=$ALERT_TO"
+  mail_test
+}
+mail_test(){
+  if send_mail "[$(hostname)] Test alert" "Alert email from setup-kasm is working."; then ok "Test email sent to ${ALERT_TO}."
+  else warn "Test email failed. Fix it with Token watchdog > Change alert email."; fi
+}
+
+# --- Token watchdog ----------------------------------------------------------
+# Kasm components renew their own token; when that fails they loop on "JWT token has expired".
+# Kasm reads registration_token.txt from the component's config folder, re-registers and deletes it.
+wd_on(){ [[ -f "$UNIT_DIR/$WD_UNIT.timer" ]] && systemctl is-enabled "$WD_UNIT.timer" >/dev/null 2>&1; }
+wd_state(){ if wd_on; then printf on; else printf off; fi; }
+st_get(){ cat "$WD_STATE_DIR/$1" 2>/dev/null || true; }
+st_set(){ mkdir -p "$WD_STATE_DIR"; printf '%s' "$2" >"$WD_STATE_DIR/$1"; }
+st_del(){ rm -f "$WD_STATE_DIR/$1"; }
+
+wd_alert(){ # wd_alert <container> <problem> <fix>; logs every time, emails at most once a day per container
+  local now last
+  warn "$1: $2"
+  now="$(date +%s)"; last="$(st_get "mailed_$1")"
+  [[ -n "$last" ]] && (( now - last < 86400 )) && return 0
+  if send_mail "[$(hostname)] Kasm: $1 needs attention" "$2
+
+Fix: $3
+"; then st_set "mailed_$1" "$now"; else warn "Alert email not sent (not set up, or sending failed)."; fi
+}
+
+wd_check(){
+  load_env "$WD_CONF"; load_env "$MAIL_CONF"
+  [[ -n "${KASM_REGISTRATION_TOKEN:-}" ]] || fail "No token saved. Run setup-kasm and choose Token watchdog."
+  command -v docker >/dev/null 2>&1 || fail "Docker not found."
+  local now c dir ctr f placed since logs n base at fix
+  now="$(date +%s)"
+  fix="Copy the Component Registration Token from Kasm Admin > Settings > Global, run setup-kasm, choose Token watchdog > Change token."
+  for c in "${WD_COMPONENTS[@]}"; do
+    dir="$KASM_APP_DIR/${c%%:*}"; ctr="${c#*:}"; f="$dir/registration_token.txt"
+    docker inspect "$ctr" >/dev/null 2>&1 || continue
+    placed="$(st_get "placed_$ctr")"
+    since=$(( now - 900 )); [[ -n "$placed" ]] && (( placed + 5 > since )) && since=$(( placed + 5 ))
+    logs="$(docker logs --since "$since" "$ctr" 2>&1 | grep -iE 'registration|register_component|JWT' || true)"
+    if grep -q 'registration successful' <<<"$logs"; then
+      [[ -n "$placed" ]] && ok "$ctr re-registered."
+      st_del "placed_$ctr"; st_del "mailed_$ctr"
+    elif grep -qiE 'JWT token has expired|Expired JWT' <<<"$logs"; then
+      [[ -f "$f" ]] && continue                      # placed, not read yet
+      if [[ -n "$placed" ]] && (( now - placed < 3600 )); then
+        wd_alert "$ctr" "Its token expired and re-registering with the saved token did not fix it." "$fix"
+      elif [[ -d "$dir" ]]; then
+        ( umask 077; printf '%s\n' "$KASM_REGISTRATION_TOKEN" >"$f" )
+        chown --reference="$dir" "$f" 2>/dev/null || true
+        st_set "placed_$ctr" "$now"
+        ok "$ctr: token expired, gave it the saved registration token."
+      else
+        wd_alert "$ctr" "Its token expired and its config folder $dir is missing." "Reinstall or update Kasm with setup-kasm."
+      fi
+    elif grep -q 'Access Denied' <<<"$logs"; then
+      wd_alert "$ctr" "Kasm rejected the saved registration token." "$fix"
+    fi
+  done
+  # Any Kasm container restarting 10+ times in an hour is looping, whatever the cause
+  while IFS= read -r ctr; do
+    [[ -n "$ctr" ]] || continue
+    n="$(docker inspect -f '{{.RestartCount}}' "$ctr" 2>/dev/null || true)"; [[ "$n" =~ ^[0-9]+$ ]] || continue
+    base="$(st_get "restarts_$ctr")"; at="$(st_get "restarts_at_$ctr")"
+    if [[ -z "$base" || -z "$at" ]] || (( n < base )); then
+      st_set "restarts_$ctr" "$n"; st_set "restarts_at_$ctr" "$now"
+    elif (( now - at >= 3600 )); then
+      (( n - base >= 10 )) && wd_alert "$ctr" "It restarted $(( n - base )) times in the last hour." \
+        "See why with: docker logs --tail 50 $ctr"
+      st_set "restarts_$ctr" "$n"; st_set "restarts_at_$ctr" "$now"
+    fi
+  done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep '^kasm_' || true)
+  return 0
+}
+
+wd_save_token(){ # wd_save_token [token]; asks when not given; 1 when nothing was entered
+  local tok="${1:-}"
+  if [[ -z "$tok" ]]; then
+    info "Kasm Admin > Settings > Global, under Authentication: Component Registration Token (unmask to copy)."
+    tok="$(ask_secret 'Paste the Component Registration Token')"
+  fi
+  tok="$(printf '%s' "$tok" | tr -d '[:space:]')"
+  [[ -n "$tok" ]] || { warn "No token entered. Nothing changed."; return 1; }
+  write_env "$WD_CONF" "KASM_REGISTRATION_TOKEN=$tok"
+  ok "Token saved to $WD_CONF (root only)."
+}
+
+wd_enable(){
+  cat >"$UNIT_DIR/$WD_UNIT.service" <<EOF
+[Unit]
+Description=Kasm token watchdog (setup-kasm)
+After=docker.service network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'src=\$\$(wget -qLO- "$SCRIPT_URL?\$\$(date +%%s)") || { echo "could not download setup-kasm.sh from GitHub"; exit 1; }; exec bash -c "\$\$src" setup-kasm watchdog'
+EOF
+  cat >"$UNIT_DIR/$WD_UNIT.timer" <<EOF
+[Unit]
+Description=Kasm token watchdog every 10 minutes
+[Timer]
+OnActiveSec=1min
+OnBootSec=5min
+OnUnitActiveSec=10min
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now "$WD_UNIT.timer" >/dev/null 2>&1
+  ok "Watchdog on: checks every 10 minutes and fixes an expired gateway token by itself."
+}
+wd_disable(){
+  systemctl disable --now "$WD_UNIT.timer" >/dev/null 2>&1 || true
+  rm -f "$UNIT_DIR/$WD_UNIT.service" "$UNIT_DIR/$WD_UNIT.timer"
+  systemctl daemon-reload 2>/dev/null || true
+  ok "Watchdog off."
+}
+
+wd_turn_on(){
+  wd_save_token || return 0
+  load_env "$MAIL_CONF"
+  if mail_ready; then ok "Alerts go to ${ALERT_TO} (settings shared with setup-backup)."
+  else
+    info "The watchdog emails you only when it cannot fix something itself."
+    if askyn "Set up alert email now? (recommended)"; then setup_mail
+    else info "No email: problems are only logged (journalctl -u $WD_UNIT)."; fi
+  fi
+  wd_enable
+}
+
+wd_menu(){ # returns 1 on Back
+  banner "Token Watchdog"
+  load_env "$MAIL_CONF"
+  if wd_on; then
+    ok "On: checks every 10 minutes, alerts $(mail_ready && printf 'to %s' "$ALERT_TO" || printf 'not emailed')"
+    menu "Check now" "Change token|after you regenerate it in Kasm" "Change alert email" "Test email" "Turn off" "Back"
+    case "$CHOICE" in
+      "Check now")          wd_check ;;
+      "Change token")       wd_save_token || true ;;
+      "Change alert email") setup_mail ;;
+      "Test email")         if mail_ready; then mail_test; else setup_mail; fi ;;
+      "Turn off")           wd_disable ;;
+      "Back")               return 1 ;;
+    esac
+  else
+    info "Off"
+    menu "Turn on|re-register the RDP gateways when their token expires" "Back"
+    case "$CHOICE" in
+      "Turn on") wd_turn_on ;;
+      "Back")    return 1 ;;
+    esac
+  fi
+}
+
 # --- Uninstall ---------------------------------------------------------------
 uninstall_kasm(){
   local HAVE_DOCKER=false
@@ -162,6 +396,12 @@ uninstall_kasm(){
   fi
 
   echo ""
+
+  if [[ -f "$UNIT_DIR/$WD_UNIT.timer" || -d "$WD_CONF_DIR" ]]; then
+    wd_disable
+    rm -rf "$WD_CONF_DIR" "$WD_STATE_DIR"
+    ok "Token watchdog removed (alert email settings kept: $MAIL_CONF)."
+  fi
 
   # Stop services
   if [[ -x /opt/kasm/current/bin/stop ]]; then
@@ -320,6 +560,19 @@ show_guide(){
   echo "    Profiles    /data/kasm-profiles/"
   echo "    Shared      /data/kasm-shared/"
   echo ""
+  banner "Token Watchdog"
+  echo ""
+  echo "  Kasm's RDP gateways renew their own login token. If that fails,"
+  echo "  they restart every few minutes and RDP stops working."
+  echo "  The watchdog (now: $(wd_state)) re-registers them with your saved"
+  echo "  Component Registration Token and emails you if that does not work."
+  echo ""
+  echo "  Turn on    run this again and choose Token watchdog > Turn on"
+  echo "  Token      Admin > Settings > Global, under Authentication"
+  echo "  Test       Token watchdog > Check now"
+  echo "  Log        journalctl -u ${WD_UNIT}"
+  echo "  Undo       Token watchdog > Turn off"
+  echo ""
 }
 
 # --- Determine action --------------------------------------------------------
@@ -336,41 +589,39 @@ fi
 case "$ACTION" in
     uninstall)      uninstall_kasm; exit 0 ;;
     guide)          show_guide; exit 0 ;;
-    help|-h|--help) echo "Usage: setup-kasm.sh [install|upgrade|uninstall|guide]"; exit 0 ;;
+    watchdog)       wd_check; exit 0 ;;
+    help|-h|--help) echo "Usage: setup-kasm.sh [install|upgrade|uninstall|guide|watchdog]"; exit 0 ;;
     install)        MODE="install" ;;
     upgrade)        MODE="upgrade" ;;
     "")             : ;;  # interactive / automated default handled below
-    *)              fail "Unknown action '$ACTION' (try: install|upgrade|uninstall|guide)" ;;
+    *)              fail "Unknown action '$ACTION' (try: install|upgrade|uninstall|guide|watchdog)" ;;
 esac
 
 # Interactive menu (only when a real terminal is present). Never auto-installs:
 # a fresh box asks first. Non-interactive runs fall through to the default MODE.
-if [[ -z "$ACTION" && -r /dev/tty ]]; then
-    echo ""
+main_menu(){
+    banner "Kasm Workspaces"
     if [[ -d /opt/kasm/current ]]; then
-        echo "Kasm ${EXISTING_VERSION:-unknown} is installed."
-        echo "  1) Update to the latest version"
-        echo "  2) Uninstall"
-        echo "  3) Guide (login, getting started, persistent profiles)"
-        echo "  0) Exit"
-        case "$(asknum 'Enter choice' 1 3 1)" in
-            0) ok "Nothing to do."; exit 0 ;;
-            1) MODE="upgrade" ;;
-            2) uninstall_kasm; exit 0 ;;
-            3) show_guide; exit 0 ;;
+        ok "Kasm ${EXISTING_VERSION:-unknown} installed, token watchdog $(wd_state)"
+        menu "Update|to the latest version" \
+             "Token watchdog|re-registers the RDP gateways when their token expires" \
+             "Guide|login, getting started, persistent profiles" "Uninstall"
+        case "$CHOICE" in
+            "Update")         MODE="upgrade" ;;
+            "Token watchdog") if wd_menu; then exit 0; else main_menu; fi ;;
+            "Guide")          show_guide; exit 0 ;;
+            "Uninstall")      uninstall_kasm; exit 0 ;;
         esac
     else
-        echo "Kasm Workspaces is not installed."
-        echo "  1) Install the latest version"
-        echo "  2) Guide (login, getting started, persistent profiles)"
-        echo "  0) Exit"
-        case "$(asknum 'Enter choice' 1 2 1)" in
-            0) ok "Bye."; exit 0 ;;
-            1) MODE="install" ;;
-            2) show_guide; exit 0 ;;
+        info "Not installed"
+        menu "Install|the latest version" "Guide|login, getting started, persistent profiles"
+        case "$CHOICE" in
+            "Install") MODE="install" ;;
+            "Guide")   show_guide; exit 0 ;;
         esac
     fi
-fi
+}
+if [[ -z "$ACTION" ]] && have_tty; then main_menu; fi
 
 # We are installing or upgrading -> resolve the target version now.
 resolve_target
@@ -500,6 +751,13 @@ fi
 info "Cleaning up /tmp..."
 rm -rf /tmp/kasm_release /tmp/"${KASM_TARBALL}"
 ok "Cleanup done."
+
+# --- Token watchdog ----------------------------------------------------------
+if [[ -n "${KASM_REGISTRATION_TOKEN:-}" ]]; then
+    wd_save_token "$KASM_REGISTRATION_TOKEN" && wd_enable
+elif ! wd_on; then
+    info "Tip: run this again and choose Token watchdog, so an expired gateway token fixes itself."
+fi
 
 # --- Summary -----------------------------------------------------------------
 echo ""
