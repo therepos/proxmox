@@ -278,8 +278,8 @@ User=${CLAUDE_USER}
 Environment=HOME=${home}
 Environment=PATH=${home}/.local/bin:/usr/local/bin:/usr/bin:/bin
 WorkingDirectory=${CLAUDE_WORKDIR}
-ExecStart=${tmux_bin} new-session -d -s ${TMUX_SESSION} -c ${CLAUDE_WORKDIR} 'claude remote-control --name ${CLAUDE_RC_NAME}'
-ExecStop=${tmux_bin} kill-session -t ${TMUX_SESSION}
+ExecStart=${tmux_bin} new-session -d -s ${TMUX_SESSION} -c ${CLAUDE_WORKDIR} 'claude remote-control --name ${CLAUDE_RC_NAME}; tmux capture-pane -p -S -40 | grep . | logger -t ${SERVICE_NAME}'
+ExecStop=-${tmux_bin} kill-session -t ${TMUX_SESSION}
 Restart=always
 RestartSec=30
 
@@ -374,7 +374,10 @@ do_status() {
     case "$rc" in
         connected)     rc_txt="Connected  (name: ${CLAUDE_RC_NAME:-?})" ;;
         not-connected) rc_txt="Running, NOT connected  -> attach to see why, or re-run Install to log in" ;;
-        *)             rc_txt="Not running" ;;
+        *)             rc_txt="Not running"
+                       if [[ "${act:-}" == activating || "${act:-}" == failed ]]; then
+                           rc_txt+="  -> it quits at start; see why: journalctl -u ${SERVICE_NAME} -n 40"
+                       fi ;;
     esac
 
     banner "Status"
@@ -401,7 +404,11 @@ do_update() {
     [[ -x "$bin" ]] || fail "Claude Code not found at $bin."
     info "Updating Claude Code..."
     as_user "$CLAUDE_USER" "$bin" update || warn "Update command reported an error."
-    systemctl restart "$SERVICE_NAME"
+    if [[ -f "$SERVICE_FILE" && -n "${CLAUDE_WORKDIR:-}" && -n "${CLAUDE_RC_NAME:-}" ]]; then
+        ( write_service ) || warn "Remote Control quits at start. See why: journalctl -u ${SERVICE_NAME} -n 40"
+    else
+        systemctl restart "$SERVICE_NAME"
+    fi
     ok "Updated to $(as_user "$CLAUDE_USER" "$bin" --version 2>/dev/null | head -1). Service restarted."
     if [[ -n "$(pkg_ver claude-desktop)" ]]; then
         info "Updating Claude Desktop..."
