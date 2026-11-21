@@ -36,7 +36,8 @@ Each script is standalone: it runs via `bash -c "$(wget ...)"` and sources nothi
   Shared look and behaviour belongs in a block, so changing it never touches a script's features.
 - Output only through `ok`, `info`, `warn`, `fail` (`fail` exits). Continuation lines indent 7 spaces.
 - Screen titles use `banner "Title"` (admonition block): a `====` line, the title, a `====` line. A menu screen is
-  `banner`, one status line (`ok`/`info`), then `menu`.
+  `banner`, one status line (`ok`/`info`), then `menu`. A Status screen prints each line with `row "Label" "value"`
+  (admonition block), which colours the value by state so it stands apart from menus.
 - Menus use the helper: `menu "Install" "Status|what it shows" "Back"`, then
   `case "$CHOICE" in Install) ...;; Status) ...;; Back) ...;; esac`, matching on names, never numbers.
   It numbers the options, adds `0) Exit` (0 only ever exits) and the prompt. In submenus put `Back` last.

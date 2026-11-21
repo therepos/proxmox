@@ -31,6 +31,16 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
+# Status line: value red when missing/failed, yellow while starting, green when OK.
+row() {
+  local c=''
+  case "${2,,}" in
+    not|*"not "*|*not-*|*missing*|*fail*|*error*|*inactive*|*disconnected*) c="$_CE" ;;
+    *activating*|*reconnecting*|*starting*) c="$_CW" ;;
+    *installed*|*active*|*connected*|*"logged in"*|*running*|*enabled*|*mounted*|*loaded*) c="$_CK" ;;
+  esac
+  printf '  %-16s%s%s%s\n' "$1" "$c" "$2" "${c:+$_C0}"
+}
 # <<< admonition
 
 # Interactive numeric prompt that works under: bash -c "$(wget ...)"
@@ -389,11 +399,11 @@ full_summary() {
 # --- Status (menu option) ----------------------------------------------------
 vm_status() {
     banner "Status"
-    echo "  Webmin    $(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
-    echo "  Docker    $(command -v docker >/dev/null && echo installed || echo missing)"
-    echo "  NVIDIA    $( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
-    echo "  Kasm      $([[ -d /opt/kasm/current ]] && echo installed || echo missing)"
-    echo "  Root disk $(df -h / 2>/dev/null | awk 'NR==2{print $3"/"$2" used ("$5")"}')"
+    row "Webmin"    "$(dpkg -l webmin &>/dev/null 2>&1 && echo installed || echo missing)"
+    row "Docker"    "$(command -v docker >/dev/null && echo installed || echo missing)"
+    row "NVIDIA"    "$( (command -v nvidia-smi >/dev/null && nvidia-smi &>/dev/null) && echo loaded || echo 'not loaded')"
+    row "Kasm"      "$([[ -d /opt/kasm/current ]] && echo installed || echo missing)"
+    row "Root disk" "$(df -h / 2>/dev/null | awk 'NR==2{print $3"/"$2" used ("$5")"}')"
     banner "/mnt/sec  $(mountpoint -q /mnt/sec 2>/dev/null && echo 'mounted (virtiofs)' || echo 'not mounted')"
     echo ""
 }
