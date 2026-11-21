@@ -59,6 +59,16 @@ info() { printf '%s[INFO]%s %s\n' "$_CI" "$_C0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$_CW" "$_C0" "$*" >&2; }
 fail() { printf '%s[FAIL]%s %s\n' "$_CE" "$_C0" "$*" >&2; exit 1; }
 banner() { local l='================================================='; printf '\n%s\n  %s\n%s\n' "$l" "$*" "$l"; }
+# Status line: value red when missing/failed, yellow while starting, green when OK.
+row() {
+  local c=''
+  case "${2,,}" in
+    not|*"not "*|*not-*|*missing*|*fail*|*error*|*inactive*|*disconnected*) c="$_CE" ;;
+    *activating*|*reconnecting*|*starting*) c="$_CW" ;;
+    *installed*|*active*|*connected*|*"logged in"*|*running*|*enabled*|*mounted*|*loaded*) c="$_CK" ;;
+  esac
+  printf '  %-16s%s%s%s\n' "$1" "$c" "$2" "${c:+$_C0}"
+}
 # <<< admonition
 # >>> menu
 menu() {
