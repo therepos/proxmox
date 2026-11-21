@@ -16,9 +16,10 @@
 #                    4) Fix VM IP (netplan static address, auto-reverts if broken)
 #     5) Connectors  1) Connect GitHub (so Claude Code here can read and push your
 #                    repos, like claude.ai)  2) Disconnect GitHub
-#     6) Uninstall   remove the desktop and the service (optionally Claude Code)
+#     6) Logs        latest Remote Control and desktop log lines
+#     7) Uninstall   remove the desktop and the service (optionally Claude Code)
 #   Args skip the menu: install | status | update | settings [performance|balanced|quality|ip]
-#                       | connectors [github|github-off] | uninstall
+#                       | connectors [github|github-off] | logs | uninstall
 #
 #   After install: Claude app -> Code tab -> tap this VM under Devices.
 #   Watch the live session:   tmux attach -t claude   (detach: Ctrl+B then D)
@@ -101,6 +102,30 @@ row() {
   printf '  %-16s%s%s%s\n' "$1" "$c" "$2" "${c:+$_C0}"
 }
 # <<< admonition
+# >>> menu
+menu() {
+  local o name desc i=1 w=0 pick
+  { true </dev/tty; } 2>/dev/null || { warn "No terminal for the menu."; exit 0; }
+  for o in "$@"; do name="${o%%|*}"; (( ${#name} > w )) && w=${#name}; done
+  echo ""
+  for o in "$@"; do
+    name="${o%%|*}"; desc=""; [[ "$o" == *"|"* ]] && desc="${o#*|}"
+    if [[ -n "$desc" ]]; then printf '  %d) %-*s  %s\n' "$i" "$w" "$name" "$desc"
+    else printf '  %d) %s\n' "$i" "$name"; fi
+    i=$((i + 1))
+  done
+  echo "  0) Exit"
+  echo ""
+  while true; do
+    read -rp "  Choose [0-$#]: " pick </dev/tty || exit 0
+    [[ "$pick" == "0" ]] && exit 0
+    if [[ "$pick" =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= $# )); then
+      CHOICE="${!pick}"; CHOICE="${CHOICE%%|*}"; return 0
+    fi
+    warn "Choose a number from 0 to $#."
+  done
+}
+# <<< menu
 
 [[ $EUID -eq 0 ]] || fail "This script must be run as root (or via sudo)."
 [[ -d /etc/pve ]] && fail "This is the Proxmox host. Run this inside the Ubuntu VM instead."
@@ -305,7 +330,7 @@ EOF
     systemctl restart "$SERVICE_NAME"
     sleep 5
     systemctl is-active --quiet "$SERVICE_NAME" \
-        || fail "Service failed to start. Check: journalctl -u ${SERVICE_NAME} -n 50"
+        || fail "Service failed to start. Run this again and choose Logs to see why."
     ok "Boot service '${SERVICE_NAME}' enabled and running."
 }
 
@@ -386,7 +411,7 @@ do_status() {
         not-connected) rc_txt="Running, NOT connected  -> attach to see why, or re-run Install to log in" ;;
         *)             rc_txt="Not running"
                        if [[ "${act:-}" == activating || "${act:-}" == failed ]]; then
-                           rc_txt+="  -> it quits at start; see why: journalctl -u ${SERVICE_NAME} -n 40"
+                           rc_txt+="  -> it quits at start; choose Logs to see why"
                        fi ;;
     esac
 
@@ -415,7 +440,7 @@ do_update() {
     info "Updating Claude Code..."
     as_user "$CLAUDE_USER" "$bin" update || warn "Update command reported an error."
     if [[ -f "$SERVICE_FILE" && -n "${CLAUDE_WORKDIR:-}" && -n "${CLAUDE_RC_NAME:-}" ]]; then
-        ( write_service ) || warn "Remote Control quits at start. See why: journalctl -u ${SERVICE_NAME} -n 40"
+        ( write_service ) || warn "Remote Control quits at start. Choose Logs to see why."
     else
         systemctl restart "$SERVICE_NAME"
     fi
@@ -667,7 +692,7 @@ EOF
     systemctl restart "$DESKTOP_SERVICE"
     sleep 5
     systemctl is-active --quiet "$DESKTOP_SERVICE" \
-        || fail "KasmVNC failed to start. Check: journalctl -u ${DESKTOP_SERVICE} -n 50"
+        || fail "KasmVNC failed to start. Run this again and choose Logs to see why."
     ok "Boot service '${DESKTOP_SERVICE}' enabled and running."
 }
 
@@ -778,16 +803,18 @@ set_streaming() { # set_streaming performance|balanced|quality
 do_settings() {
     local pick="${1:-}"
     if [[ -z "$pick" ]]; then
+        load_conf
         banner "Settings"
-        echo "  1) Improve stream performance"
-        echo "  2) Improve stream quality"
-        echo "  3) Balance stream    work networks: sharper scrolling"
-        echo "  4) Fix VM IP"
-        echo "  5) Back"
-        echo "  0) Exit"
-        echo ""
-        read -rp "  Choose [0-5]: " pick </dev/tty || pick=5
-        case "$pick" in 1) pick=performance ;; 2) pick=quality ;; 3) pick=balanced ;; 4) pick=ip ;; 0) exit 0 ;; *) return 0 ;; esac
+        info "Streaming: $( [[ -f "$DESKTOP_SERVICE_FILE" ]] && stream_label "${CLAUDE_STREAM:-$STREAM_DEFAULT}" || echo 'desktop not installed' )"
+        menu "Improve stream performance" "Improve stream quality" \
+             "Balance stream|work networks: sharper scrolling" "Fix VM IP" "Back"
+        case "$CHOICE" in
+            "Improve stream performance") pick=performance ;;
+            "Improve stream quality")     pick=quality ;;
+            "Balance stream")             pick=balanced ;;
+            "Fix VM IP")                  pick=ip ;;
+            Back)                         return 0 ;;
+        esac
     fi
     case "$pick" in
         performance|balanced|quality) set_streaming "$pick" ;;
@@ -850,15 +877,13 @@ do_connectors() {
     if [[ -z "$pick" ]]; then
         local u; u="$(claude_user)"
         banner "Connectors"
-        echo "  GitHub: $(gh_state "$u")"
-        echo ""
-        echo "  1) Connect GitHub"
-        echo "  2) Disconnect GitHub"
-        echo "  3) Back"
-        echo "  0) Exit"
-        echo ""
-        read -rp "  Choose [0-3]: " pick </dev/tty || pick=3
-        case "$pick" in 1) pick=github ;; 2) pick=github-off ;; 0) exit 0 ;; *) return 0 ;; esac
+        info "GitHub: $(gh_state "$u")"
+        menu "Connect GitHub" "Disconnect GitHub" "Back"
+        case "$CHOICE" in
+            "Connect GitHub")    pick=github ;;
+            "Disconnect GitHub") pick=github-off ;;
+            Back)                return 0 ;;
+        esac
     fi
     case "$pick" in
         github)     connect_github ;;
@@ -913,6 +938,33 @@ do_uninstall() {
     rm -f "$CONF_FILE"
 }
 
+# --- Logs --------------------------------------------------------------------
+# Last lines of both services, so nobody has to remember journalctl.
+do_logs() {
+    banner "Logs"
+    local svc
+    for svc in "$SERVICE_NAME" "$DESKTOP_SERVICE"; do
+        echo ""
+        info "${svc} (latest last)"
+        journalctl -u "$svc" -n 25 --no-pager -o short 2>/dev/null | sed 's/^/       /' || true
+    done
+    echo ""
+    info "Remote Control lines tagged '${SERVICE_NAME}:' show its last screen before it stopped."
+    info "Usual fix: choose Install, keep the defaults, answer y to 'Log in again?'."
+}
+
+# Main menu status line: is Remote Control connected?
+rc_summary() {
+    local u; u="$(claude_user)"
+    if [[ -n "$u" ]] && command -v tmux >/dev/null && [[ "$(rc_state "$u")" == connected ]]; then
+        ok "Remote Control connected."
+    elif [[ -f "$SERVICE_FILE" ]]; then
+        info "Remote Control not connected. Choose Status, then Logs."
+    else
+        info "Not installed yet. Choose Install."
+    fi
+}
+
 # --- Dispatch ----------------------------------------------------------------
 case "${1:-}" in
     install)   do_install;    exit 0 ;;
@@ -920,30 +972,24 @@ case "${1:-}" in
     update)    do_update;     exit 0 ;;
     settings)  do_settings "${2:-}"; exit 0 ;;
     connectors) do_connectors "${2:-}"; exit 0 ;;
+    logs)      do_logs;       exit 0 ;;
     uninstall) do_uninstall;  exit 0 ;;
     "")        ;;
-    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|balanced|quality|ip] | connectors [github|github-off] | uninstall" ;;
+    *)         fail "Unknown option '$1'. Use: install | status | update | settings [performance|balanced|quality|ip] | connectors [github|github-off] | logs | uninstall" ;;
 esac
 
 while true; do
     banner "Claude Code + Claude Desktop on Ubuntu VM"
-    echo "  1) Install      Claude Code (Remote Control) + Claude Desktop"
-    echo "  2) Status"
-    echo "  3) Update"
-    echo "  4) Settings"
-    echo "  5) Connectors   GitHub login for Claude Code on this VM"
-    echo "  6) Uninstall"
-    echo "  0) Exit"
-    echo ""
-    read -rp "  Choose [0-6]: " choice </dev/tty || choice=0
-    case "$choice" in
-        1) do_install ;;
-        2) do_status ;;
-        3) do_update ;;
-        4) do_settings ;;
-        5) do_connectors ;;
-        6) do_uninstall ;;
-        0) exit 0 ;;
-        *) warn "Invalid choice." ;;
+    rc_summary
+    menu "Install|Claude Code (Remote Control) + Claude Desktop" "Status" "Update" "Settings" \
+         "Connectors|GitHub login for Claude Code on this VM" "Logs|why Remote Control or the desktop stopped" "Uninstall"
+    case "$CHOICE" in
+        Install)    do_install ;;
+        Status)     do_status ;;
+        Update)     do_update ;;
+        Settings)   do_settings ;;
+        Connectors) do_connectors ;;
+        Logs)       do_logs ;;
+        Uninstall)  do_uninstall ;;
     esac
 done
