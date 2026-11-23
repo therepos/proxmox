@@ -28,6 +28,10 @@
 # Config (env): LLM_PORT=8080  LLM_CTX=65536  LLM_QUANT=UD-Q4_K_XL (or UD-Q3_K_XL: smaller,
 #   faster, slightly less accurate)  LLM_THINKING=off (default, faster) or on (smarter, slower)  VIRTIOFS_TAG=sec  MOUNT_POINT=/mnt/sec
 # Hermes needs at least 64K context; do not lower LLM_CTX below 65536.
+# 
+# Switching:
+#   systemctl stop llama.service
+#   systemctl start llama.service
 # =============================================================================
 
 set -euo pipefail
