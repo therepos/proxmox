@@ -4,7 +4,7 @@
 # =============================================================================
 # Usage (run inside the GPU VM, e.g. VM 200 — not on the Proxmox host or in an LXC):
 #   (no args)        menu
-#   install [-y]     install or repair everything, then test   (-y = no questions)
+#   install [-y]     install or repair everything, then test   (-y = no questions; exits 10 for a reboot)
 #   status           service, GPU memory, speed, address and key for Hermes
 #   test             one real tool-calling request + speed measurement
 #   update           newest llama.cpp release (model and settings untouched)
@@ -283,6 +283,8 @@ step_driver() {
         echo "  After the VM is back, log in and run this same command again."
         echo "  It carries on from here; nothing is repeated."
         hr
+        # Unattended callers (setup-hermes.sh) restart the VM themselves.
+        [[ "$YES" == "1" ]] && exit 10
         if ask_yn "Reboot now?" y; then systemctl reboot; fi
         exit 0
     fi
@@ -611,11 +613,13 @@ run_test() {
 # --- Hermes connection details -----------------------------------------------
 print_connect() {
     load_env || return 0
+    # setup-hermes.sh connects itself and logs this output; keep the key out of it.
+    [[ "${LLM_CALLER:-}" == "hermes" ]] && return 0
     local ip; ip="$(lan_ip)"
     echo ""
     banner "Connect Hermes"
     echo "  On the Proxmox host:"
-    echo "    - setup-hermes.sh  >  8) Use local LLM"
+    echo "    - setup-hermes.sh, choose Local LLM"
     echo ""
     echo "  Other clients:"
     echo "    - URL      http://${ip:-<VM-IP>}:${PORT}/v1"
@@ -716,7 +720,7 @@ action_uninstall() {
     fi
     rmdir "$APP_DIR" 2>/dev/null || true
     echo ""
-    echo "  Hermes: point it back at Claude with menu option 3 of setup-hermes.sh on the Proxmox host."
+    echo "  Hermes: on the Proxmox host run setup-hermes.sh and choose AI provider to go back to Claude."
 }
 
 # Replace the API key. The server restarts with the new key; Hermes keeps the old
