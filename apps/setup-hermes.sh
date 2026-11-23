@@ -86,6 +86,7 @@ DASH_USER=""
 DASH_PASS=""
 
 SANDBOX_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-hermessb.sh"
+LLAMA_URL="https://github.com/therepos/proxmox/raw/main/apps/setup-llama.sh"
 
 PAGES_PORT=8088
 PAGES_DIR="/opt/hermes-pages"
@@ -1357,17 +1358,180 @@ EOSH
 
 
 # --- Local LLM ---------------------------------------------------------------
-llm_val() { { grep -s "^$1=" "$LLM_ENV" || true; } | cut -d= -f2- | tr -d "'"; }
+llm_val() { { grep "^$1=" <<<"$LLM_DATA" || true; } | cut -d= -f2- | tr -d "'"; }
+
+# Runs a command in VM $1 through the QEMU guest agent: prints its output, returns its
+# exit code (125 when the agent does not answer).
+vm_exec() {
+    local id="$1" j; shift
+    j=$(qm guest exec "$id" --timeout 120 -- "$@" 2>/dev/null) || return 125
+    jq -j '."out-data" // ""' <<<"$j"
+    return "$(jq -r '.exitcode // 1' <<<"$j")"
+}
+vm_name() { qm config "$1" 2>/dev/null | awk '/^name:/ {print $2}'; }
+vm_agent_up() { qm guest cmd "$1" ping >/dev/null 2>&1; }
+
+llm_wait_agent() { # llm_wait_agent vmid seconds
+    local id="$1" t=0
+    info "Waiting for VM $id to answer..."
+    until vm_agent_up "$id"; do
+        sleep 5; t=$((t + 5))
+        (( t >= $2 )) && return 1
+    done
+    ok "VM $id is up."
+}
+
+# Sets LLM_VM to the VM with a GPU passed through (asks when there are several).
+llm_pick_vm() {
+    local id vms=() opts=()
+    while read -r id; do
+        [[ -n "$id" ]] && qm config "$id" 2>/dev/null | grep -q '^hostpci' && vms+=("$id")
+    done < <(qm list 2>/dev/null | awk 'NR>1 {print $1}')
+    if (( ${#vms[@]} == 0 )); then
+        warn "No VM has a GPU passed through, so there is nowhere to run a local LLM."
+        echo "       Create one with create-vm.sh, install Ubuntu in it, then run this again and choose Local LLM."
+        return 1
+    fi
+    if (( ${#vms[@]} == 1 )); then LLM_VM="${vms[0]}"; return 0; fi
+    for id in "${vms[@]}"; do opts+=("VM $id|$(vm_name "$id")"); done
+    info "Which VM runs the local LLM?"
+    menu "${opts[@]}" "Back"
+    case "$CHOICE" in
+        Back) return 1 ;;
+        *)    LLM_VM="${CHOICE#VM }" ;;
+    esac
+}
+
+# Starts VM $1 if needed and makes sure this host can run commands in it.
+llm_vm_ready() {
+    local id="$1" c
+    if ! qm config "$id" 2>/dev/null | grep -qE '^agent:.*(^|[ ,:])(1|enabled=1)'; then
+        warn "VM $id has the QEMU guest agent turned off, so this host cannot run commands in it."
+        read -rp "  Turn it on? VM $id restarts. [Y/n]: " c </dev/tty || c="n"
+        [[ "$c" =~ ^[Nn] ]] && return 1
+        qm set "$id" --agent enabled=1 >/dev/null || { warn "Could not turn on the guest agent."; return 1; }
+        if qm status "$id" 2>/dev/null | grep -q running; then
+            qm reboot "$id" --timeout 300 >/dev/null 2>&1 || { warn "Could not restart VM $id. Restart it, then run this again."; return 1; }
+        fi
+    fi
+    if ! qm status "$id" 2>/dev/null | grep -q running; then
+        read -rp "  VM $id ($(vm_name "$id")) is stopped. Start it? [Y/n]: " c </dev/tty || c="n"
+        [[ "$c" =~ ^[Nn] ]] && return 1
+        qm start "$id" >/dev/null || { warn "VM $id did not start. Check it in the Proxmox UI."; return 1; }
+    fi
+    vm_agent_up "$id" && return 0
+    if ! llm_wait_agent "$id" 180; then
+        warn "VM $id does not answer this host (its guest agent is not installed or not running)."
+        echo "       In the Proxmox UI open VM $id > Console, log in and run:"
+        echo "         sudo apt install -y qemu-guest-agent && sudo systemctl start qemu-guest-agent"
+        echo "       Then run this again and choose Local LLM."
+        return 1
+    fi
+}
+
+# Runs setup-llama.sh install -y inside the VM as a systemd unit, so it survives this
+# shell; a run already in progress is followed instead of started again.
+# shellcheck disable=SC2016  # expanded inside the VM
+LLM_RUNNER='#!/bin/bash
+exec >>/var/log/hermes-llama.log 2>&1
+rc=0
+src=$(wget -qLO- "$1?$(date +%s)") && [ -n "$src" ] || { echo "[FAIL] Could not download setup-llama.sh. Is the VM online?"; rc=1; }
+[ "$rc" = 0 ] && { bash -c "$src" setup-llama install -y || rc=$?; }
+echo "$rc" > /var/lib/hermes-llama/rc'
+# shellcheck disable=SC2016
+LLM_LAUNCH='systemctl is-active -q hermes-llama && exit 0
+mkdir -p /var/lib/hermes-llama && printf "%s\n" "$1" > /var/lib/hermes-llama/run.sh || exit 1
+rm -f /var/lib/hermes-llama/rc; : > /var/log/hermes-llama.log
+u=$(id -nu 1000 2>/dev/null || true)
+systemd-run --unit=hermes-llama --collect --quiet -E HOME=/root -E LLM_CALLER=hermes \
+    ${3:+-E FORCE_COLOR=1} ${u:+-E SUDO_USER=$u} bash /var/lib/hermes-llama/run.sh "$2"'
+# Prints the log lines after line $1, then "@@hermes <lines> <download %> <rc> <state>".
+# shellcheck disable=SC2016
+LLM_POLL='L=/var/log/hermes-llama.log
+t=$(wc -l < "$L" 2>/dev/null || echo 0)
+[ "$t" -gt "$1" ] && sed -n "$(($1 + 1)),${t}p" "$L" | sed "s/.*\r//"
+p=""; [ -n "$(tail -c1 "$L" 2>/dev/null)" ] && p=$(tail -c 200 "$L" | tr "\r" "\n" | tail -n1 | grep -o "[0-9.]*%" | tail -n1)
+rc=$(cat /var/lib/hermes-llama/rc 2>/dev/null || true)
+echo "@@hermes $t ${p:--} ${rc:--} $(systemctl is-active hermes-llama 2>/dev/null || true)"'
+
+# Shows the install log as it grows; sets LLM_RC to setup-llama.sh's exit code.
+llm_follow() {
+    local id="$1" n=0 out line meta t p rc st last="" lastt=0 miss=0 final=0
+    LLM_RC=1
+    while true; do
+        if ! out=$(vm_exec "$id" bash -c "$LLM_POLL" _ "$n"); then
+            miss=$((miss + 1))
+            (( miss > 60 )) && { warn "Lost contact with VM $id. Run this again and choose Local LLM to follow the install."; return 1; }
+            sleep 5; continue
+        fi
+        miss=0; meta=""
+        while IFS= read -r line; do
+            if [[ "$line" == "@@hermes "* ]]; then meta="$line"; else printf '%s\n' "$line"; fi
+        done <<<"$out"
+        [[ -z "$meta" ]] && { sleep 5; continue; }
+        read -r _ t p rc st <<<"$meta"
+        [[ "$t" =~ ^[0-9]+$ ]] && n="$t"
+        if [[ "$p" != "-" && -n "$p" && "$p" != "$last" ]] && { [[ -z "$last" ]] || (( SECONDS - lastt >= 30 )); }; then
+            info "Downloading the model: $p"; last="$p"; lastt=$SECONDS
+        fi
+        if [[ -n "$rc" && "$rc" != "-" ]]; then
+            (( final )) && { LLM_RC="$rc"; return 0; }
+            final=1; continue
+        fi
+        if [[ "$st" != "active" && "$st" != "activating" ]]; then
+            (( final )) && { warn "The install in VM $id stopped without finishing. Run this again and choose Local LLM."; return 1; }
+            final=1; continue
+        fi
+        sleep 5
+    done
+}
+
+llm_install() {
+    local id="$1" boots=0
+    while true; do
+        vm_exec "$id" bash -c "$LLM_LAUNCH" _ "$LLM_RUNNER" "$LLAMA_URL" "${FORCE_COLOR:-}" >/dev/null \
+            || { warn "Could not start the install in VM $id."; return 1; }
+        llm_follow "$id" || return 1
+        case "$LLM_RC" in
+            0)  ok "Local LLM installed in VM $id."; return 0 ;;
+            10) boots=$((boots + 1))
+                (( boots > 2 )) && { warn "VM $id still needs a reboot after two restarts. Check the NVIDIA driver in the VM."; return 1; }
+                info "Restarting VM $id to load the NVIDIA driver..."
+                qm reboot "$id" --timeout 300 >/dev/null 2>&1 \
+                    || { warn "Could not restart VM $id. Restart it, then run this again and choose Local LLM."; return 1; }
+                sleep 10
+                llm_wait_agent "$id" 300 || { warn "VM $id did not come back. Check it in the Proxmox UI."; return 1; } ;;
+            *)  warn "The local LLM install stopped (exit $LLM_RC); the messages above say why."
+                echo "       Run this again and choose Local LLM; finished steps are skipped."
+                return 1 ;;
+        esac
+    done
+}
+
+# Sets LLM_DATA from the GPU VM, installing the local LLM there first when it is missing.
+llm_from_vm() {
+    local id c
+    llm_pick_vm || return 1
+    id="$LLM_VM"
+    llm_vm_ready "$id" || return 1
+    if ! vm_exec "$id" test -f /etc/llama/env -a -f /etc/systemd/system/llama.service; then
+        if ! vm_exec "$id" systemctl is-active -q hermes-llama; then
+            info "No local LLM in VM $id ($(vm_name "$id")) yet."
+            echo "       It runs Qwen3.6-35B-A3B on the VM's GPU: 20-40 min, 22 GB download."
+            read -rp "  Install it now? [Y/n]: " c </dev/tty || c="n"
+            [[ "$c" =~ ^[Nn] ]] && return 1
+        fi
+        llm_install "$id" || return 1
+    fi
+    LLM_DATA="$(vm_exec "$id" cat /etc/llama/env)" || { warn "Could not read the local LLM settings from VM $id."; return 1; }
+}
 
 action_local_llm() {
     [[ -z "$EXISTING_CTID" ]] && fail "Hermes is not installed yet."
     ensure_host_deps
-    if [[ ! -f "$LLM_ENV" ]]; then
-        warn "No local LLM found (missing ${LLM_ENV})."
-        echo "  Inside the GPU VM, run setup-llama.sh and choose Install first:"
-        echo "    sudo bash -c \"\$(wget -qLO- https://github.com/therepos/proxmox/raw/main/apps/setup-llama.sh)\""
-        return 1
-    fi
+    LLM_DATA=""
+    [[ -f "$LLM_ENV" ]] && LLM_DATA="$(cat "$LLM_ENV")"
+    [[ -n "$(llm_val LLAMA_API_KEY)" ]] || llm_from_vm || return 1
     local key ip port model ctx base
     key="$(llm_val LLAMA_API_KEY)"; ip="$(llm_val LAN_IP)"; port="$(llm_val PORT)"
     model="$(llm_val MODEL_ALIAS)"; ctx="$(llm_val CTX)"
@@ -1376,7 +1540,7 @@ action_local_llm() {
         read -rp "  GPU VM IP address (shown by 'setup-llama.sh > Status'): " ip </dev/tty
     fi
     [[ -n "$key" && -n "$ip" && -n "$port" && -n "$model" ]] \
-        || fail "The local LLM settings file is incomplete. Re-run setup-llama.sh Install in the GPU VM."
+        || fail "The local LLM settings are incomplete. In the GPU VM, run setup-llama.sh and choose Install."
     base="http://${ip}:${port}/v1"
 
     info "Checking the local model at ${base}..."
@@ -1435,7 +1599,7 @@ else
     echo "    - your phone with Telegram installed"
 fi
 menu "Install" "Status" "Logs" "Update" "Backup to file" "Backup to GitHub|nightly" \
-    "AI provider|or key" "Local LLM|use the GPU VM" "Telegram" "Google|Gmail, Calendar" \
+    "AI provider|or key" "Local LLM|install or use one on the GPU VM" "Telegram" "Google|Gmail, Calendar" \
     "Google consent pages" "Dashboard login" "Sandbox|own computer for web browsing" "Uninstall"
 echo ""
 
