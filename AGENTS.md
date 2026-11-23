@@ -80,6 +80,12 @@ App data (`/mnt/sec/apps`) belongs to `setup-backup.sh` (restic, to a USB drive 
 Re-downloadable data (models, caches) is excluded via `EXCLUDES` and left in place by a restore.
 Google Drive is not offered: rclone's shared Google client is being retired and own client IDs are too technical.
 
+`setup-hermes.sh` > Local LLM runs the latest `setup-llama.sh` inside the GPU VM through the QEMU guest agent
+(systemd unit `hermes-llama`), so `setup-llama.sh` updates on its own. Keep its interface or change both together:
+`install -y` runs unattended and exits 10 when the VM needs a reboot (setup-hermes restarts it and runs again),
+settings stay in `/etc/llama/env` (`LLAMA_API_KEY`, `LAN_IP`, `PORT`, `MODEL_ALIAS`, `CTX`), and with
+`LLM_CALLER=hermes` it prints no API key.
+
 ## Documentation
 
 - Script header: shebang; bootstrap (installers and tools); `# Purpose:` in one line; a fence. Optional
