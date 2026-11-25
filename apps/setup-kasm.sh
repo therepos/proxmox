@@ -262,7 +262,7 @@ wd_check(){
   load_env "$WD_CONF"; load_env "$MAIL_CONF"
   [[ -n "${KASM_REGISTRATION_TOKEN:-}" ]] || fail "No token saved. Run setup-kasm and choose Token watchdog."
   command -v docker >/dev/null 2>&1 || fail "Docker not found."
-  local now c dir ctr f placed since logs n base at fix
+  local now c dir ctr f placed since logs fix
   now="$(date +%s)"
   fix="Copy the Component Registration Token from Kasm Admin > Settings > Global, run setup-kasm, choose Token watchdog > Change token."
   for c in "${WD_COMPONENTS[@]}"; do
@@ -290,19 +290,6 @@ wd_check(){
       wd_alert "$ctr" "Kasm rejected the saved registration token." "$fix"
     fi
   done
-  # Any Kasm container restarting 10+ times in an hour is looping, whatever the cause
-  while IFS= read -r ctr; do
-    [[ -n "$ctr" ]] || continue
-    n="$(docker inspect -f '{{.RestartCount}}' "$ctr" 2>/dev/null || true)"; [[ "$n" =~ ^[0-9]+$ ]] || continue
-    base="$(st_get "restarts_$ctr")"; at="$(st_get "restarts_at_$ctr")"
-    if [[ -z "$base" || -z "$at" ]] || (( n < base )); then
-      st_set "restarts_$ctr" "$n"; st_set "restarts_at_$ctr" "$now"
-    elif (( now - at >= 3600 )); then
-      (( n - base >= 10 )) && wd_alert "$ctr" "It restarted $(( n - base )) times in the last hour." \
-        "See why with: docker logs --tail 50 $ctr"
-      st_set "restarts_$ctr" "$n"; st_set "restarts_at_$ctr" "$now"
-    fi
-  done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep '^kasm_' || true)
   return 0
 }
 
@@ -344,7 +331,7 @@ EOF
 }
 wd_disable(){
   systemctl disable --now "$WD_UNIT.timer" >/dev/null 2>&1 || true
-  rm -f "$UNIT_DIR/$WD_UNIT.service" "$UNIT_DIR/$WD_UNIT.timer"
+  rm -f "${UNIT_DIR:?}/${WD_UNIT:?}.service" "${UNIT_DIR:?}/${WD_UNIT:?}.timer"
   systemctl daemon-reload 2>/dev/null || true
   ok "Watchdog off."
 }
@@ -409,7 +396,7 @@ uninstall_kasm(){
 
   if [[ -f "$UNIT_DIR/$WD_UNIT.timer" || -d "$WD_CONF_DIR" ]]; then
     wd_disable
-    rm -rf "$WD_CONF_DIR" "$WD_STATE_DIR"
+    rm -rf "${WD_CONF_DIR:?}" "${WD_STATE_DIR:?}"
     ok "Token watchdog removed (alert email settings kept: $MAIL_CONF)."
   fi
 
