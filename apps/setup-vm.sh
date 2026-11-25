@@ -295,10 +295,7 @@ step_webmin() {
 }
 
 step_docker() {
-    if command -v docker &>/dev/null; then
-        ok "Docker is already installed. Skipping."
-        return 0
-    fi
+    # Always run: setup-docker.sh skips the install when Docker is present and turns on its restart watchdog
     run_remote setup-docker.sh
     # setup-docker.sh doesn't manage user groups; do it here so the invoking
     # user can run docker without sudo.
